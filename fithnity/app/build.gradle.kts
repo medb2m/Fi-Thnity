@@ -16,6 +16,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Expose MapTiler API Key to the app
+        buildConfigField("String", "MAPTILER_API_KEY", project.findProperty("MAPTILER_API_KEY") as String? ?: "\"\"")
     }
 
     buildTypes {
@@ -36,6 +39,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -73,6 +77,14 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.1")
     // Material Icons Extended for modern icons
     implementation("androidx.compose.material:material-icons-extended:1.6.0")
+    // Navigation Compose
+    implementation("androidx.navigation:navigation-compose:2.7.5")
+    // Coil for image loading
+    implementation("io.coil-kt:coil-compose:2.5.0")
+    // MapLibre for maps
+    implementation("org.maplibre.gl:android-sdk:11.0.0")
+    // Location services
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 }
 
 // Apply Google Services plugin for Firebase

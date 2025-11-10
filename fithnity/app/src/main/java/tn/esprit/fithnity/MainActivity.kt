@@ -5,18 +5,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.navigation.compose.rememberNavController
 import com.google.firebase.auth.FirebaseAuth
 import tn.esprit.fithnity.ui.AuthScreen
 import tn.esprit.fithnity.ui.theme.FithnityTheme
 import tn.esprit.fithnity.ui.components.AlertBanner
 import tn.esprit.fithnity.ui.components.AlertType
+import tn.esprit.fithnity.ui.navigation.FiThnityBottomNavigation
+import tn.esprit.fithnity.ui.navigation.FiThnityNavGraph
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,54 +23,56 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FithnityTheme {
-                var userName by remember { mutableStateOf<String?>(null) }
-                var needsEmailVerification by remember { mutableStateOf(false) }
-
-                if (userName == null) {
-                    AuthScreen(onAuthSuccess = { name, needsVerification ->
-                        userName = name
-                        needsEmailVerification = needsVerification
-                    })
-                } else {
-                    WelcomeScreen(
-                        userName = userName!!,
-                        needsEmailVerification = needsEmailVerification,
-                        onLogout = {
-                            // Sign out from Firebase
-                            FirebaseAuth.getInstance().signOut()
-                            // Clear local user state
-                            userName = null
-                            needsEmailVerification = false
-                        }
-                    )
-                }
+                FiThnityApp()
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Main App Container
+ * Handles authentication state and navigation
+ */
 @Composable
-fun WelcomeScreen(
-    userName: String,
-    needsEmailVerification: Boolean = false,
+fun FiThnityApp() {
+    var isAuthenticated by remember { mutableStateOf(false) }
+    var needsEmailVerification by remember { mutableStateOf(false) }
+
+    if (!isAuthenticated) {
+        // Show Authentication Screen
+        AuthScreen(onAuthSuccess = { name, needsVerification ->
+            isAuthenticated = true
+            needsEmailVerification = needsVerification
+        })
+    } else {
+        // Show Main App with Navigation
+        MainAppScreen(
+            needsEmailVerification = needsEmailVerification,
+            onLogout = {
+                // Sign out from Firebase
+                FirebaseAuth.getInstance().signOut()
+                // Clear authentication state
+                isAuthenticated = false
+                needsEmailVerification = false
+            }
+        )
+    }
+}
+
+/**
+ * Main App Screen with Bottom Navigation
+ */
+@Composable
+fun MainAppScreen(
+    needsEmailVerification: Boolean,
     onLogout: () -> Unit
 ) {
+    val navController = rememberNavController()
     var showAlert by remember { mutableStateOf(needsEmailVerification) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Fi Thnity") },
-                actions = {
-                    IconButton(onClick = onLogout) {
-                        Icon(
-                            imageVector = Icons.Default.ExitToApp,
-                            contentDescription = "Logout"
-                        )
-                    }
-                }
-            )
+        bottomBar = {
+            FiThnityBottomNavigation(navController = navController)
         }
     ) { paddingValues ->
         Box(
@@ -79,37 +80,16 @@ fun WelcomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Main content
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "Welcome, $userName!",
-                        style = MaterialTheme.typography.headlineMedium
-                    )
-                    Button(onClick = onLogout) {
-                        Icon(
-                            imageVector = Icons.Default.ExitToApp,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("Logout")
-                    }
-                }
-            }
+            // Navigation Graph
+            FiThnityNavGraph(
+                navController = navController,
+                onLogout = onLogout
+            )
 
-            // Alert banner at the top
+            // Email Verification Alert
             if (showAlert) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     AlertBanner(
                         message = "Please verify your email to access all features",

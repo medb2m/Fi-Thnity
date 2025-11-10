@@ -7,10 +7,20 @@
         <domain includeSubdomains="true">127.0.0.1</domain>
     </domain-config>
 
-    <!-- For production, use HTTPS only -->
+    <!-- Trust system certificates for HTTPS (MapTiler, Firebase, etc.) -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
+            <certificates src="user" />
         </trust-anchors>
     </base-config>
+
+    <!-- Explicitly trust MapTiler API -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.maptiler.com</domain>
+        <domain includeSubdomains="true">maptiler.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
 </network-security-config>
