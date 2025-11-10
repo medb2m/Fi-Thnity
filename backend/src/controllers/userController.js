@@ -1,0 +1,279 @@
+import User from '../models/User.js';
+import Ride from '../models/Ride.js';
+
+/**
+ * Get current user profile
+ * GET /api/users/profile
+ */
+export const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-__v');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Update user profile
+ * PUT /api/users/profile
+ */
+export const updateProfile = async (req, res) => {
+  try {
+    const { name, bio, photoUrl, currentLocation } = req.body;
+
+    const updates = {};
+    if (name) updates.name = name;
+    if (bio !== undefined) updates.bio = bio;
+    if (photoUrl !== undefined) updates.photoUrl = photoUrl;
+    if (currentLocation) updates.currentLocation = currentLocation;
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select('-__v');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: user
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Update user location
+ * PUT /api/users/location
+ */
+export const updateLocation = async (req, res) => {
+  try {
+    const { latitude, longitude, address } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        $set: {
+          currentLocation: {
+            latitude,
+            longitude,
+            address: address || '',
+            timestamp: new Date()
+          }
+        }
+      },
+      { new: true }
+    ).select('currentLocation');
+
+    res.json({
+      success: true,
+      message: 'Location updated successfully',
+      data: user.currentLocation
+    });
+  } catch (error) {
+    console.error('Update location error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating location',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get user statistics
+ * GET /api/users/stats
+ */
+export const getUserStats = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    const activeRides = await Ride.countDocuments({
+      user: req.user._id,
+      status: 'ACTIVE'
+    });
+
+    const completedRides = await Ride.countDocuments({
+      user: req.user._id,
+      status: 'COMPLETED'
+    });
+
+    res.json({
+      success: true,
+      data: {
+        rating: user.rating,
+        totalRides: user.totalRides,
+        activeRides,
+        completedRides,
+        isVerified: user.isVerified
+      }
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching statistics',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get user by ID (public profile)
+ * GET /api/users/:userId
+ */
+export const getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId)
+      .select('name photoUrl rating totalRides isVerified');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get all users (admin only - used in admin panel)
+ * GET /api/users
+ */
+export const getAllUsers = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const users = await User.find()
+      .select('-__v')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await User.countDocuments();
+
+    res.json({
+      success: true,
+      data: users,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Get all users error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching users',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Register or update user with Firebase phone (phone/Firebase sign in)
+ * POST /api/users/firebase
+ * Requires: firebaseUid, phoneNumber, name
+ */
+export const firebaseRegisterOrUpdate = async (req, res) => {
+  try {
+    const { firebaseUid, phoneNumber, email, photoUrl } = req.body;
+    let { name } = req.body;
+
+    // Validate required fields
+    if (!firebaseUid || !phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'firebaseUid and phoneNumber are required.'
+      });
+    }
+
+    // Provide default name if not provided or empty
+    if (!name || name.trim() === '') {
+      name = 'User';
+    }
+
+    // Find user by firebaseUid or phoneNumber
+    let user = await User.findOne({ $or: [ { firebaseUid }, { phoneNumber } ] });
+    if (user) {
+      // Update existing
+      user.name = name;
+      user.phoneNumber = phoneNumber;
+      user.authType = 'firebase';
+      if (email) user.email = email;
+      if (photoUrl !== undefined) user.photoUrl = photoUrl;
+      user.isVerified = true;
+      await user.save();
+    } else {
+      // Create new
+      user = await User.create({
+        firebaseUid,
+        phoneNumber,
+        name,
+        authType: 'firebase',
+        email,
+        photoUrl,
+        isVerified: true
+      });
+    }
+    // (Optional: generate a JWT or just return user for now)
+    res.status(200).json({
+      success: true,
+      message: user.wasNew ? 'User created' : 'User updated',
+      data: user.getPublicProfile ? user.getPublicProfile() : user // fallback if no .getPublicProfile
+    });
+  } catch (error) {
+    console.error('Firebase register error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error in firebase register/update',
+      error: error.message
+    });
+  }
+};

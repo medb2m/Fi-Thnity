@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - Fi Thnity Admin</title>
+    <%- include('./styles.ejs') %>
+</head>
+<body>
+    <div class="header">
+        <h1>🚗 Fi Thnity Admin Panel</h1>
+        <div class="subtitle">Save Time, Save Tunisia</div>
+    </div>
+
+    <nav class="nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/users" class="active">Users</a>
+        <a href="/admin/rides">Rides</a>
+        <a href="/admin/posts">Community Posts</a>
+        <a href="/admin/logout" style="margin-left: auto;">Logout</a>
+    </nav>
+
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h2 style="color: #006D9C; margin: 0;">Users Management</h2>
+            <button class="btn btn-primary" onclick="openCreateModal()">+ Add New User</button>
+        </div>
+
+        <!-- Success/Error Messages -->
+        <% if (typeof message !== 'undefined' && message) { %>
+            <div class="alert alert-success"><%= message %></div>
+        <% } %>
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Rating</th>
+                        <th>Total Rides</th>
+                        <th>Status</th>
+                        <th>Joined</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (users.length === 0) { %>
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: #999; padding: 2rem;">
+                                No users found. Click "Add New User" to create one.
+                            </td>
+                        </tr>
+                    <% } else { %>
+                        <% users.forEach(user => { %>
+                            <tr>
+                                <td><%= user.name || 'N/A' %></td>
+                                <td><%= user.email || 'N/A' %></td>
+                                <td><%= user.phoneNumber || 'N/A' %></td>
+                                <td>⭐ <%= (user.rating || 0).toFixed(1) %></td>
+                                <td><%= user.totalRides || 0 %></td>
+                                <td>
+                                    <span class="badge <%= user.isActive ? 'badge-success' : 'badge-warning' %>">
+                                        <%= user.isActive ? 'Active' : 'Inactive' %>
+                                    </span>
+                                </td>
+                                <td><%= new Date(user.createdAt).toLocaleDateString() %></td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-primary btn-sm" onclick="openEditModal('<%= user._id %>', '<%= user.name %>', '<%= user.email || '' %>', '<%= user.phoneNumber || '' %>', <%= user.isActive %>)">Edit</button>
+                                        <form method="POST" action="/admin/users/<%= user._id %>/delete" style="display: inline;">
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this user? This action cannot be undone.')">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    <% } %>
+                </tbody>
+            </table>
+
+            <% if (pagination.pages > 1) { %>
+                <div class="pagination">
+                    <% for (let i = 1; i <= pagination.pages; i++) { %>
+                        <a href="?page=<%= i %>" class="<%= i === pagination.page ? 'active' : '' %>"><%= i %></a>
+                    <% } %>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div id="createModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New User</h2>
+                <span class="close" onclick="closeCreateModal()">&times;</span>
+            </div>
+            <form method="POST" action="/admin/users/create">
+                <div class="form-group">
+                    <label for="name">Name *</label>
+                    <input type="text" id="name" name="name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email *</label>
+                    <input type="email" id="email" name="email" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password *</label>
+                    <input type="password" id="password" name="password" class="form-control" minlength="6" required>
+                    <small style="color: #666;">Minimum 6 characters, must include uppercase, lowercase, and number</small>
+                </div>
+                <div class="form-group">
+                    <label for="phoneNumber">Phone Number (Optional)</label>
+                    <input type="tel" id="phoneNumber" name="phoneNumber" class="form-control" placeholder="+216 XX XXX XXX">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="isActive" value="true" checked> Active User
+                    </label>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn" onclick="closeCreateModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Create User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit User</h2>
+                <span class="close" onclick="closeEditModal()">&times;</span>
+            </div>
+            <form method="POST" id="editForm">
+                <div class="form-group">
+                    <label for="editName">Name *</label>
+                    <input type="text" id="editName" name="name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="editEmail">Email *</label>
+                    <input type="email" id="editEmail" name="email" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="editPhoneNumber">Phone Number</label>
+                    <input type="tel" id="editPhoneNumber" name="phoneNumber" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="editIsActive" name="isActive" value="true"> Active User
+                    </label>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn" onclick="closeEditModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Update User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Create Modal Functions
+        function openCreateModal() {
+            document.getElementById('createModal').style.display = 'block';
+        }
+
+        function closeCreateModal() {
+            document.getElementById('createModal').style.display = 'none';
+        }
+
+        // Edit Modal Functions
+        function openEditModal(id, name, email, phoneNumber, isActive) {
+            document.getElementById('editName').value = name;
+            document.getElementById('editEmail').value = email;
+            document.getElementById('editPhoneNumber').value = phoneNumber;
+            document.getElementById('editIsActive').checked = isActive;
+            document.getElementById('editForm').action = '/admin/users/' + id + '/update';
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const createModal = document.getElementById('createModal');
+            const editModal = document.getElementById('editModal');
+            if (event.target == createModal) {
+                closeCreateModal();
+            }
+            if (event.target == editModal) {
+                closeEditModal();
+            }
+        }
+
+        // Auto-hide alerts after 5 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

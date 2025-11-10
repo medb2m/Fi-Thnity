@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - Fi Thnity Admin</title>
+    <%- include('./styles.ejs') %>
+</head>
+<body>
+    <div class="header">
+        <h1>🚗 Fi Thnity Admin Panel</h1>
+        <div class="subtitle">Save Time, Save Tunisia</div>
+    </div>
+
+    <nav class="nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/users">Users</a>
+        <a href="/admin/rides">Rides</a>
+        <a href="/admin/posts" class="active">Community Posts</a>
+        <a href="/admin/logout" style="margin-left: auto;">Logout</a>
+    </nav>
+
+    <div class="container">
+        <h2 style="color: #006D9C; margin-bottom: 1.5rem;">Community Posts Management</h2>
+
+        <!-- Success/Error Messages -->
+        <% if (typeof message !== 'undefined' && message) { %>
+            <div class="alert alert-success"><%= message %></div>
+        <% } %>
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Content</th>
+                        <th>Type</th>
+                        <th>Likes</th>
+                        <th>Comments</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (posts.length === 0) { %>
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: #999; padding: 2rem;">
+                                No posts found.
+                            </td>
+                        </tr>
+                    <% } else { %>
+                        <% posts.forEach(post => { %>
+                            <tr>
+                                <td><%= post.user?.name || 'Unknown' %></td>
+                                <td><%= post.content.substring(0, 50) %><%= post.content.length > 50 ? '...' : '' %></td>
+                                <td><span class="badge badge-info"><%= post.postType %></span></td>
+                                <td><%= post.likesCount %></td>
+                                <td><%= post.commentsCount %></td>
+                                <td><span class="badge <%= post.isActive ? 'badge-success' : 'badge-warning' %>"><%= post.isActive ? 'Active' : 'Deleted' %></span></td>
+                                <td><%= new Date(post.createdAt).toLocaleDateString() %></td>
+                                <td>
+                                    <% if (post.isActive) { %>
+                                        <form method="POST" action="/admin/posts/<%= post._id %>/delete" style="display: inline;">
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this post?')">Delete</button>
+                                        </form>
+                                    <% } %>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    <% } %>
+                </tbody>
+            </table>
+
+            <% if (pagination.pages > 1) { %>
+                <div class="pagination">
+                    <% for (let i = 1; i <= pagination.pages; i++) { %>
+                        <a href="?page=<%= i %>" class="<%= i === pagination.page ? 'active' : '' %>"><%= i %></a>
+                    <% } %>
+                </div>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>

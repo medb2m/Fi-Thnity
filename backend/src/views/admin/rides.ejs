@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - Fi Thnity Admin</title>
+    <%- include('./styles.ejs') %>
+</head>
+<body>
+    <div class="header">
+        <h1>🚗 Fi Thnity Admin Panel</h1>
+        <div class="subtitle">Save Time, Save Tunisia</div>
+    </div>
+
+    <nav class="nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/users">Users</a>
+        <a href="/admin/rides" class="active">Rides</a>
+        <a href="/admin/posts">Community Posts</a>
+        <a href="/admin/logout" style="margin-left: auto;">Logout</a>
+    </nav>
+
+    <div class="container">
+        <h2 style="color: #006D9C; margin-bottom: 1.5rem;">Rides Management</h2>
+
+        <!-- Success/Error Messages -->
+        <% if (typeof message !== 'undefined' && message) { %>
+            <div class="alert alert-success"><%= message %></div>
+        <% } %>
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Type</th>
+                        <th>Transport</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (rides.length === 0) { %>
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: #999; padding: 2rem;">
+                                No rides found.
+                            </td>
+                        </tr>
+                    <% } else { %>
+                        <% rides.forEach(ride => { %>
+                            <tr>
+                                <td><%= ride.user?.name || 'Unknown' %></td>
+                                <td><span class="badge <%= ride.rideType === 'REQUEST' ? 'badge-danger' : 'badge-info' %>"><%= ride.rideType %></span></td>
+                                <td><%= ride.transportType %></td>
+                                <td><%= ride.origin.address.substring(0, 30) %>...</td>
+                                <td><%= ride.destination.address.substring(0, 30) %>...</td>
+                                <td><span class="badge <%= ride.status === 'ACTIVE' ? 'badge-success' : 'badge-warning' %>"><%= ride.status %></span></td>
+                                <td><%= new Date(ride.createdAt).toLocaleDateString() %></td>
+                                <td>
+                                    <form method="POST" action="/admin/rides/<%= ride._id %>/delete" style="display: inline;">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Cancel this ride?')">Cancel</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    <% } %>
+                </tbody>
+            </table>
+
+            <% if (pagination.pages > 1) { %>
+                <div class="pagination">
+                    <% for (let i = 1; i <= pagination.pages; i++) { %>
+                        <a href="?page=<%= i %>" class="<%= i === pagination.page ? 'active' : '' %>"><%= i %></a>
+                    <% } %>
+                </div>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>
