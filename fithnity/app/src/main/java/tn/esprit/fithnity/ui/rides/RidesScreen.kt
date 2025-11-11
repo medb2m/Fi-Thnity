@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import tn.esprit.fithnity.ui.theme.*
+import androidx.compose.ui.res.stringResource
+import tn.esprit.fithnity.R
 
 /**
  * Rides Screen showing list of offers and demands
@@ -34,7 +36,7 @@ fun RidesScreen(
     ) {
         // Header
         Text(
-            text = "Active Rides",
+            text = stringResource(R.string.active_rides),
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = TextPrimary
@@ -50,7 +52,7 @@ fun RidesScreen(
             FilterChip(
                 selected = selectedFilter == RideFilter.ALL,
                 onClick = { selectedFilter = RideFilter.ALL },
-                label = { Text("All") },
+                label = { Text(stringResource(R.string.all)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.List,
@@ -68,7 +70,7 @@ fun RidesScreen(
             FilterChip(
                 selected = selectedFilter == RideFilter.REQUESTS,
                 onClick = { selectedFilter = RideFilter.REQUESTS },
-                label = { Text("Requests") },
+                label = { Text(stringResource(R.string.requests)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
@@ -86,7 +88,7 @@ fun RidesScreen(
             FilterChip(
                 selected = selectedFilter == RideFilter.OFFERS,
                 onClick = { selectedFilter = RideFilter.OFFERS },
-                label = { Text("Offers") },
+                label = { Text(stringResource(R.string.offers)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Share,
@@ -146,7 +148,7 @@ private fun EmptyRidesState() {
         Spacer(Modifier.height(24.dp))
 
         Text(
-            text = "No Active Rides",
+            text = stringResource(R.string.no_active_rides),
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = TextSecondary
@@ -155,7 +157,7 @@ private fun EmptyRidesState() {
         Spacer(Modifier.height(8.dp))
 
         Text(
-            text = "Be the first to offer or request a ride!",
+            text = stringResource(R.string.be_first_to_ride),
             fontSize = 15.sp,
             color = TextHint
         )
@@ -207,7 +209,7 @@ private fun RideCard(
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            text = if (ride.isOffer) "Offer" else "Request",
+                            text = if (ride.isOffer) stringResource(R.string.offer_ride) else stringResource(R.string.need_ride),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = if (ride.isOffer) Accent else Primary

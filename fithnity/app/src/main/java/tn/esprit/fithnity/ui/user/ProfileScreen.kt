@@ -9,7 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,8 +19,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
+import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
+import androidx.compose.ui.res.stringResource
+import tn.esprit.fithnity.R
 
 /**
  * User Profile Screen
@@ -29,15 +34,137 @@ import tn.esprit.fithnity.ui.theme.*
 fun ProfileScreen(
     navController: NavHostController,
     onLogout: () -> Unit,
-    modifier: Modifier = Modifier
+    userPreferences: UserPreferences,
+    modifier: Modifier = Modifier,
+    languageViewModel: tn.esprit.fithnity.ui.LanguageViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
+    val activity = LocalContext.current as? Activity
+    val currentLanguage by languageViewModel.currentLanguage.collectAsState()
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    
+    // Language selection dialog
+    if (showLanguageDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text(stringResource(R.string.choose_language)) },
+            text = {
+                Column {
+                    // System Default
+                    TextButton(
+                        onClick = {
+                            languageViewModel.changeLanguage("auto")
+                            showLanguageDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(stringResource(R.string.system_default))
+                            if (currentLanguage == "auto") {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Primary
+                                )
+                            }
+                        }
+                    }
+                    
+                    // English
+                    TextButton(
+                        onClick = {
+                            languageViewModel.changeLanguage("en")
+                            showLanguageDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(stringResource(R.string.english))
+                            if (currentLanguage == "en") {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Primary
+                                )
+                            }
+                        }
+                    }
+                    
+                    // French
+                    TextButton(
+                        onClick = {
+                            languageViewModel.changeLanguage("fr")
+                            showLanguageDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(stringResource(R.string.french))
+                            if (currentLanguage == "fr") {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Primary
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLanguageDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Background)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp)
     ) {
+        // Back Button Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = { navController.navigateUp() }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = stringResource(R.string.back),
+                    tint = Primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            Text(
+                text = stringResource(R.string.profile),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+        }
+        
+        // Profile Content
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp)
+        ) {
         // Profile Header Card
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -100,7 +227,7 @@ fun ProfileScreen(
                     // Rating
                     StatItem(
                         value = "4.8",
-                        label = "Rating",
+                        label = stringResource(R.string.rating),
                         color = Primary
                     )
 
@@ -115,7 +242,7 @@ fun ProfileScreen(
                     // Total Rides
                     StatItem(
                         value = "0",
-                        label = "Total Rides",
+                        label = stringResource(R.string.total_rides),
                         color = Accent
                     )
                 }
@@ -127,7 +254,7 @@ fun ProfileScreen(
         // Menu Options
         MenuOption(
             icon = Icons.Default.Edit,
-            title = "Edit Profile",
+            title = stringResource(R.string.edit_profile),
             onClick = { navController.navigate(Screen.EditProfile.route) }
         )
 
@@ -135,15 +262,23 @@ fun ProfileScreen(
 
         MenuOption(
             icon = Icons.Default.History,
-            title = "My Rides",
+            title = stringResource(R.string.my_rides),
             onClick = { /* TODO: Navigate to My Rides */ }
         )
 
         Spacer(Modifier.height(12.dp))
 
         MenuOption(
+            icon = Icons.Default.Language,
+            title = stringResource(R.string.language),
+            onClick = { showLanguageDialog = true }
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        MenuOption(
             icon = Icons.Default.Settings,
-            title = "Settings",
+            title = stringResource(R.string.settings),
             onClick = { navController.navigate(Screen.Settings.route) }
         )
 
@@ -151,7 +286,7 @@ fun ProfileScreen(
 
         MenuOption(
             icon = Icons.Default.Help,
-            title = "Help & Support",
+            title = stringResource(R.string.help_support),
             onClick = { /* TODO: Open help */ }
         )
 
@@ -176,13 +311,14 @@ fun ProfileScreen(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "Logout",
+                text = stringResource(R.string.logout),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
             )
         }
 
         Spacer(Modifier.height(32.dp))
+        }
     }
 }
 

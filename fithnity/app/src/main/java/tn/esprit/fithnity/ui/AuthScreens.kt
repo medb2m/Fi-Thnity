@@ -1,6 +1,7 @@
 package tn.esprit.fithnity.ui
 
 import android.app.Activity
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -33,18 +35,41 @@ import com.google.firebase.FirebaseException
 import com.google.firebase.auth.*
 import kotlinx.coroutines.launch
 import tn.esprit.fithnity.R
+import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.components.GlassButton
 import tn.esprit.fithnity.ui.components.GlassCard
 import tn.esprit.fithnity.ui.components.GlassTextField
 import tn.esprit.fithnity.ui.components.GradientButton
 import tn.esprit.fithnity.ui.theme.*
+import tn.esprit.fithnity.utils.LocaleManager
+import android.util.Log
+
+/**
+ * Extension function to find Activity from Context
+ */
+private fun Context.findActivity(): Activity? {
+    var context = this
+    while (context is android.content.ContextWrapper) {
+        if (context is Activity) return context
+        context = context.baseContext
+    }
+    return null
+}
 
 @Composable
 fun AuthScreen(
+    userPreferences: UserPreferences,
     onAuthSuccess: (name: String, needsEmailVerification: Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: AuthViewModel = viewModel()
+    viewModel: AuthViewModel = viewModel(),
+    languageViewModel: LanguageViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    
+    // Observe language changes
+    val currentLanguage by languageViewModel.currentLanguage.collectAsState()
+    
     var isLogin by remember { mutableStateOf(true) }
     var isPhoneMode by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
@@ -52,7 +77,6 @@ fun AuthScreen(
     var password by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     val state by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     // Firebase phone auth dialog state
@@ -68,6 +92,19 @@ fun AuthScreen(
             val successState = state as AuthUiState.Success
             val user = successState.user
             val needsVerification = successState.needsEmailVerification
+            
+            // Save auth token from viewModel (will be set by viewModel after successful login)
+            val token = viewModel.getAuthToken()
+            if (token != null) {
+                userPreferences.saveAuthData(
+                    token = token,
+                    userId = user._id,
+                    userName = user.name,
+                    userEmail = user.email,
+                    needsVerification = needsVerification
+                )
+            }
+            
             onAuthSuccess(
                 user.name ?: user.phoneNumber ?: user.email ?: "User",
                 needsVerification
@@ -148,6 +185,65 @@ fun AuthScreen(
                 )
             )
     ) {
+        // Language Switcher in top-right corner with system bar spacing
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(top = 16.dp, end = 16.dp, start = 16.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // English Button
+            FilledTonalButton(
+                onClick = {
+                    Log.d("AuthScreen", "EN button clicked!")
+                    languageViewModel.changeLanguage("en")
+                },
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = if (currentLanguage == "en" || currentLanguage == "auto") 
+                        Color.White.copy(alpha = 0.3f) 
+                    else 
+                        Color.White.copy(alpha = 0.1f)
+                ),
+                modifier = Modifier.height(36.dp)
+            ) {
+                Text(
+                    text = "EN",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = if (currentLanguage == "en" || currentLanguage == "auto") 
+                        FontWeight.Bold 
+                    else 
+                        FontWeight.Normal
+                )
+            }
+            
+            // French Button
+            FilledTonalButton(
+                onClick = {
+                    Log.d("AuthScreen", "FR button clicked!")
+                    languageViewModel.changeLanguage("fr")
+                },
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = if (currentLanguage == "fr") 
+                        Color.White.copy(alpha = 0.3f) 
+                    else 
+                        Color.White.copy(alpha = 0.1f)
+                ),
+                modifier = Modifier.height(36.dp)
+            ) {
+                Text(
+                    text = "FR",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = if (currentLanguage == "fr") 
+                        FontWeight.Bold 
+                    else 
+                        FontWeight.Normal
+                )
+            }
+        }
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -172,14 +268,14 @@ fun AuthScreen(
 
             // Slogan
             Text(
-                text = "Save Time, Save Tunisia",
+                text = stringResource(id = if (isLogin) R.string.login else R.string.register),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
 
             Text(
                 text = "Your smart carpooling companion",
@@ -207,7 +303,7 @@ fun AuthScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Email, null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Email")
+                                Text(stringResource(R.string.email))
                             }
                         },
                         colors = FilterChipDefaults.filterChipColors(
@@ -223,7 +319,7 @@ fun AuthScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Phone, null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Phone")
+                                Text(stringResource(R.string.phone))
                             }
                         },
                         colors = FilterChipDefaults.filterChipColors(
@@ -264,8 +360,8 @@ fun AuthScreen(
                     GlassTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = "Name",
-                        placeholder = "Enter your name",
+                        label = stringResource(R.string.name),
+                        placeholder = stringResource(R.string.name),
                         leadingIcon = Icons.Default.Person
                     )
 
@@ -274,7 +370,7 @@ fun AuthScreen(
                     GlassTextField(
                         value = phone,
                         onValueChange = { phone = it },
-                        label = "Phone Number",
+                        label = stringResource(R.string.phone_number),
                         placeholder = "+216 XX XXX XXX",
                         supportingText = "Include country code (e.g., +216)",
                         leadingIcon = Icons.Default.Phone,
@@ -293,7 +389,7 @@ fun AuthScreen(
                     Spacer(Modifier.height(24.dp))
 
                     GlassButton(
-                        text = "Continue with Phone",
+                        text = stringResource(R.string.phone),
                         onClick = {
                             phoneAuthError = null
                             val formattedPhone = if (!phone.startsWith("+")) {
@@ -347,8 +443,8 @@ fun AuthScreen(
                         GlassTextField(
                             value = name,
                             onValueChange = { name = it },
-                            label = "Name",
-                            placeholder = "Enter your name",
+                            label = stringResource(R.string.name),
+                            placeholder = stringResource(R.string.name),
                             leadingIcon = Icons.Default.Person
                         )
                         Spacer(Modifier.height(16.dp))
@@ -357,7 +453,7 @@ fun AuthScreen(
                     GlassTextField(
                         value = email,
                         onValueChange = { email = it },
-                        label = "Email",
+                        label = stringResource(R.string.email),
                         placeholder = "your@email.com",
                         leadingIcon = Icons.Default.Email,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
@@ -368,8 +464,8 @@ fun AuthScreen(
                     GlassTextField(
                         value = password,
                         onValueChange = { password = it },
-                        label = "Password",
-                        placeholder = "Enter your password",
+                        label = stringResource(R.string.password),
+                        placeholder = stringResource(R.string.password),
                         leadingIcon = Icons.Default.Lock,
                         isPassword = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
@@ -378,7 +474,7 @@ fun AuthScreen(
                     Spacer(Modifier.height(24.dp))
 
                     GlassButton(
-                        text = if (isLogin) "Login" else "Register",
+                        text = stringResource(if (isLogin) R.string.login else R.string.register),
                         onClick = {
                             if (isLogin) viewModel.loginWithEmail(email, password)
                             else viewModel.registerWithEmail(name, email, password)
@@ -407,7 +503,7 @@ fun AuthScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            if (isLogin) "Don't have an account? Register" else "Already have an account? Login",
+                            stringResource(if (isLogin) R.string.dont_have_account else R.string.already_have_account),
                             color = Primary,
                             fontWeight = FontWeight.Medium
                         )

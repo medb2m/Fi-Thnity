@@ -26,6 +26,11 @@ class AuthViewModel : ViewModel() {
 
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+    
+    // Store auth token for persistence
+    private var authToken: String? = null
+    
+    fun getAuthToken(): String? = authToken
 
     fun registerWithEmail(name: String, email: String, password: String) = viewModelScope.launch {
         Log.d(TAG, "registerWithEmail: Starting registration for email: $email")
@@ -55,6 +60,8 @@ class AuthViewModel : ViewModel() {
             Log.d(TAG, "loginWithEmail: Response received - success: ${resp.success}")
             if (resp.success && resp.data != null) {
                 Log.d(TAG, "loginWithEmail: Login successful for user: ${resp.data.user._id}")
+                // Store auth token for persistence
+                authToken = resp.data.token
                 val needsVerification = resp.data.needsVerification ?: false
                 Log.d(TAG, "loginWithEmail: Email verification needed: $needsVerification")
                 _uiState.value = AuthUiState.Success(resp.data.user, needsVerification)
@@ -110,5 +117,6 @@ class AuthViewModel : ViewModel() {
 
     fun resetState() {
         _uiState.value = AuthUiState.Idle
+        authToken = null
     }
 }

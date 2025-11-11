@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
+import androidx.compose.ui.res.stringResource
+import tn.esprit.fithnity.R
 
 /**
  * Community Screen showing social feed
@@ -41,7 +43,7 @@ fun CommunityScreen(
         ) {
             // Header
             Text(
-                text = "Community",
+                text = stringResource(R.string.community),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -79,7 +81,7 @@ fun CommunityScreen(
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
-                contentDescription = "New Post"
+                contentDescription = stringResource(R.string.new_post)
             )
         }
     }
@@ -107,7 +109,7 @@ private fun EmptyCommunityState() {
         Spacer(Modifier.height(24.dp))
 
         Text(
-            text = "No Posts Yet",
+            text = stringResource(R.string.no_posts_yet),
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = TextSecondary
@@ -116,7 +118,7 @@ private fun EmptyCommunityState() {
         Spacer(Modifier.height(8.dp))
 
         Text(
-            text = "Be the first to share something with the community!",
+            text = stringResource(R.string.be_first_to_share),
             fontSize = 15.sp,
             color = TextHint
         )
@@ -218,7 +220,7 @@ private fun PostCard(
                 PostAction(
                     icon = Icons.Default.Favorite,
                     count = post.likes,
-                    label = "Like",
+                    label = stringResource(R.string.like),
                     color = Accent
                 )
 
@@ -226,7 +228,7 @@ private fun PostCard(
                 PostAction(
                     icon = Icons.Default.Comment,
                     count = post.comments,
-                    label = "Comment",
+                    label = stringResource(R.string.comment),
                     color = Primary
                 )
 
@@ -234,7 +236,7 @@ private fun PostCard(
                 PostAction(
                     icon = Icons.Default.Share,
                     count = post.shares,
-                    label = "Share",
+                    label = stringResource(R.string.share),
                     color = Secondary
                 )
             }

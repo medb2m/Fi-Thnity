@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Fi Thnity</string>
+    
+    <!-- Common -->
+    <string name="welcome">Bienvenue</string>
+    <string name="welcome_back">Bon retour ! 👋</string>
+    <string name="search_placeholder">Rechercher des trajets, lieux...</string>
+    <string name="profile">Profil</string>
+    <string name="settings">Paramètres</string>
+    <string name="logout">Déconnexion</string>
+    <string name="save">Enregistrer</string>
+    <string name="cancel">Annuler</string>
+    <string name="edit">Modifier</string>
+    <string name="delete">Supprimer</string>
+    <string name="back">Retour</string>
+    <string name="ok">OK</string>
+    <string name="yes">Oui</string>
+    <string name="no">Non</string>
+    
+    <!-- Authentication -->
+    <string name="login">Connexion</string>
+    <string name="register">Inscription</string>
+    <string name="email">E-mail</string>
+    <string name="password">Mot de passe</string>
+    <string name="confirm_password">Confirmer le mot de passe</string>
+    <string name="name">Nom</string>
+    <string name="phone_number">Numéro de téléphone</string>
+    <string name="forgot_password">Mot de passe oublié ?</string>
+    <string name="dont_have_account">Vous n\'avez pas de compte ?</string>
+    <string name="already_have_account">Vous avez déjà un compte ?</string>
+    <string name="sign_up">S\'inscrire</string>
+    <string name="sign_in">Se connecter</string>
+    <string name="or_continue_with">Ou continuer avec</string>
+    <string name="google">Google</string>
+    <string name="facebook">Facebook</string>
+    <string name="phone">Téléphone</string>
+    <string name="email_verification_sent">E-mail de vérification envoyé !</string>
+    <string name="check_email">Veuillez vérifier votre e-mail pour activer votre compte</string>
+    <string name="login_success">Connexion réussie</string>
+    <string name="register_success">Inscription réussie</string>
+    
+    <!-- Navigation -->
+    <string name="home">Accueil</string>
+    <string name="rides">Trajets</string>
+    <string name="community">Communauté</string>
+    <string name="chat">Discussion</string>
+    <string name="menu">Menu</string>
+    
+    <!-- Profile -->
+    <string name="edit_profile">Modifier le profil</string>
+    <string name="my_rides">Mes trajets</string>
+    <string name="help_support">Aide &amp; Support</string>
+    <string name="rating">Évaluation</string>
+    <string name="total_rides">Trajets totaux</string>
+    
+    <!-- Settings -->
+    <string name="manage_preferences">Gérer vos préférences d\'application</string>
+    <string name="account">Compte</string>
+    <string name="preferences">Préférences</string>
+    <string name="support">Support</string>
+    <string name="privacy_security">Confidentialité &amp; Sécurité</string>
+    <string name="notification_preferences">Préférences de notification</string>
+    <string name="push_notifications">Notifications push</string>
+    <string name="push_notifications_desc">Recevoir des notifications sur les trajets</string>
+    <string name="location_services">Services de localisation</string>
+    <string name="location_services_desc">Autoriser l\'application à accéder à votre position</string>
+    <string name="dark_mode">Mode sombre</string>
+    <string name="dark_mode_desc">Passer au thème sombre</string>
+    <string name="sound_effects">Effets sonores</string>
+    <string name="sound_effects_desc">Activer les notifications sonores</string>
+    <string name="language">Langue</string>
+    <string name="language_desc">Changer la langue de l\'application</string>
+    <string name="help_center">Centre d\'aide</string>
+    <string name="help_center_desc">Obtenir de l\'aide pour les problèmes courants</string>
+    <string name="about">À propos</string>
+    <string name="about_desc">Version et informations de l\'application</string>
+    <string name="rate_us">Évaluez-nous</string>
+    <string name="rate_us_desc">Partagez vos commentaires</string>
+    <string name="terms_conditions">Conditions d\'utilisation</string>
+    <string name="terms_conditions_desc">Lire nos conditions d\'utilisation</string>
+    <string name="app_version">Fi Thnity v1.0.0</string>
+    
+    <!-- Rides -->
+    <string name="active_rides">Trajets actifs</string>
+    <string name="all">Tous</string>
+    <string name="requests">Demandes</string>
+    <string name="offers">Offres</string>
+    <string name="no_active_rides">Aucun trajet actif</string>
+    <string name="be_first_to_ride">Soyez le premier à offrir ou demander un trajet !</string>
+    <string name="offer_ride">Offrir un trajet</string>
+    <string name="need_ride">Besoin d\'un trajet</string>
+    <string name="i_need_ride">J\'ai besoin d\'un trajet</string>
+    <string name="i_offer_ride">J\'offre un trajet</string>
+    
+    <!-- Community -->
+    <string name="no_posts_yet">Aucune publication pour le moment</string>
+    <string name="be_first_to_share">Soyez le premier à partager quelque chose avec la communauté !</string>
+    <string name="new_post">Nouvelle publication</string>
+    <string name="like">J\'aime</string>
+    <string name="comment">Commenter</string>
+    <string name="share">Partager</string>
+    
+    <!-- Language Options -->
+    <string name="english">English</string>
+    <string name="french">Français</string>
+    <string name="system_default">Par défaut du système</string>
+    <string name="choose_language">Choisir la langue</string>
+    <string name="language_changed">Langue modifiée avec succès</string>
+    
+    <!-- Errors and Messages -->
+    <string name="error_occurred">Une erreur s\'est produite</string>
+    <string name="network_error">Erreur réseau. Veuillez vérifier votre connexion.</string>
+    <string name="invalid_email">Adresse e-mail invalide</string>
+    <string name="password_too_short">Le mot de passe doit contenir au moins 6 caractères</string>
+    <string name="passwords_dont_match">Les mots de passe ne correspondent pas</string>
+    <string name="field_required">Ce champ est obligatoire</string>
+    <string name="logout_confirm">Êtes-vous sûr de vouloir vous déconnecter ?</string>
+    
+    <!-- Location -->
+    <string name="tunis_tunisia">Tunis, Tunisie</string>
+    
+    <!-- Quick Actions -->
+    <string name="quick_actions">Actions rapides</string>
+    <string name="no_active_rides_short">Aucun trajet actif</string>
+    <string name="ask_for_a_ride">Demander un trajet</string>
+    <string name="offer_a_ride">Offrir un trajet</string>
+    <string name="post_an_accident">Signaler un accident</string>
+</resources>
+

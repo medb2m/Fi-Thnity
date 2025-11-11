@@ -1,5 +1,7 @@
 package tn.esprit.fithnity.ui.home
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -26,18 +28,35 @@ import tn.esprit.fithnity.BuildConfig
 import tn.esprit.fithnity.ui.components.GlassCard
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
+import androidx.compose.ui.res.stringResource
+import tn.esprit.fithnity.R
 
 /**
- * Modern Home Screen with MapLibre and Quick Actions
+ * Modern Home Screen with MapLibre
+ * Welcome banner only shows on first app load
  */
 @Composable
 fun HomeScreen(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showWelcomeBanner: Boolean = false,
+    onWelcomeBannerDismissed: () -> Unit = {}
 ) {
     // MapLibre is initialized in FiThnityApplication.onCreate()
     // Track if map is loading
     var mapLoadError by remember { mutableStateOf(false) }
+    // Track welcome banner visibility (local state)
+    var bannerVisible by remember(showWelcomeBanner) { mutableStateOf(showWelcomeBanner) }
+    
+    // Auto-dismiss welcome banner after 3 seconds if it should be shown
+    LaunchedEffect(showWelcomeBanner) {
+        if (showWelcomeBanner) {
+            kotlinx.coroutines.delay(3000L)
+            bannerVisible = false
+            // Notify parent that banner has been dismissed
+            onWelcomeBannerDismissed()
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         // Fallback background when map fails to load
@@ -102,97 +121,53 @@ fun HomeScreen(
             }
         }
 
-        // Top Glass Card with Welcome Message
+        // Top Glass Card with Welcome Message (with auto-dismiss animation)
+        // Only shows on first app load
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(20.dp)
         ) {
-            GlassCard(
-                modifier = Modifier.fillMaxWidth()
+            AnimatedVisibility(
+                visible = bannerVisible,
+                enter = fadeIn(animationSpec = tween(300)) + 
+                        expandVertically(animationSpec = tween(300)),
+                exit = fadeOut(animationSpec = tween(300)) + 
+                       shrinkVertically(animationSpec = tween(300))
             ) {
-                // Welcome Message
-                Text(
-                    text = "Welcome back! 👋",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                // Location Display
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = Primary
-                    )
-                    Spacer(Modifier.width(8.dp))
+                    // Welcome Message
                     Text(
-                        text = "Tunis, Tunisia",
-                        fontSize = 15.sp,
-                        color = TextSecondary
+                        text = stringResource(R.string.welcome_back),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
                     )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Location Display
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = Primary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.tunis_tunisia),
+                            fontSize = 15.sp,
+                            color = TextSecondary
+                        )
+                    }
                 }
             }
 
-            Spacer(Modifier.weight(1f))
-
-            // Quick Actions Card at Bottom
-            GlassCard(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Quick Actions",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                // Action Buttons Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Need a Ride Button
-                    QuickActionButton(
-                        title = "I Need a Ride",
-                        icon = Icons.Default.Search,
-                        color = Primary,
-                        onClick = {
-                            navController.navigate(Screen.DemandRide.route)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    // Offer a Ride Button
-                    QuickActionButton(
-                        title = "I Offer a Ride",
-                        icon = Icons.Default.Share,
-                        color = Accent,
-                        onClick = {
-                            navController.navigate(Screen.OfferRide.route)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                // Active Rides Indicator
-                Text(
-                    text = "No active rides",
-                    fontSize = 14.sp,
-                    color = TextTertiary,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
         }
 
         // Floating Action Button for Current Location

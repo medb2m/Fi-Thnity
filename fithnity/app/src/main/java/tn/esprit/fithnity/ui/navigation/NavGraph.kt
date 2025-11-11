@@ -14,11 +14,14 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.home.HomeScreen
 import tn.esprit.fithnity.ui.rides.RidesScreen
 import tn.esprit.fithnity.ui.user.ProfileScreen
+import tn.esprit.fithnity.ui.user.SettingsScreen
 import tn.esprit.fithnity.ui.community.CommunityScreen
 import tn.esprit.fithnity.ui.theme.*
+import tn.esprit.fithnity.ui.LanguageViewModel
 
 /**
  * Main Navigation Graph for the app
@@ -29,7 +32,11 @@ fun FiThnityNavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     startDestination: String = Screen.Home.route,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    isFirstHomeVisit: Boolean = true,
+    onFirstHomeVisitComplete: () -> Unit = {},
+    userPreferences: UserPreferences,
+    languageViewModel: LanguageViewModel
 ) {
     NavHost(
         navController = navController,
@@ -62,7 +69,11 @@ fun FiThnityNavGraph(
     ) {
         // Home Screen
         composable(Screen.Home.route) {
-            HomeScreen(navController = navController)
+            HomeScreen(
+                navController = navController,
+                showWelcomeBanner = isFirstHomeVisit,
+                onWelcomeBannerDismissed = onFirstHomeVisitComplete
+            )
         }
 
         // Rides Screen
@@ -89,7 +100,9 @@ fun FiThnityNavGraph(
         composable(Screen.Profile.route) {
             ProfileScreen(
                 navController = navController,
-                onLogout = onLogout
+                onLogout = onLogout,
+                userPreferences = userPreferences,
+                languageViewModel = languageViewModel
             )
         }
 
@@ -103,13 +116,12 @@ fun FiThnityNavGraph(
             )
         }
 
-        // Settings Screen (placeholder for now)
+        // Settings Screen
         composable(Screen.Settings.route) {
-            // TODO: Implement SettingsScreen
-            PlaceholderScreen(
-                title = "Settings",
-                message = "Settings feature coming soon!",
-                navController = navController
+            SettingsScreen(
+                navController = navController,
+                userPreferences = userPreferences,
+                languageViewModel = languageViewModel
             )
         }
 

@@ -81,8 +81,8 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun FithnityTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Disable dynamic color to always use brand colors
-    dynamicColor: Boolean = false,
+    // Dynamic color is now enabled by default for Material 3
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
