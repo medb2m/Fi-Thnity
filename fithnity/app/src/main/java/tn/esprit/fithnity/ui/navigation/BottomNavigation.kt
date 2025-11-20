@@ -45,29 +45,47 @@ fun FiThnityBottomNavigation(
     val currentDestination = navBackStackEntry?.destination
     val items = Screen.bottomNavItems
 
+    // Bottom Navigation Structure (simplified - no transparent wrapper)
+    // Surface contains navigation items, floating button extends above it
+    // Box height increased to accommodate FAB extending 45.dp above (84 + 45 = 129.dp)
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(80.dp)
+            .height(129.dp)
+            .background(Color.White)
     ) {
-        // Main bottom bar
+        // White spacing area at the bottom (24.dp) - drawn first so it's behind
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .align(Alignment.BottomCenter)
+                .background(Color.White)
+                .zIndex(0f)
+        )
+        
+        // Main bottom bar - navigation items aligned to bottom
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(60.dp)
-                .align(Alignment.BottomCenter),
-            color = Surface,
-            shadowElevation = 8.dp,
+                .align(Alignment.BottomCenter)
+                .offset(y = (-24).dp)
+                .zIndex(1f),
+            color = Color.Black,
+            shadowElevation = 0.dp,
             tonalElevation = 0.dp
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp),
+                    .background(Color.White)
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                // First two items
+                // First two items - independent, aligned to bottom
                 items.take(2).forEach { screen ->
                     val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                     BottomNavItem(
@@ -90,7 +108,7 @@ fun FiThnityBottomNavigation(
                 // Spacer for the floating button
                 Spacer(modifier = Modifier.weight(1f))
                 
-                // Last two items
+                // Last two items - independent, aligned to bottom
                 items.takeLast(2).forEach { screen ->
                     val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                     BottomNavItem(
@@ -112,19 +130,20 @@ fun FiThnityBottomNavigation(
             }
         }
         
-        // Floating center button (3D effect)
+        // Floating center button (3D effect) - half extends above navigation bar
+        // Button is 90.dp, so 45.dp should be above the Surface top
         FloatingActionButton(
             onClick = onQuickActionsClick,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = (-10).dp)
-                .size(70.dp)
+                .offset(y = (-45).dp)
+                .size(90.dp)
                 .shadow(
                     elevation = 12.dp,
                     shape = CircleShape,
                     spotColor = Primary.copy(alpha = 0.5f)
                 )
-                .zIndex(1f),
+                .zIndex(2f),
             shape = CircleShape,
             containerColor = Primary,
             elevation = FloatingActionButtonDefaults.elevation(
@@ -136,7 +155,7 @@ fun FiThnityBottomNavigation(
             Icon(
                 imageVector = Icons.Default.Bolt,
                 contentDescription = stringResource(R.string.quick_actions),
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(42.dp),
                 tint = Color.White
             )
         }
@@ -151,27 +170,19 @@ private fun BottomNavItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    IconButton(
-        onClick = onClick,
+    Box(
         modifier = modifier
+            .clickable(onClick = onClick)
+            .wrapContentHeight(Alignment.Top),
+        contentAlignment = Alignment.TopCenter
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                modifier = Modifier.size(24.dp),
-                tint = if (selected) Primary else TextSecondary
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (selected) Primary else TextSecondary
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            modifier = Modifier
+                .size(85.dp),
+            tint = if (selected) Primary else TextSecondary
+        )
     }
 }
 

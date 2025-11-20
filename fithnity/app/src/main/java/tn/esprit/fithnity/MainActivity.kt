@@ -173,22 +173,28 @@ fun MainAppScreen(
     
     val showTopBar = currentRoute !in routesWithoutTopBar
     var showQuickActionsSheet by remember { mutableStateOf(false) }
+    
+    // Testing flag: Set to false to hide bottom navigation
+    val showBottomNavigation = remember { true }
 
     if (showQuickActionsSheet) {
         QuickActionsSheet(onDismiss = { showQuickActionsSheet = false })
     }
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.White,
         topBar = {
             if (showTopBar) {
                 FiThnityTopBar(navController = navController)
             }
         },
         bottomBar = {
-            FiThnityBottomNavigation(
-                navController = navController,
-                onQuickActionsClick = { showQuickActionsSheet = true }
-            )
+            if (showBottomNavigation) {
+                FiThnityBottomNavigation(
+                    navController = navController,
+                    onQuickActionsClick = { showQuickActionsSheet = true }
+                )
+            }
         }
     ) { paddingValues ->
         Box(

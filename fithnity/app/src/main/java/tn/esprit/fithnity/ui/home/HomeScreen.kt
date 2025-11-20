@@ -58,7 +58,9 @@ fun HomeScreen(
         }
     }
 
+    // Map is the bottom layer - takes entire background
     Box(modifier = modifier.fillMaxSize()) {
+        // Bottom Layer: Map (full background)
         // Fallback background when map fails to load
         Box(
             modifier = Modifier
@@ -73,7 +75,7 @@ fun HomeScreen(
                 )
         )
 
-        // Background Map using MapLibre
+        // Bottom Layer: Map (full background)
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
@@ -87,7 +89,7 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Map loading error indicator
+        // Layer 1: Map loading error indicator (on top of map)
         if (mapLoadError) {
             Box(
                 modifier = Modifier
@@ -121,6 +123,7 @@ fun HomeScreen(
             }
         }
 
+        // Layer 2: Welcome banner (on top of map)
         // Top Glass Card with Welcome Message (with auto-dismiss animation)
         // Only shows on first app load
         Column(
@@ -170,7 +173,7 @@ fun HomeScreen(
 
         }
 
-        // Floating Action Button for Current Location
+        // Layer 3: Floating Action Button for Current Location (on top of map)
         FloatingActionButton(
             onClick = {
                 // TODO: Center map on current location

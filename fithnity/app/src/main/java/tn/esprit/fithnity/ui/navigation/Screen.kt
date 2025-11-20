@@ -14,7 +14,7 @@ sealed class Screen(
 ) {
     // Bottom Navigation Screens
     object Home : Screen(
-        route = "home",
+            route = "home",
         title = "Home",
         icon = Icons.Default.Home
     )
