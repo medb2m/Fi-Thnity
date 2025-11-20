@@ -36,7 +36,7 @@ fun FiThnityTopBar(
     
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
+        color = Surface,
         tonalElevation = 3.dp
     ) {
         Column(

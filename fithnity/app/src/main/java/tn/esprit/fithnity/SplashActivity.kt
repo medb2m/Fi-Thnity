@@ -38,3 +38,4 @@ class SplashActivity : ComponentActivity() {
 }
 
 
+

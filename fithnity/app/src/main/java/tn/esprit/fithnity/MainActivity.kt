@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            FithnityTheme(dynamicColor = true) {
+            FithnityTheme {
                 FiThnityApp(
                     userPreferences = userPreferences,
                     languageViewModel = languageViewModel
@@ -186,24 +186,10 @@ fun MainAppScreen(
         },
         bottomBar = {
             FiThnityBottomNavigation(
-                navController = navController
+                navController = navController,
+                onQuickActionsClick = { showQuickActionsSheet = true }
             )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showQuickActionsSheet = true },
-                modifier = Modifier,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Bolt,
-                    contentDescription = stringResource(R.string.quick_actions),
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        },
-        floatingActionButtonPosition = FabPosition.Center
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier

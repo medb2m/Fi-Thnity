@@ -155,7 +155,7 @@ fun AuthScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                     if (phoneAuthError != null) {
-                        Text(phoneAuthError!!, color = MaterialTheme.colorScheme.error)
+                        Text(phoneAuthError!!, color = Error)
                     }
                     if (isFirebaseLoading) CircularProgressIndicator()
                 }

@@ -17,12 +17,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -31,66 +33,143 @@ import tn.esprit.fithnity.R
 import tn.esprit.fithnity.ui.theme.*
 
 /**
- * Modern Bottom App Bar with Material 3 FAB cradle
+ * Custom Bottom Navigation Bar with Floating FAB
  */
 @Composable
 fun FiThnityBottomNavigation(
     navController: NavHostController,
+    onQuickActionsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val items = Screen.bottomNavItems
 
-    BottomAppBar(
-        modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 3.dp,
-        windowInsets = BottomAppBarDefaults.windowInsets
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(80.dp)
     ) {
-        val items = Screen.bottomNavItems
-        
-        items.forEachIndexed { index, screen ->
-            // Add space for FAB in the middle
-            if (index == 2) {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-            
-            val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-            
-            NavigationBarItem(
-                modifier = Modifier.weight(1f),
-                icon = {
-                    Icon(
-                        imageVector = screen.icon!!,
-                        contentDescription = null,
-                        modifier = Modifier.size(26.dp)
+        // Main bottom bar
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .align(Alignment.BottomCenter),
+            color = Surface,
+            shadowElevation = 8.dp,
+            tonalElevation = 0.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // First two items
+                items.take(2).forEach { screen ->
+                    val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                    BottomNavItem(
+                        icon = screen.icon!!,
+                        label = screen.title,
+                        selected = isSelected,
+                        onClick = {
+                            navController.navigate(screen.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
                     )
-                },
-                label = { 
-                    Text(
-                        text = screen.title,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
-                    ) 
-                },
-                selected = isSelected,
-                onClick = {
-                    navController.navigate(screen.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                }
+                
+                // Spacer for the floating button
+                Spacer(modifier = Modifier.weight(1f))
+                
+                // Last two items
+                items.takeLast(2).forEach { screen ->
+                    val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                    BottomNavItem(
+                        icon = screen.icon!!,
+                        label = screen.title,
+                        selected = isSelected,
+                        onClick = {
+                            navController.navigate(screen.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+        
+        // Floating center button (3D effect)
+        FloatingActionButton(
+            onClick = onQuickActionsClick,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-10).dp)
+                .size(70.dp)
+                .shadow(
+                    elevation = 12.dp,
+                    shape = CircleShape,
+                    spotColor = Primary.copy(alpha = 0.5f)
                 )
+                .zIndex(1f),
+            shape = CircleShape,
+            containerColor = Primary,
+            elevation = FloatingActionButtonDefaults.elevation(
+                defaultElevation = 8.dp,
+                pressedElevation = 12.dp,
+                hoveredElevation = 10.dp
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Default.Bolt,
+                contentDescription = stringResource(R.string.quick_actions),
+                modifier = Modifier.size(32.dp),
+                tint = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+private fun BottomNavItem(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                modifier = Modifier.size(24.dp),
+                tint = if (selected) Primary else TextSecondary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) Primary else TextSecondary
             )
         }
     }
@@ -104,12 +183,12 @@ fun QuickActionsSheet(onDismiss: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
+        containerColor = Surface,
+        contentColor = TextPrimary,
         dragHandle = { 
             Surface(
                 modifier = Modifier.padding(vertical = 8.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                color = TextSecondary.copy(alpha = 0.4f),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Box(
@@ -131,7 +210,7 @@ fun QuickActionsSheet(onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                color = MaterialTheme.colorScheme.onSurface
+                color = TextPrimary
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -182,7 +261,7 @@ private fun QuickActionItem(
             Surface(
                 modifier = Modifier.size(48.dp),
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer
+                color = PrimaryLight.copy(alpha = 0.2f)
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -191,7 +270,7 @@ private fun QuickActionItem(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        tint = Primary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -202,18 +281,18 @@ private fun QuickActionItem(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = TextPrimary
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = TextSecondary
                 )
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                tint = TextSecondary.copy(alpha = 0.5f),
                 modifier = Modifier.size(20.dp)
             )
         }
