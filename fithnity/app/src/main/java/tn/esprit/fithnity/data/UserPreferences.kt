@@ -36,6 +36,7 @@ class UserPreferences(context: Context) {
         private const val KEY_USER_ID = "user_id"
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_USER_EMAIL = "user_email"
+        private const val KEY_USER_PHOTO_URL = "user_photo_url"
         private const val KEY_LANGUAGE = "app_language"
         private const val KEY_NEEDS_VERIFICATION = "needs_verification"
 
@@ -64,6 +65,27 @@ class UserPreferences(context: Context) {
             apply()
         }
         _authToken.value = token
+    }
+
+    /**
+     * Save user photo URL
+     */
+    fun savePhotoUrl(photoUrl: String?) {
+        prefs.edit().apply {
+            if (photoUrl != null) {
+                putString(KEY_USER_PHOTO_URL, photoUrl)
+            } else {
+                remove(KEY_USER_PHOTO_URL)
+            }
+            apply()
+        }
+    }
+
+    /**
+     * Get stored user photo URL
+     */
+    fun getPhotoUrl(): String? {
+        return prefs.getString(KEY_USER_PHOTO_URL, null)
     }
 
     /**
@@ -103,9 +125,20 @@ class UserPreferences(context: Context) {
 
     /**
      * Check if user is logged in
+     * Checks both stored token and Firebase current user
      */
     fun isLoggedIn(): Boolean {
-        return getAuthToken() != null
+        // Check if we have a stored token (for email auth)
+        val hasStoredToken = getAuthToken() != null
+        
+        // Check if Firebase has a current user (for phone/Firebase auth)
+        val hasFirebaseUser = try {
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null
+        } catch (e: Exception) {
+            false
+        }
+        
+        return hasStoredToken || hasFirebaseUser
     }
 
     /**
@@ -117,6 +150,7 @@ class UserPreferences(context: Context) {
             remove(KEY_USER_ID)
             remove(KEY_USER_NAME)
             remove(KEY_USER_EMAIL)
+            remove(KEY_USER_PHOTO_URL)
             remove(KEY_NEEDS_VERIFICATION)
             apply()
         }

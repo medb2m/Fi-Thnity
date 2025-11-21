@@ -1,5 +1,11 @@
 import User from '../models/User.js';
 import Ride from '../models/Ride.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Get current user profile
@@ -25,6 +31,68 @@ export const getProfile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Upload profile picture
+ * POST /api/users/profile/upload-picture
+ */
+export const uploadProfilePicture = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    // Get the uploaded file path
+    const filePath = `/uploads/profile-pictures/${req.file.filename}`;
+    const photoUrl = `${req.protocol}://${req.get('host')}${filePath}`;
+
+    // Get current user to delete old picture if exists
+    const currentUser = await User.findById(req.user._id);
+    if (currentUser && currentUser.photoUrl) {
+      // Extract filename from old photoUrl
+      const oldPath = currentUser.photoUrl.split('/uploads/profile-pictures/')[1];
+      if (oldPath) {
+        const oldFilePath = path.join(__dirname, '../uploads/profile-pictures', oldPath);
+        // Delete old file if it exists
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      }
+    }
+
+    // Update user with new photoUrl
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: { photoUrl } },
+      { new: true, runValidators: true }
+    ).select('-__v');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile picture uploaded successfully',
+      data: {
+        photoUrl: user.photoUrl
+      }
+    });
+  } catch (error) {
+    console.error('Upload profile picture error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading profile picture',
       error: error.message
     });
   }

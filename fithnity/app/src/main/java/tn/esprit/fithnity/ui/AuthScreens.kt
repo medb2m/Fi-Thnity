@@ -103,6 +103,27 @@ fun AuthScreen(
                     userEmail = user.email,
                     needsVerification = needsVerification
                 )
+                // Also save photoUrl if available
+                user.photoUrl?.let { photoUrl ->
+                    userPreferences.savePhotoUrl(photoUrl)
+                }
+            } else {
+                // For Firebase phone auth, if no token in viewModel, check Firebase current user
+                // and save basic info to preferences
+                val firebaseUser = FirebaseAuth.getInstance().currentUser
+                if (firebaseUser != null) {
+                    // Save basic user info even without token (Firebase maintains session)
+                    userPreferences.saveAuthData(
+                        token = "firebase_session", // Placeholder - Firebase maintains its own session
+                        userId = user._id,
+                        userName = user.name,
+                        userEmail = user.email ?: firebaseUser.email,
+                        needsVerification = needsVerification
+                    )
+                    user.photoUrl?.let { photoUrl ->
+                        userPreferences.savePhotoUrl(photoUrl)
+                    }
+                }
             }
             
             onAuthSuccess(
@@ -166,7 +187,10 @@ fun AuthScreen(
     // Sync user to backend if new Firebase login
     LaunchedEffect(firebaseUserForSync) {
         firebaseUserForSync?.let { user ->
-            viewModel.syncFirebaseUser(user, name)
+            // For login, use empty name (backend will preserve existing name or use default)
+            // For register, use the provided name
+            val userName = if (isLogin) "" else name.ifBlank { "User" }
+            viewModel.syncFirebaseUser(user, userName)
             firebaseUserForSync = null
         }
     }
@@ -357,15 +381,18 @@ fun AuthScreen(
 
                 // Phone authentication form
                 if (isPhoneMode) {
-                    GlassTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = stringResource(R.string.name),
-                        placeholder = stringResource(R.string.name),
-                        leadingIcon = Icons.Default.Person
-                    )
+                    // Show name field only for registration
+                    if (!isLogin) {
+                        GlassTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = stringResource(R.string.name),
+                            placeholder = stringResource(R.string.name),
+                            leadingIcon = Icons.Default.Person
+                        )
 
-                    Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(16.dp))
+                    }
 
                     GlassTextField(
                         value = phone,
@@ -389,9 +416,16 @@ fun AuthScreen(
                     Spacer(Modifier.height(24.dp))
 
                     GlassButton(
-                        text = stringResource(R.string.phone),
+                        text = stringResource(if (isLogin) R.string.login else R.string.register),
                         onClick = {
                             phoneAuthError = null
+                            
+                            // Validate name for registration
+                            if (!isLogin && name.isBlank()) {
+                                phoneAuthError = "Name is required for registration"
+                                return@GlassButton
+                            }
+                            
                             val formattedPhone = if (!phone.startsWith("+")) {
                                 if (phone.startsWith("216")) "+$phone" else "+216$phone"
                             } else phone
@@ -414,14 +448,48 @@ fun AuthScreen(
                                                 firebaseUserForSync = result.user
                                                 isFirebaseLoading = false
                                             }.addOnFailureListener { ex ->
-                                                phoneAuthError = ex.message
+                                                // Provide user-friendly error messages
+                                                val errorMessage = when {
+                                                    ex.message?.contains("network", ignoreCase = true) == true ||
+                                                    ex.message?.contains("unreachable", ignoreCase = true) == true ||
+                                                    ex.message?.contains("timeout", ignoreCase = true) == true -> {
+                                                        "Network error. Please check your internet connection."
+                                                    }
+                                                    else -> {
+                                                        ex.message ?: "Authentication failed. Please try again."
+                                                    }
+                                                }
+                                                phoneAuthError = errorMessage
                                                 isFirebaseLoading = false
                                             }
                                     }
 
                                     override fun onVerificationFailed(e: FirebaseException) {
-                                        phoneAuthError = e.message
+                                        // Provide user-friendly error messages
+                                        val errorMessage = e.message ?: ""
+                                        val friendlyMessage = when {
+                                            errorMessage.contains("network", ignoreCase = true) ||
+                                            errorMessage.contains("unreachable", ignoreCase = true) ||
+                                            errorMessage.contains("timeout", ignoreCase = true) ||
+                                            errorMessage.contains("Unable to resolve host", ignoreCase = true) ||
+                                            errorMessage.contains("No address associated", ignoreCase = true) -> {
+                                                "Network error. Please check your internet connection and try again."
+                                            }
+                                            errorMessage.contains("invalid", ignoreCase = true) &&
+                                            errorMessage.contains("phone", ignoreCase = true) -> {
+                                                "Invalid phone number format. Please use format: +216XXXXXXXX"
+                                            }
+                                            errorMessage.contains("too many", ignoreCase = true) ||
+                                            errorMessage.contains("quota", ignoreCase = true) -> {
+                                                "Too many requests. Please wait a moment and try again."
+                                            }
+                                            else -> {
+                                                errorMessage.ifEmpty { "Phone verification failed. Please try again." }
+                                            }
+                                        }
+                                        phoneAuthError = friendlyMessage
                                         isFirebaseLoading = false
+                                        Log.e("AuthScreen", "Phone verification failed: ${e.message}")
                                     }
 
                                     override fun onCodeSent(vId: String, token: PhoneAuthProvider.ForceResendingToken) {
@@ -434,7 +502,7 @@ fun AuthScreen(
                             PhoneAuthProvider.verifyPhoneNumber(options)
                         },
                         enabled = !isFirebaseLoading && state !is AuthUiState.Loading,
-                        icon = Icons.Default.Phone,
+                        icon = if (isLogin) Icons.Default.Login else Icons.Default.Phone,
                         isPrimary = true
                     )
                 } else {
@@ -496,18 +564,16 @@ fun AuthScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Switch between login/register
-                if (!isPhoneMode) {
-                    TextButton(
-                        onClick = { isLogin = !isLogin },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            stringResource(if (isLogin) R.string.dont_have_account else R.string.already_have_account),
-                            color = Primary,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                // Switch between login/register (for both email and phone modes)
+                TextButton(
+                    onClick = { isLogin = !isLogin },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        stringResource(if (isLogin) R.string.dont_have_account else R.string.already_have_account),
+                        color = Primary,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
 

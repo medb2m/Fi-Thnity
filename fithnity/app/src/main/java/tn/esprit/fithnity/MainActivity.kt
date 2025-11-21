@@ -108,12 +108,25 @@ class MainActivity : ComponentActivity() {
  */
 @Composable
 fun FiThnityApp(userPreferences: UserPreferences, languageViewModel: LanguageViewModel) {
-    // Check for existing authentication token
+    // Check for existing authentication token or Firebase current user
     // DEV: Bypass authentication if BYPASS_AUTH is true
     var isAuthenticated by remember { 
         mutableStateOf(MainActivity.BYPASS_AUTH || userPreferences.isLoggedIn()) 
     }
     var needsEmailVerification by remember { mutableStateOf(userPreferences.needsEmailVerification()) }
+    
+    // Verify Firebase session is still valid on app startup
+    LaunchedEffect(Unit) {
+        val firebaseUser = FirebaseAuth.getInstance().currentUser
+        if (firebaseUser != null && !isAuthenticated) {
+            // Firebase user exists but we're not authenticated - restore session
+            isAuthenticated = true
+        } else if (firebaseUser == null && isAuthenticated && userPreferences.getAuthToken() == "firebase_session") {
+            // Firebase session expired but we have placeholder token - clear auth
+            userPreferences.clearAuthData()
+            isAuthenticated = false
+        }
+    }
 
     if (!isAuthenticated) {
         // Show Authentication Screen

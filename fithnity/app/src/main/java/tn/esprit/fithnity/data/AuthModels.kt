@@ -42,7 +42,9 @@ data class UserInfo(
     val firebaseUid: String?,
     val photoUrl: String?,
     val isVerified: Boolean? = false,
-    val emailVerified: Boolean? = false
+    val emailVerified: Boolean? = false,
+    val rating: Double? = null,
+    val totalRides: Int? = null
 )
 
 // Firebase phone registration/sync
@@ -55,6 +57,8 @@ data class FirebaseRegisterRequest(
     val email: String? = null,
     val photoUrl: String? = null
 )
+
+
 
 
 

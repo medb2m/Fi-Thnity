@@ -55,6 +55,8 @@ app.use(cookieSession({
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
+// Serve uploaded profile pictures
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // View engine setup (for admin panel)
 app.set('view engine', 'ejs');

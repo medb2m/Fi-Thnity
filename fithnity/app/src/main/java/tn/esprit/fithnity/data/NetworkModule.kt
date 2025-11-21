@@ -33,7 +33,10 @@ object NetworkModule {
         .build()
 
     val authApi: AuthApiService get() = retrofit.create(AuthApiService::class.java)
+    val userApi: UserApiService get() = retrofit.create(UserApiService::class.java)
 }
+
+
 
 
 

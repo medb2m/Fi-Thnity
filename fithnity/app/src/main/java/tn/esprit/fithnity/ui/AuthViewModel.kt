@@ -103,6 +103,8 @@ class AuthViewModel : ViewModel() {
             Log.d(TAG, "syncFirebaseUser: Response received - success: ${resp.success}")
             if (resp.success && resp.data != null) {
                 Log.d(TAG, "syncFirebaseUser: Sync successful for user: ${resp.data._id}")
+                // Store the Firebase ID token for persistence
+                authToken = idToken
                 _uiState.value = AuthUiState.Success(resp.data)
             } else {
                 val errorMsg = resp.message ?: resp.error ?: "Firebase user sync failed"

@@ -3,24 +3,34 @@ import { body } from 'express-validator';
 import {
   getProfile,
   updateProfile,
+  uploadProfilePicture,
   updateLocation,
   getUserStats,
   getUserById,
   getAllUsers,
   firebaseRegisterOrUpdate
 } from '../controllers/userController.js';
-import { verifyFirebaseToken } from '../middleware/auth.js';
+import { verifyFirebaseToken, authenticate } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
+import upload from '../middleware/upload.js';
 
 const router = express.Router();
 
 // Get current user profile
-router.get('/profile', verifyFirebaseToken, getProfile);
+router.get('/profile', authenticate, getProfile);
+
+// Upload profile picture
+router.post(
+  '/profile/upload-picture',
+  authenticate,
+  upload.single('picture'),
+  uploadProfilePicture
+);
 
 // Update user profile
 router.put(
   '/profile',
-  verifyFirebaseToken,
+  authenticate,
   [
     body('name').optional().trim().isLength({ min: 2, max: 50 }),
     body('bio').optional().trim().isLength({ max: 150 }),
@@ -33,7 +43,7 @@ router.put(
 // Update user location
 router.put(
   '/location',
-  verifyFirebaseToken,
+  authenticate,
   [
     body('latitude').isFloat({ min: -90, max: 90 }),
     body('longitude').isFloat({ min: -180, max: 180 }),
@@ -44,7 +54,7 @@ router.put(
 );
 
 // Get user statistics
-router.get('/stats', verifyFirebaseToken, getUserStats);
+router.get('/stats', authenticate, getUserStats);
 
 // Get user by ID (public profile)
 router.get('/:userId', getUserById);
