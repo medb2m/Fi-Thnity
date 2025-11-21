@@ -41,6 +41,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var userPreferences: UserPreferences
     private val languageViewModel: LanguageViewModel by viewModels()
     
+    // DEV FLAG: Set to true to bypass authentication screens during development
+    companion object {
+        internal const val BYPASS_AUTH = false
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         android.util.Log.d(TAG, "=== MainActivity onCreate ===")
         super.onCreate(savedInstanceState)
@@ -104,7 +109,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun FiThnityApp(userPreferences: UserPreferences, languageViewModel: LanguageViewModel) {
     // Check for existing authentication token
-    var isAuthenticated by remember { mutableStateOf(userPreferences.isLoggedIn()) }
+    // DEV: Bypass authentication if BYPASS_AUTH is true
+    var isAuthenticated by remember { 
+        mutableStateOf(MainActivity.BYPASS_AUTH || userPreferences.isLoggedIn()) 
+    }
     var needsEmailVerification by remember { mutableStateOf(userPreferences.needsEmailVerification()) }
 
     if (!isAuthenticated) {

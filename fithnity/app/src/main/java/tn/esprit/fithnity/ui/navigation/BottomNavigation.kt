@@ -48,10 +48,12 @@ fun FiThnityBottomNavigation(
     // Bottom Navigation Structure (simplified - no transparent wrapper)
     // Surface contains navigation items, floating button extends above it
     // Box height increased to accommodate FAB extending 45.dp above (84 + 45 = 129.dp)
+    // Added navigationBarsPadding to respect system navigation buttons
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(129.dp)
+            .windowInsetsPadding(WindowInsets.navigationBars)
             .background(Color.White)
     ) {
         // White spacing area at the bottom (24.dp) - drawn first so it's behind
@@ -80,10 +82,9 @@ fun FiThnityBottomNavigation(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.White)
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 4.dp),
+                    .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // First two items - independent, aligned to bottom
                 items.take(2).forEach { screen ->
@@ -173,14 +174,14 @@ private fun BottomNavItem(
     Box(
         modifier = modifier
             .clickable(onClick = onClick)
-            .wrapContentHeight(Alignment.Top),
-        contentAlignment = Alignment.TopCenter
+            .fillMaxHeight(),
+        contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             modifier = Modifier
-                .size(85.dp),
+                .size(45.dp),
             tint = if (selected) Primary else TextSecondary
         )
     }
