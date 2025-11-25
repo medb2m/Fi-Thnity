@@ -30,6 +30,12 @@ class AuthViewModel : ViewModel() {
     // Store auth token for persistence
     private var authToken: String? = null
     
+    // DEV: Magic credentials to bypass backend authentication
+    companion object {
+        private const val MAGIC_EMAIL = "dev@fithnity.com"
+        private const val MAGIC_PASSWORD = "dev123"
+    }
+    
     fun getAuthToken(): String? = authToken
 
     fun registerWithEmail(name: String, email: String, password: String) = viewModelScope.launch {
@@ -55,6 +61,31 @@ class AuthViewModel : ViewModel() {
     fun loginWithEmail(email: String, password: String) = viewModelScope.launch {
         Log.d(TAG, "loginWithEmail: Starting login for email: $email")
         _uiState.value = AuthUiState.Loading
+        
+        // DEV: Check for magic credentials to bypass backend
+        if (email.equals(MAGIC_EMAIL, ignoreCase = true) && password == MAGIC_PASSWORD) {
+            Log.d(TAG, "loginWithEmail: Magic credentials detected - bypassing backend")
+            // Simulate a small delay for realistic UX
+            kotlinx.coroutines.delay(500)
+            
+            // Create a mock user and token
+            authToken = "dev_magic_token_${System.currentTimeMillis()}"
+            val mockUser = UserInfo(
+                _id = "dev_user_id",
+                name = "Dev User",
+                email = email,
+                phoneNumber = null,
+                firebaseUid = null,
+                photoUrl = null,
+                isVerified = true,
+                emailVerified = true
+            )
+            Log.d(TAG, "loginWithEmail: Magic login successful - navigating to home")
+            _uiState.value = AuthUiState.Success(mockUser, needsEmailVerification = false)
+            return@launch
+        }
+        
+        // Normal authentication flow
         try {
             val resp = api.login(LoginRequest(email, password))
             Log.d(TAG, "loginWithEmail: Response received - success: ${resp.success}")

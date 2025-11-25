@@ -21,7 +21,10 @@
     </nav>
 
     <div class="container">
-        <h2 style="color: #006D9C; margin-bottom: 1.5rem;">Rides Management</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h2 style="color: #006D9C; margin: 0;">Rides Management</h2>
+            <button onclick="showCreateForm()" class="btn btn-primary">+ Add New Ride</button>
+        </div>
 
         <!-- Success/Error Messages -->
         <% if (typeof message !== 'undefined' && message) { %>
@@ -30,6 +33,102 @@
         <% if (typeof error !== 'undefined' && error) { %>
             <div class="alert alert-danger"><%= error %></div>
         <% } %>
+
+        <!-- Create/Edit Ride Form Modal -->
+        <div id="rideFormModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <h3 id="formTitle">Add New Ride</h3>
+                <form id="rideForm" method="POST" action="">
+                    <input type="hidden" name="rideId" id="rideId">
+                    
+                    <div class="form-group">
+                        <label>User ID *</label>
+                        <input type="text" name="userId" id="userId" required placeholder="Enter user ID">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Ride Type *</label>
+                        <select name="rideType" id="rideType" required>
+                            <option value="OFFER">OFFER</option>
+                            <option value="REQUEST">REQUEST</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Transport Type *</label>
+                        <select name="transportType" id="transportType" required>
+                            <option value="PRIVATE_CAR">Personal Car</option>
+                            <option value="TAXI">Taxi</option>
+                            <option value="TAXI_COLLECTIF">Taxi Collectif</option>
+                            <option value="METRO">Metro</option>
+                            <option value="BUS">Bus</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Origin Address *</label>
+                            <input type="text" name="originAddress" id="originAddress" required placeholder="e.g., Lac 1, Tunis">
+                        </div>
+                        <div class="form-group">
+                            <label>Origin Latitude</label>
+                            <input type="number" step="any" name="originLatitude" id="originLatitude" placeholder="36.8065">
+                        </div>
+                        <div class="form-group">
+                            <label>Origin Longitude</label>
+                            <input type="number" step="any" name="originLongitude" id="originLongitude" placeholder="10.1815">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Destination Address *</label>
+                            <input type="text" name="destinationAddress" id="destinationAddress" required placeholder="e.g., Ariana">
+                        </div>
+                        <div class="form-group">
+                            <label>Destination Latitude</label>
+                            <input type="number" step="any" name="destinationLatitude" id="destinationLatitude" placeholder="36.8065">
+                        </div>
+                        <div class="form-group">
+                            <label>Destination Longitude</label>
+                            <input type="number" step="any" name="destinationLongitude" id="destinationLongitude" placeholder="10.1815">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Available Seats</label>
+                            <input type="number" name="availableSeats" id="availableSeats" min="1" max="8" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select name="status" id="status">
+                                <option value="ACTIVE">ACTIVE</option>
+                                <option value="MATCHED">MATCHED</option>
+                                <option value="COMPLETED">COMPLETED</option>
+                                <option value="CANCELLED">CANCELLED</option>
+                                <option value="EXPIRED">EXPIRED</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Expires At</label>
+                            <input type="datetime-local" name="expiresAt" id="expiresAt">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea name="notes" id="notes" rows="3" maxlength="200" placeholder="Optional notes..."></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <div class="card">
             <table>
@@ -63,7 +162,8 @@
                                 <td><span class="badge <%= ride.status === 'ACTIVE' ? 'badge-success' : 'badge-warning' %>"><%= ride.status %></span></td>
                                 <td><%= new Date(ride.createdAt).toLocaleDateString() %></td>
                                 <td>
-                                    <form method="POST" action="/admin/rides/<%= ride._id %>/delete" style="display: inline;">
+                                    <button onclick="editRide('<%= ride._id %>', '<%= ride.user?._id || '' %>', '<%= ride.rideType %>', '<%= ride.transportType %>', '<%= ride.origin.address %>', '<%= ride.origin.latitude %>', '<%= ride.origin.longitude %>', '<%= ride.destination.address %>', '<%= ride.destination.latitude %>', '<%= ride.destination.longitude %>', '<%= ride.availableSeats %>', '<%= ride.status %>', '<%= ride.expiresAt ? new Date(ride.expiresAt).toISOString().slice(0, 16) : '' %>', '<%= (ride.notes || '').replace(/'/g, "\\'") %>')" class="btn btn-info btn-sm">Edit</button>
+                                    <form method="POST" action="/admin/rides/<%= ride._id %>/delete" style="display: inline; margin-left: 5px;">
                                         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Cancel this ride?')">Cancel</button>
                                     </form>
                                 </td>
@@ -82,5 +182,128 @@
             <% } %>
         </div>
     </div>
+
+    <script>
+        function showCreateForm() {
+            document.getElementById('formTitle').textContent = 'Add New Ride';
+            document.getElementById('rideForm').action = '/admin/rides/create';
+            document.getElementById('rideForm').reset();
+            document.getElementById('rideId').value = '';
+            document.getElementById('status').value = 'ACTIVE';
+            document.getElementById('rideFormModal').style.display = 'block';
+        }
+
+        function editRide(rideId, userId, rideType, transportType, originAddress, originLat, originLng, destAddress, destLat, destLng, seats, status, expiresAt, notes) {
+            document.getElementById('formTitle').textContent = 'Edit Ride';
+            document.getElementById('rideForm').action = '/admin/rides/' + rideId + '/update';
+            document.getElementById('rideId').value = rideId;
+            document.getElementById('userId').value = userId;
+            document.getElementById('rideType').value = rideType;
+            document.getElementById('transportType').value = transportType;
+            document.getElementById('originAddress').value = originAddress;
+            document.getElementById('originLatitude').value = originLat || '';
+            document.getElementById('originLongitude').value = originLng || '';
+            document.getElementById('destinationAddress').value = destAddress;
+            document.getElementById('destinationLatitude').value = destLat || '';
+            document.getElementById('destinationLongitude').value = destLng || '';
+            document.getElementById('availableSeats').value = seats || 1;
+            document.getElementById('status').value = status;
+            document.getElementById('expiresAt').value = expiresAt || '';
+            document.getElementById('notes').value = notes || '';
+            document.getElementById('rideFormModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('rideFormModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('rideFormModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+    </script>
+
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 2rem;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 800px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .btn-info {
+            background-color: #17a2b8;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background-color: #138496;
+        }
+    </style>
 </body>
 </html>

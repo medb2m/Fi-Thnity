@@ -16,27 +16,33 @@ const locationSchema = new mongoose.Schema({
 }, { _id: false });
 
 const rideSchema = new mongoose.Schema({
+  // User reference (following User.js pattern)
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true
   },
+  // Firebase UID for mobile app authentication (following User.js pattern)
   firebaseUid: {
     type: String,
     required: true,
-    index: true
+    index: true,
+    sparse: true
   },
+  // Ride type: REQUEST (user needs a ride) or OFFER (user offers a ride)
   rideType: {
     type: String,
     enum: ['REQUEST', 'OFFER'],
     required: true,
     index: true
   },
+  // Transport type (matching mobile VehicleType: PERSONAL_CAR -> PRIVATE_CAR, TAXI -> TAXI)
   transportType: {
     type: String,
     enum: ['TAXI', 'TAXI_COLLECTIF', 'PRIVATE_CAR', 'METRO', 'BUS'],
-    required: true
+    required: true,
+    index: true
   },
   origin: {
     type: locationSchema,
@@ -51,6 +57,20 @@ const rideSchema = new mongoose.Schema({
     default: 1,
     min: 0,
     max: 8
+  },
+  // Departure date and time (when the ride will start)
+  departureDate: {
+    type: Date,
+    required: true,
+    index: true
+  },
+  // Price per person in TND (only for TAXI and TAXI_COLLECTIF, null for PRIVATE_CAR)
+  // Matching mobile: price is only set for VehicleType.TAXI
+  price: {
+    type: Number,
+    default: null,
+    min: 0,
+    max: 1000
   },
   status: {
     type: String,
@@ -93,10 +113,26 @@ rideSchema.virtual('isShareable').get(function() {
   return ['TAXI', 'TAXI_COLLECTIF', 'PRIVATE_CAR'].includes(this.transportType);
 });
 
-// Auto-set expiration time (2 hours from creation)
+// Auto-set expiration time (2 hours from departure date, or 2 hours from creation if no departure date)
 rideSchema.pre('save', function(next) {
   if (this.isNew && !this.expiresAt) {
-    this.expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
+    // If departureDate is set, expire 2 hours after departure
+    // Otherwise, expire 2 hours from now
+    const baseDate = this.departureDate || new Date();
+    this.expiresAt = new Date(baseDate.getTime() + 2 * 60 * 60 * 1000); // 2 hours
+  }
+  next();
+});
+
+// Validate that price is set for taxi rides
+rideSchema.pre('save', function(next) {
+  if (['TAXI', 'TAXI_COLLECTIF'].includes(this.transportType)) {
+    if (this.price == null || this.price <= 0) {
+      return next(new Error('Price is required for taxi rides'));
+    }
+  } else {
+    // For non-taxi rides, price should be null
+    this.price = null;
   }
   next();
 });
@@ -118,9 +154,12 @@ rideSchema.methods.calculateDistance = function() {
 // Indexes for performance
 rideSchema.index({ status: 1, expiresAt: 1 });
 rideSchema.index({ rideType: 1, status: 1 });
+rideSchema.index({ transportType: 1, status: 1 });
+rideSchema.index({ departureDate: 1, status: 1 });
 rideSchema.index({ 'origin.latitude': 1, 'origin.longitude': 1 });
 rideSchema.index({ 'destination.latitude': 1, 'destination.longitude': 1 });
 rideSchema.index({ createdAt: -1 });
+rideSchema.index({ user: 1, status: 1 });
 
 const Ride = mongoose.model('Ride', rideSchema);
 

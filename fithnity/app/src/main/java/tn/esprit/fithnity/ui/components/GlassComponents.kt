@@ -170,7 +170,9 @@ fun GlassTextField(
     supportingText: String? = null,
     leadingIcon: ImageVector? = null,
     isPassword: Boolean = false,
-    keyboardOptions: androidx.compose.foundation.text.KeyboardOptions = androidx.compose.foundation.text.KeyboardOptions.Default
+    keyboardOptions: androidx.compose.foundation.text.KeyboardOptions = androidx.compose.foundation.text.KeyboardOptions.Default,
+    isError: Boolean = false,
+    errorMessage: String? = null
 ) {
     OutlinedTextField(
         value = value,
@@ -179,22 +181,29 @@ fun GlassTextField(
         placeholder = if (placeholder.isNotEmpty()) {
             { Text(placeholder, color = TextHint) }
         } else null,
-        supportingText = if (supportingText != null) {
-            { Text(supportingText, style = MaterialTheme.typography.bodySmall) }
-        } else null,
+        supportingText = {
+            when {
+                errorMessage != null -> Text(errorMessage, style = MaterialTheme.typography.bodySmall, color = Error)
+                supportingText != null -> Text(supportingText, style = MaterialTheme.typography.bodySmall)
+            }
+        },
         leadingIcon = if (leadingIcon != null) {
-            { Icon(leadingIcon, contentDescription = null, tint = TextSecondary) }
+            { Icon(leadingIcon, contentDescription = null, tint = if (isError) Error else TextSecondary) }
         } else null,
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
         keyboardOptions = keyboardOptions,
+        visualTransformation = if (isPassword) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         shape = RoundedCornerShape(16.dp),
+        isError = isError,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Primary,
-            unfocusedBorderColor = Divider,
-            focusedLabelColor = Primary,
-            unfocusedLabelColor = TextSecondary,
-            cursorColor = Primary
+            focusedBorderColor = if (isError) Error else Primary,
+            unfocusedBorderColor = if (isError) Error else Divider,
+            focusedLabelColor = if (isError) Error else Primary,
+            unfocusedLabelColor = if (isError) Error else TextSecondary,
+            cursorColor = if (isError) Error else Primary,
+            errorBorderColor = Error,
+            errorLabelColor = Error
         )
     )
 }
