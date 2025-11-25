@@ -37,7 +37,27 @@ connectDB();
 initializeFirebase();
 
 // Middleware
-app.use(helmet()); // Security headers
+// Configure Helmet for HTTP (adjust for production with HTTPS)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      formAction: ["'self'"], // Allow form submissions to same origin
+      upgradeInsecureRequests: null // Disable for HTTP (enable for HTTPS)
+    }
+  },
+  crossOriginOpenerPolicy: false, // Disable COOP for HTTP (enable for HTTPS)
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow cross-origin resources
+  originAgentCluster: false // Disable origin-keyed agent cluster for HTTP
+}));
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
   credentials: true

@@ -357,7 +357,7 @@ fun ProfileScreen(
                             photoUrl
                         } else {
                             // If relative URL, prepend base URL
-                            "http://10.0.2.2:3000$photoUrl"
+                            "http://72.61.145.239:9090$photoUrl"
                         }
                         AsyncImage(
                             model = fullImageUrl,

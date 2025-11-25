@@ -8,7 +8,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object NetworkModule {
-    private const val BASE_URL = "http://10.0.2.2:3000/" // Emulator localhost - TODO: Change for VPS deployment
+    private const val BASE_URL = "http://72.61.145.239:9090/" // Emulator localhost - TODO: Change for VPS deployment
     private const val TAG = "NetworkModule"
 
     // Create logging interceptor
