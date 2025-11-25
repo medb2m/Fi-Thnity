@@ -29,6 +29,8 @@ router.post(
     body('destination.address').notEmpty().trim(),
     body('availableSeats').optional().isInt({ min: 0, max: 8 }),
     body('notes').optional().trim().isLength({ max: 200 }),
+    body('departureDate').optional().isISO8601().toDate(),
+    body('price').optional().isFloat({ min: 0, max: 1000 }),
     handleValidationErrors
   ],
   createRide

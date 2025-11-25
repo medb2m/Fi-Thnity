@@ -49,6 +49,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import android.location.Geocoder
 import java.io.IOException
+import tn.esprit.fithnity.data.Location
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 /**
  * Rides Screen showing list of offers and demands
@@ -57,7 +59,8 @@ import java.io.IOException
 @Composable
 fun RidesScreen(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: RideViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     var selectedFilter by remember { mutableStateOf(RideFilter.ALL) }
     var selectedVehicleType by remember { mutableStateOf(VehicleType.ALL) }
@@ -223,7 +226,41 @@ fun RidesScreen(
         Spacer(Modifier.height(16.dp))
 
         // Rides List
-        val allRides = remember { getSampleRides() } // TODO: Get from ViewModel
+        val ridesState by viewModel.uiState.collectAsState()
+        
+        // Load rides on first composition
+        LaunchedEffect(Unit) {
+            viewModel.loadRides()
+        }
+        
+        val allRides = when (val state = ridesState) {
+            is RideUiState.Success -> {
+                // Convert RideResponse to RideItem for display
+                state.rides.map { ride ->
+                    RideItem(
+                        id = ride._id,
+                        isOffer = ride.rideType == "OFFER",
+                        vehicleType = when (ride.transportType) {
+                            "PRIVATE_CAR" -> VehicleType.PERSONAL_CAR
+                            "TAXI", "TAXI_COLLECTIF" -> VehicleType.TAXI
+                            else -> VehicleType.PERSONAL_CAR
+                        },
+                        origin = ride.origin.address,
+                        destination = ride.destination.address,
+                        userName = ride.user?.name ?: "Unknown",
+                        time = ride.departureDate, // ISO format, will be formatted in UI if needed
+                        price = ride.price?.toString(),
+                        seatsAvailable = ride.availableSeats
+                    )
+                }
+            }
+            is RideUiState.Loading -> emptyList()
+            is RideUiState.Error -> {
+                // Show error, fallback to sample data for now
+                getSampleRides()
+            }
+            else -> getSampleRides()
+        }
         
         // Filter rides based on selected filters
         val filteredRides = allRides.filter { ride ->
@@ -257,13 +294,31 @@ fun RidesScreen(
     }
     
     // Add Ride Form Dialog
+    val createRideState by viewModel.createRideState.collectAsState()
+    
+    // Handle create ride success/error
+    LaunchedEffect(createRideState) {
+        when (val state = createRideState) {
+            is CreateRideUiState.Success -> {
+                showAddRideForm = false
+                viewModel.resetCreateRideState()
+                // Refresh rides list
+                viewModel.loadRides()
+            }
+            is CreateRideUiState.Error -> {
+                // Error is shown in dialog
+            }
+            else -> {}
+        }
+    }
+    
     if (showAddRideForm) {
         AddRideFormDialog(
-            onDismiss = { showAddRideForm = false },
-            onSubmit = { ride ->
-                // TODO: Add ride to ViewModel/Backend
+            onDismiss = { 
                 showAddRideForm = false
-            }
+                viewModel.resetCreateRideState()
+            },
+            viewModel = viewModel
         )
     }
 }
@@ -275,8 +330,9 @@ fun RidesScreen(
 @Composable
 private fun AddRideFormDialog(
     onDismiss: () -> Unit,
-    onSubmit: (RideItem) -> Unit
+    viewModel: RideViewModel
 ) {
+    val createRideState by viewModel.createRideState.collectAsState()
     val context = LocalContext.current
     val locationState = rememberLocationState()
     
@@ -712,34 +768,91 @@ private fun AddRideFormDialog(
                     if (originError == null && destinationError == null && dateError == null && 
                         timeError == null && seatsError == null && priceError == null &&
                         originLocation != null && destinationLatLng != null) {
-                        val formattedDate = selectedDate?.let { dateFormatter.format(Date(it)) } ?: ""
-                        val newRide = RideItem(
-                            id = System.currentTimeMillis().toString(),
-                            isOffer = true,
-                            vehicleType = selectedVehicleType,
-                            origin = origin.trim(),
-                            destination = destination.trim(),
-                            userName = "You", // TODO: Get from user profile
-                            time = "$formattedDate, $time",
-                            price = if (selectedVehicleType == VehicleType.TAXI && price.isNotBlank()) price else null,
-                            seatsAvailable = seatsAvailable.toIntOrNull()
+                        
+                        // Convert time to 24-hour format if needed
+                        val time24Hour = convertTo24Hour(time)
+                        
+                        // Combine date and time into ISO 8601 format
+                        val departureDateTime = selectedDate?.let { dateMillis ->
+                            val calendar = java.util.Calendar.getInstance().apply {
+                                timeInMillis = dateMillis
+                            }
+                            // Parse time string (e.g., "8:30 AM" or "14:30")
+                            val (hour, minute) = parseTime(time24Hour)
+                            calendar.set(java.util.Calendar.HOUR_OF_DAY, hour)
+                            calendar.set(java.util.Calendar.MINUTE, minute)
+                            calendar.set(java.util.Calendar.SECOND, 0)
+                            
+                            // Format as ISO 8601
+                            java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).format(calendar.time)
+                        }
+                        
+                        // Map vehicle type to backend transport type
+                        val transportType = when (selectedVehicleType) {
+                            VehicleType.PERSONAL_CAR -> "PRIVATE_CAR"
+                            VehicleType.TAXI -> "TAXI"
+                            else -> "PRIVATE_CAR"
+                        }
+                        
+                        // Create API request
+                        viewModel.createRide(
+                            rideType = "OFFER", // Currently only supporting offers
+                            transportType = transportType,
+                            origin = Location(
+                                latitude = originLocation!!.latitude,
+                                longitude = originLocation!!.longitude,
+                                address = origin.trim()
+                            ),
+                            destination = Location(
+                                latitude = destinationLatLng!!.latitude,
+                                longitude = destinationLatLng!!.longitude,
+                                address = destination.trim()
+                            ),
+                            availableSeats = seatsAvailable.toIntOrNull(),
+                            notes = null,
+                            departureDate = departureDateTime,
+                            price = if (selectedVehicleType == VehicleType.TAXI && price.isNotBlank()) {
+                                price.toDoubleOrNull()
+                            } else null
                         )
-                        onSubmit(newRide)
                     }
                 },
-                enabled = originLocation != null && destination.isNotBlank() && selectedDate != null && 
+                enabled = createRideState !is CreateRideUiState.Loading &&
+                         originLocation != null && destination.isNotBlank() && selectedDate != null && 
                          time.isNotBlank() && seatsAvailable.isNotBlank() && 
                          (selectedVehicleType != VehicleType.TAXI || price.isNotBlank())
             ) {
-                Text("Publish")
+                if (createRideState is CreateRideUiState.Loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(if (createRideState is CreateRideUiState.Loading) "Publishing..." else "Publish")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                enabled = createRideState !is CreateRideUiState.Loading
+            ) {
                 Text("Cancel")
             }
         }
     )
+    
+    // Show error message if create failed
+    if (createRideState is CreateRideUiState.Error) {
+        LaunchedEffect(createRideState) {
+            android.widget.Toast.makeText(
+                context,
+                "Failed to create ride: ${(createRideState as CreateRideUiState.Error).message}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
     
     // Destination Map Selection Dialog
     if (showDestinationMap) {
@@ -1307,6 +1420,37 @@ private fun RideCard(
             }
         }
     }
+}
+
+// Helper functions for time conversion
+private fun convertTo24Hour(timeStr: String): String {
+    // If already in 24-hour format (e.g., "14:30"), return as is
+    if (timeStr.matches(Regex("^([01]?[0-9]|2[0-3]):[0-5][0-9]$"))) {
+        return timeStr
+    }
+    
+    // Parse 12-hour format (e.g., "8:30 AM" or "2:45 PM")
+    val pattern = Regex("^(\\d{1,2}):([0-5][0-9])\\s*(AM|PM|am|pm)$")
+    val match = pattern.find(timeStr) ?: return "00:00"
+    
+    var hour = match.groupValues[1].toInt()
+    val minute = match.groupValues[2]
+    val amPm = match.groupValues[3].uppercase()
+    
+    if (amPm == "PM" && hour != 12) {
+        hour += 12
+    } else if (amPm == "AM" && hour == 12) {
+        hour = 0
+    }
+    
+    return String.format("%02d:%s", hour, minute)
+}
+
+private fun parseTime(timeStr: String): Pair<Int, Int> {
+    val parts = timeStr.split(":")
+    val hour = parts[0].toIntOrNull() ?: 0
+    val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+    return Pair(hour, minute)
 }
 
 // Data Models

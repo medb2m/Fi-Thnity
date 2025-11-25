@@ -13,8 +13,31 @@ export const createRide = async (req, res) => {
       origin,
       destination,
       availableSeats,
-      notes
+      notes,
+      departureDate,
+      price
     } = req.body;
+
+    // Parse departureDate if provided (ISO 8601 string)
+    let parsedDepartureDate = departureDate ? new Date(departureDate) : new Date();
+    
+    // Validate departureDate is not in the past
+    if (parsedDepartureDate < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Departure date cannot be in the past'
+      });
+    }
+
+    // Validate price for taxi rides
+    if (['TAXI', 'TAXI_COLLECTIF'].includes(transportType)) {
+      if (!price || price <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Price is required for taxi rides'
+        });
+      }
+    }
 
     const ride = await Ride.create({
       user: req.user._id,
@@ -24,7 +47,9 @@ export const createRide = async (req, res) => {
       origin,
       destination,
       availableSeats: availableSeats || 1,
-      notes: notes || ''
+      notes: notes || '',
+      departureDate: parsedDepartureDate,
+      price: ['TAXI', 'TAXI_COLLECTIF'].includes(transportType) ? price : null
     });
 
     // Calculate and save distance
