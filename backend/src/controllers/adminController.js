@@ -264,3 +264,144 @@ export const updateUser = async (req, res) => {
     res.redirect('/admin/users?error=Failed to update user');
   }
 };
+
+/**
+ * Create Ride (Admin)
+ * POST /admin/rides/create
+ */
+export const createRide = async (req, res) => {
+  try {
+    const {
+      userId,
+      rideType,
+      transportType,
+      originLatitude,
+      originLongitude,
+      originAddress,
+      destinationLatitude,
+      destinationLongitude,
+      destinationAddress,
+      availableSeats,
+      expiresAt,
+      notes
+    } = req.body;
+
+    // Validate required fields
+    if (!userId || !rideType || !transportType || !originAddress || !destinationAddress) {
+      return res.redirect('/admin/rides?error=Missing required fields');
+    }
+
+    // Validate rideType
+    if (!['REQUEST', 'OFFER'].includes(rideType)) {
+      return res.redirect('/admin/rides?error=Invalid ride type');
+    }
+
+    // Validate transportType
+    if (!['TAXI', 'TAXI_COLLECTIF', 'PRIVATE_CAR', 'METRO', 'BUS'].includes(transportType)) {
+      return res.redirect('/admin/rides?error=Invalid transport type');
+    }
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.redirect('/admin/rides?error=User not found');
+    }
+
+    // Create ride
+    const ride = await Ride.create({
+      user: userId,
+      firebaseUid: user.firebaseUid || 'admin-created',
+      rideType,
+      transportType,
+      origin: {
+        latitude: parseFloat(originLatitude) || 36.8065, // Default to Tunis
+        longitude: parseFloat(originLongitude) || 10.1815,
+        address: originAddress
+      },
+      destination: {
+        latitude: parseFloat(destinationLatitude) || 36.8065,
+        longitude: parseFloat(destinationLongitude) || 10.1815,
+        address: destinationAddress
+      },
+      availableSeats: parseInt(availableSeats) || 1,
+      expiresAt: expiresAt ? new Date(expiresAt) : new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours default
+      notes: notes || '',
+      status: 'ACTIVE'
+    });
+
+    // Calculate distance
+    ride.calculateDistance();
+    await ride.save();
+
+    res.redirect('/admin/rides?message=Ride created successfully');
+  } catch (error) {
+    console.error('Create ride error:', error);
+    res.redirect('/admin/rides?error=' + encodeURIComponent(error.message || 'Failed to create ride'));
+  }
+};
+
+/**
+ * Update Ride (Admin)
+ * POST /admin/rides/:rideId/update
+ */
+export const updateRide = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const {
+      rideType,
+      transportType,
+      originAddress,
+      destinationAddress,
+      availableSeats,
+      status,
+      expiresAt,
+      notes
+    } = req.body;
+
+    const ride = await Ride.findById(rideId);
+    if (!ride) {
+      return res.redirect('/admin/rides?error=Ride not found');
+    }
+
+    // Update fields
+    if (rideType && ['REQUEST', 'OFFER'].includes(rideType)) {
+      ride.rideType = rideType;
+    }
+    if (transportType && ['TAXI', 'TAXI_COLLECTIF', 'PRIVATE_CAR', 'METRO', 'BUS'].includes(transportType)) {
+      ride.transportType = transportType;
+    }
+    if (originAddress) {
+      ride.origin.address = originAddress;
+    }
+    if (destinationAddress) {
+      ride.destination.address = destinationAddress;
+    }
+    if (availableSeats) {
+      const seats = parseInt(availableSeats);
+      if (seats >= 0 && seats <= 8) {
+        ride.availableSeats = seats;
+      }
+    }
+    if (status && ['ACTIVE', 'MATCHED', 'COMPLETED', 'CANCELLED', 'EXPIRED'].includes(status)) {
+      ride.status = status;
+    }
+    if (expiresAt) {
+      ride.expiresAt = new Date(expiresAt);
+    }
+    if (notes !== undefined) {
+      ride.notes = notes;
+    }
+
+    // Recalculate distance if origin or destination changed
+    if (originAddress || destinationAddress) {
+      ride.calculateDistance();
+    }
+
+    await ride.save();
+
+    res.redirect('/admin/rides?message=Ride updated successfully');
+  } catch (error) {
+    console.error('Update ride error:', error);
+    res.redirect('/admin/rides?error=Failed to update ride');
+  }
+};

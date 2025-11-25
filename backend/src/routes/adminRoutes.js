@@ -7,6 +7,8 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  createRide,
+  updateRide,
   deleteRide,
   deletePost
 } from '../controllers/adminController.js';
@@ -61,8 +63,12 @@ router.post('/users/create', isAuthenticated, createUser);
 router.post('/users/:userId/update', isAuthenticated, updateUser);
 router.post('/users/:userId/delete', isAuthenticated, deleteUser);
 
-// Other delete operations
+// Ride CRUD operations
+router.post('/rides/create', isAuthenticated, createRide);
+router.post('/rides/:rideId/update', isAuthenticated, updateRide);
 router.post('/rides/:rideId/delete', isAuthenticated, deleteRide);
+
+// Other delete operations
 router.post('/posts/:postId/delete', isAuthenticated, deletePost);
 
 export default router;

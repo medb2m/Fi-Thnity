@@ -78,6 +78,56 @@ fun AuthScreen(
     var phone by remember { mutableStateOf("") }
     val state by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
+    
+    // Validation errors
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var phoneError by remember { mutableStateOf<String?>(null) }
+    
+    // Validation functions
+    fun validateName(value: String): String? {
+        return when {
+            value.isBlank() -> "Name is required"
+            value.length < 2 -> "Name must be at least 2 characters"
+            value.length > 50 -> "Name must be less than 50 characters"
+            !value.matches(Regex("^[a-zA-ZÀ-ÿ\\s'-]+$")) -> "Name can only contain letters, spaces, hyphens and apostrophes"
+            else -> null
+        }
+    }
+    
+    fun validateEmail(value: String): String? {
+        val emailPattern = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\$")
+        return when {
+            value.isBlank() -> "Email is required"
+            !emailPattern.matches(value) -> "Please enter a valid email address"
+            value.length > 100 -> "Email must be less than 100 characters"
+            else -> null
+        }
+    }
+    
+    fun validatePassword(value: String, isLogin: Boolean): String? {
+        return when {
+            value.isBlank() -> "Password is required"
+            !isLogin && value.length < 6 -> "Password must be at least 6 characters"
+            !isLogin && !value.matches(Regex(".*[A-Z].*")) -> "Password must contain at least one uppercase letter"
+            !isLogin && !value.matches(Regex(".*[a-z].*")) -> "Password must contain at least one lowercase letter"
+            !isLogin && !value.matches(Regex(".*\\d.*")) -> "Password must contain at least one number"
+            else -> null
+        }
+    }
+    
+    fun validatePhone(value: String): String? {
+        val phonePattern = Regex("^\\+?[0-9]{8,15}$")
+        val cleanedPhone = value.replace(Regex("[\\s-]"), "")
+        return when {
+            value.isBlank() -> "Phone number is required"
+            !phonePattern.matches(cleanedPhone) -> "Please enter a valid phone number (e.g., +216XXXXXXXX)"
+            cleanedPhone.length < 8 -> "Phone number too short"
+            cleanedPhone.length > 15 -> "Phone number too long"
+            else -> null
+        }
+    }
 
     // Firebase phone auth dialog state
     var showCodeDialog by remember { mutableStateOf(false) }
@@ -359,22 +409,32 @@ fun AuthScreen(
                 if (isPhoneMode) {
                     GlassTextField(
                         value = name,
-                        onValueChange = { name = it },
+                        onValueChange = { 
+                            name = it
+                            nameError = validateName(it)
+                        },
                         label = stringResource(R.string.name),
                         placeholder = stringResource(R.string.name),
-                        leadingIcon = Icons.Default.Person
+                        leadingIcon = Icons.Default.Person,
+                        isError = nameError != null,
+                        errorMessage = nameError
                     )
 
                     Spacer(Modifier.height(16.dp))
 
                     GlassTextField(
                         value = phone,
-                        onValueChange = { phone = it },
+                        onValueChange = { 
+                            phone = it
+                            phoneError = validatePhone(it)
+                        },
                         label = stringResource(R.string.phone_number),
                         placeholder = "+216 XX XXX XXX",
-                        supportingText = "Include country code (e.g., +216)",
+                        supportingText = if (phoneError == null) "Include country code (e.g., +216)" else null,
                         leadingIcon = Icons.Default.Phone,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        isError = phoneError != null,
+                        errorMessage = phoneError
                     )
 
                     if (phoneAuthError != null) {
@@ -391,6 +451,15 @@ fun AuthScreen(
                     GlassButton(
                         text = stringResource(R.string.phone),
                         onClick = {
+                            // Validate before proceeding
+                            nameError = if (name.isBlank()) "Name is required" else validateName(name)
+                            phoneError = validatePhone(phone)
+                            
+                            if (nameError != null || phoneError != null) {
+                                phoneAuthError = nameError ?: phoneError
+                                return@GlassButton
+                            }
+                            
                             phoneAuthError = null
                             val formattedPhone = if (!phone.startsWith("+")) {
                                 if (phone.startsWith("216")) "+$phone" else "+216$phone"
@@ -442,33 +511,48 @@ fun AuthScreen(
                     if (!isLogin) {
                         GlassTextField(
                             value = name,
-                            onValueChange = { name = it },
+                            onValueChange = { 
+                                name = it
+                                nameError = validateName(it)
+                            },
                             label = stringResource(R.string.name),
                             placeholder = stringResource(R.string.name),
-                            leadingIcon = Icons.Default.Person
+                            leadingIcon = Icons.Default.Person,
+                            isError = nameError != null,
+                            errorMessage = nameError
                         )
                         Spacer(Modifier.height(16.dp))
                     }
 
                     GlassTextField(
                         value = email,
-                        onValueChange = { email = it },
+                        onValueChange = { 
+                            email = it
+                            emailError = validateEmail(it)
+                        },
                         label = stringResource(R.string.email),
                         placeholder = "your@email.com",
                         leadingIcon = Icons.Default.Email,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        isError = emailError != null,
+                        errorMessage = emailError
                     )
 
                     Spacer(Modifier.height(16.dp))
 
                     GlassTextField(
                         value = password,
-                        onValueChange = { password = it },
+                        onValueChange = { 
+                            password = it
+                            passwordError = validatePassword(it, isLogin)
+                        },
                         label = stringResource(R.string.password),
                         placeholder = stringResource(R.string.password),
                         leadingIcon = Icons.Default.Lock,
                         isPassword = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        isError = passwordError != null,
+                        errorMessage = passwordError
                     )
 
                     Spacer(Modifier.height(24.dp))
@@ -476,10 +560,25 @@ fun AuthScreen(
                     GlassButton(
                         text = stringResource(if (isLogin) R.string.login else R.string.register),
                         onClick = {
-                            if (isLogin) viewModel.loginWithEmail(email, password)
-                            else viewModel.registerWithEmail(name, email, password)
+                            // Validate all fields before submission
+                            if (!isLogin) {
+                                nameError = validateName(name)
+                            }
+                            emailError = validateEmail(email)
+                            passwordError = validatePassword(password, isLogin)
+                            
+                            // Only proceed if all validations pass
+                            val isValid = (isLogin || nameError == null) && emailError == null && passwordError == null
+                            
+                            if (isValid) {
+                                if (isLogin) viewModel.loginWithEmail(email.trim(), password)
+                                else viewModel.registerWithEmail(name.trim(), email.trim(), password)
+                            }
                         },
-                        enabled = state !is AuthUiState.Loading,
+                        enabled = state !is AuthUiState.Loading && 
+                                 (isLogin || name.isNotBlank()) && 
+                                 email.isNotBlank() && 
+                                 password.isNotBlank(),
                         icon = if (isLogin) Icons.Default.Login else Icons.Default.PersonAdd,
                         isPrimary = true
                     )

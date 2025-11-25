@@ -24,12 +24,19 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.sources.GeoJsonSource
+import org.json.JSONObject
+import org.json.JSONArray
 import tn.esprit.fithnity.BuildConfig
 import tn.esprit.fithnity.ui.components.GlassCard
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
 import androidx.compose.ui.res.stringResource
 import tn.esprit.fithnity.R
+import tn.esprit.fithnity.utils.rememberLocationState
+import android.widget.Toast
 
 /**
  * Modern Home Screen with MapLibre
@@ -47,6 +54,17 @@ fun HomeScreen(
     var mapLoadError by remember { mutableStateOf(false) }
     // Track welcome banner visibility (local state)
     var bannerVisible by remember(showWelcomeBanner) { mutableStateOf(showWelcomeBanner) }
+    // Store reference to the map for location updates
+    var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
+    // Location state
+    val locationState = rememberLocationState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Track if we should follow user location
+    var isFollowingLocation by remember { mutableStateOf(false) }
+    // Track last location update time
+    var lastLocationUpdate by remember { mutableStateOf<Long?>(null) }
+    // Track if this is the first location update
+    var isFirstLocationUpdate by remember { mutableStateOf(true) }
     
     // Auto-dismiss welcome banner after 3 seconds if it should be shown
     LaunchedEffect(showWelcomeBanner) {
@@ -80,6 +98,7 @@ fun HomeScreen(
             factory = { ctx ->
                 MapView(ctx).apply {
                     getMapAsync { map ->
+                        mapLibreMap = map
                         setupMapStyle(map) { success ->
                             mapLoadError = !success
                         }
@@ -151,7 +170,7 @@ fun HomeScreen(
 
                     Spacer(Modifier.height(8.dp))
 
-                    // Location Display
+                    // Location Display - Show actual location if available
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -159,14 +178,39 @@ fun HomeScreen(
                             imageVector = Icons.Default.LocationOn,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
-                            tint = Primary
+                            tint = if (locationState.location != null) Primary else TextSecondary
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = stringResource(R.string.tunis_tunisia),
+                            text = if (locationState.location != null) {
+                                "Lat: ${String.format("%.4f", locationState.location.latitude)}, " +
+                                "Lng: ${String.format("%.4f", locationState.location.longitude)}"
+                            } else {
+                                stringResource(R.string.tunis_tunisia)
+                            },
                             fontSize = 15.sp,
                             color = TextSecondary
                         )
+                    }
+                    
+                    // Show loading indicator if location is being fetched
+                    if (locationState.isLoading) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Primary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Getting your location...",
+                                fontSize = 13.sp,
+                                color = TextSecondary
+                            )
+                        }
                     }
                 }
             }
@@ -176,19 +220,259 @@ fun HomeScreen(
         // Layer 3: Floating Action Button for Current Location (on top of map)
         FloatingActionButton(
             onClick = {
-                // TODO: Center map on current location
+                isFollowingLocation = true
+                locationState.requestLocation()
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 180.dp, end = 20.dp),
-            containerColor = Surface,
-            contentColor = Primary
+            containerColor = if (isFollowingLocation && locationState.location != null) Primary else Surface,
+            contentColor = if (isFollowingLocation && locationState.location != null) Color.White else Primary
         ) {
-            Icon(
-                imageVector = Icons.Default.MyLocation,
-                contentDescription = "My Location"
-            )
+            if (locationState.isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                    color = if (isFollowingLocation) Color.White else Primary
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.MyLocation,
+                    contentDescription = "My Location"
+                )
+            }
         }
+        
+        // Handle location updates and center map
+        LaunchedEffect(locationState.location, mapLibreMap) {
+            val location = locationState.location
+            val map = mapLibreMap
+            
+            if (location != null && map != null) {
+                try {
+                    val userLocation = LatLng(location.latitude, location.longitude)
+                    val currentTime = System.currentTimeMillis()
+                    
+                    // Only update if location is new (avoid unnecessary updates)
+                    if (lastLocationUpdate == null || 
+                        (currentTime - (lastLocationUpdate ?: 0)) > 2000) { // Update at most every 2 seconds
+                        
+                        lastLocationUpdate = currentTime
+                        
+                        // Center map on user location with smooth animation
+                        val cameraUpdate = org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(
+                            CameraPosition.Builder()
+                                .target(userLocation)
+                                .zoom(if (isFollowingLocation) 16.0 else 15.0) // Zoom closer when following
+                                .build()
+                        )
+                        
+                        // Use animateCamera for smooth transition
+                        map.animateCamera(cameraUpdate, 1000) // 1 second animation
+                        
+                        // Add or update user location marker
+                        map.getStyle { style ->
+                            addUserLocationMarker(style, userLocation, location.accuracy)
+                        }
+                        
+                        // Show success message on first location
+                        if (isFirstLocationUpdate) {
+                            isFirstLocationUpdate = false
+                            Toast.makeText(
+                                context,
+                                "Location found",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeScreen", "Error centering map on location", e)
+                    Toast.makeText(
+                        context,
+                        "Error updating location on map: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+        
+        // Auto-request location when map is ready and permission is granted
+        LaunchedEffect(mapLibreMap, locationState.hasPermission) {
+            if (mapLibreMap != null && locationState.hasPermission && locationState.location == null) {
+                // Auto-request location when map loads (optional - can be removed if not desired)
+                kotlinx.coroutines.delay(500) // Small delay to ensure map is fully loaded
+                if (!locationState.isLoading) {
+                    locationState.requestLocation()
+                }
+            }
+        }
+        
+        // Show error message if location request fails
+        LaunchedEffect(locationState.error) {
+            locationState.error?.let { errorMessage ->
+                isFollowingLocation = false
+                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+            }
+        }
+        
+        // Show indicator when location is being tracked
+        if (isFollowingLocation && locationState.location != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 100.dp, end = 20.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Primary.copy(alpha = 0.9f),
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(8.dp, 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MyLocation,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Color.White
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "Tracking location",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Add or update user location marker on the map
+ */
+private fun addUserLocationMarker(mapStyle: Style, location: LatLng, accuracy: Float?) {
+    try {
+        // Create GeoJSON point for user location
+        val pointJson = JSONObject().apply {
+            put("type", "Point")
+            put("coordinates", JSONArray().apply {
+                put(location.longitude)
+                put(location.latitude)
+            })
+        }
+        
+        val featureJson = JSONObject().apply {
+            put("type", "Feature")
+            put("geometry", pointJson)
+        }
+        
+        // Remove existing layers first (must remove layers before sources)
+        mapStyle.getLayer("user-location-accuracy-layer")?.let {
+            mapStyle.removeLayer(it)
+        }
+        mapStyle.getLayer("user-location-layer")?.let {
+            mapStyle.removeLayer(it)
+        }
+        
+        // Remove existing sources
+        mapStyle.getSourceAs<GeoJsonSource>("user-location-accuracy-source")?.let {
+            mapStyle.removeSource(it)
+        }
+        mapStyle.getSourceAs<GeoJsonSource>("user-location-source")?.let {
+            mapStyle.removeSource(it)
+        }
+        
+        // Add source for user location
+        val source = GeoJsonSource("user-location-source", featureJson.toString())
+        mapStyle.addSource(source)
+        
+        // Add accuracy circle if accuracy is available
+        if (accuracy != null && accuracy > 0) {
+            // Create a circle around the location (accuracy in meters)
+            // Approximate: 1 degree latitude ≈ 111 km, so accuracy/111000 gives degrees
+            val radiusInDegrees = accuracy / 111000.0
+            
+            val circleCoordinates = JSONArray()
+            for (i in 0..64) {
+                val angle = (i * 360.0 / 64) * Math.PI / 180.0
+                val lat = location.latitude + radiusInDegrees * Math.cos(angle)
+                val lon = location.longitude + radiusInDegrees * Math.sin(angle) / Math.cos(location.latitude * Math.PI / 180.0)
+                circleCoordinates.put(JSONArray().apply {
+                    put(lon)
+                    put(lat)
+                })
+            }
+            // Close the circle
+            val firstPoint = circleCoordinates.getJSONArray(0)
+            circleCoordinates.put(firstPoint)
+            
+            val circleJson = JSONObject().apply {
+                put("type", "Feature")
+                put("geometry", JSONObject().apply {
+                    put("type", "Polygon")
+                    put("coordinates", JSONArray().apply {
+                        put(circleCoordinates)
+                    })
+                })
+            }
+            
+            val accuracySource = GeoJsonSource("user-location-accuracy-source", circleJson.toString())
+            mapStyle.addSource(accuracySource)
+            
+            // Add accuracy circle layer
+            val accuracyLayer = org.maplibre.android.style.layers.FillLayer(
+                "user-location-accuracy-layer",
+                "user-location-accuracy-source"
+            ).withProperties(
+                org.maplibre.android.style.layers.PropertyFactory.fillColor(android.graphics.Color.parseColor("#3D8BFD").let { 
+                    android.graphics.Color.argb(30, android.graphics.Color.red(it), android.graphics.Color.green(it), android.graphics.Color.blue(it))
+                }),
+                org.maplibre.android.style.layers.PropertyFactory.fillOutlineColor(android.graphics.Color.parseColor("#3D8BFD").let {
+                    android.graphics.Color.argb(100, android.graphics.Color.red(it), android.graphics.Color.green(it), android.graphics.Color.blue(it))
+                })
+            )
+            mapStyle.addLayer(accuracyLayer)
+        }
+        
+        // Add symbol layer for user location icon
+        // We'll use a built-in icon or create a custom one
+        val symbolLayer = SymbolLayer("user-location-layer", "user-location-source")
+            .withProperties(
+                org.maplibre.android.style.layers.PropertyFactory.iconImage("user-location-icon"),
+                org.maplibre.android.style.layers.PropertyFactory.iconSize(1.2f),
+                org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap(true),
+                org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement(true),
+                org.maplibre.android.style.layers.PropertyFactory.iconAnchor(org.maplibre.android.style.layers.Property.ICON_ANCHOR_BOTTOM)
+            )
+        
+        // Add a custom icon for user location
+        // Using a simple circle bitmap
+        val bitmap = android.graphics.Bitmap.createBitmap(48, 48, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val paint = android.graphics.Paint().apply {
+            isAntiAlias = true
+            color = android.graphics.Color.parseColor("#3D8BFD")
+            this.style = android.graphics.Paint.Style.FILL
+        }
+        val strokePaint = android.graphics.Paint().apply {
+            isAntiAlias = true
+            color = android.graphics.Color.WHITE
+            this.style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 4f
+        }
+        canvas.drawCircle(24f, 24f, 18f, paint)
+        canvas.drawCircle(24f, 24f, 18f, strokePaint)
+        
+        mapStyle.addImage("user-location-icon", bitmap)
+        mapStyle.addLayer(symbolLayer)
+        
+    } catch (e: Exception) {
+        android.util.Log.e("HomeScreen", "Error adding user location marker", e)
     }
 }
 
