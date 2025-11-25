@@ -435,23 +435,16 @@ fun AuthScreen(
                     if (!isLogin) {
                         GlassTextField(
                             value = name,
-                            onValueChange = { name = it },
+                            onValueChange = { 
+                                name = it
+                                nameError = validateName(it)
+                            },
                             label = stringResource(R.string.name),
                             placeholder = stringResource(R.string.name),
-                            leadingIcon = Icons.Default.Person
+                            leadingIcon = Icons.Default.Person,
+                            isError = nameError != null,
+                            errorMessage = nameError
                         )
-                    GlassTextField(
-                        value = name,
-                        onValueChange = { 
-                            name = it
-                            nameError = validateName(it)
-                        },
-                        label = stringResource(R.string.name),
-                        placeholder = stringResource(R.string.name),
-                        leadingIcon = Icons.Default.Person,
-                        isError = nameError != null,
-                        errorMessage = nameError
-                    )
 
                         Spacer(Modifier.height(16.dp))
                     }
@@ -486,7 +479,12 @@ fun AuthScreen(
                         text = stringResource(if (isLogin) R.string.login else R.string.register),
                         onClick = {
                             // Validate before proceeding
-                            nameError = if (name.isBlank()) "Name is required" else validateName(name)
+                            // Only validate name for registration (not login)
+                            if (!isLogin) {
+                                nameError = validateName(name)
+                            } else {
+                                nameError = null
+                            }
                             phoneError = validatePhone(phone)
                             
                             if (nameError != null || phoneError != null) {
@@ -495,12 +493,6 @@ fun AuthScreen(
                             }
                             
                             phoneAuthError = null
-                            
-                            // Validate name for registration
-                            if (!isLogin && name.isBlank()) {
-                                phoneAuthError = "Name is required for registration"
-                                return@GlassButton
-                            }
                             
                             val formattedPhone = if (!phone.startsWith("+")) {
                                 if (phone.startsWith("216")) "+$phone" else "+216$phone"
