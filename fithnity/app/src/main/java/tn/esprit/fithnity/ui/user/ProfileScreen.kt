@@ -65,27 +65,63 @@ fun ProfileScreen(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var imageFile by remember { mutableStateOf<File?>(null) }
     
-    // Load profile when screen is visible or authToken changes
+    // Load profile when screen is visible
     LaunchedEffect(Unit) {
-        if (authToken != null) {
-            profileViewModel.loadProfile(authToken)
+        // Try Firebase token first, then fallback to stored token
+        scope.launch {
+            val firebaseToken = try {
+                profileViewModel.getFirebaseIdToken()
+            } catch (e: Exception) {
+                android.util.Log.e("ProfileScreen", "Error getting Firebase token", e)
+                null
+            }
+            val token = firebaseToken ?: authToken
+            android.util.Log.d("ProfileScreen", "Loading profile with token: ${if (token != null) "present" else "null"}")
+            if (token != null) {
+                profileViewModel.loadProfile(token)
+            } else {
+                android.util.Log.e("ProfileScreen", "No authentication token available")
+            }
         }
     }
     
     // Reload profile when authToken changes
     LaunchedEffect(authToken) {
-        if (authToken != null) {
-            profileViewModel.loadProfile(authToken)
+        scope.launch {
+            val firebaseToken = try {
+                profileViewModel.getFirebaseIdToken()
+            } catch (e: Exception) {
+                null
+            }
+            val token = firebaseToken ?: authToken
+            if (token != null) {
+                profileViewModel.loadProfile(token)
+            }
         }
     }
     
-    // Handle profile load success - save photoUrl to preferences
+    // Handle profile load success - save user data to preferences
     LaunchedEffect(profileState) {
         when (val state = profileState) {
             is ProfileUiState.Success -> {
+                val user = state.user
                 // Save photoUrl to preferences for persistence
-                state.user.photoUrl?.let { photoUrl ->
+                user.photoUrl?.let { photoUrl ->
                     userPreferences.savePhotoUrl(photoUrl)
+                }
+                // Update user name in preferences if available
+                user.name?.let { name ->
+                    // Get current auth data and update name
+                    val currentToken = userPreferences.getAuthToken()
+                    if (currentToken != null) {
+                        userPreferences.saveAuthData(
+                            token = currentToken,
+                            userId = user._id,
+                            userName = name,
+                            userEmail = user.email,
+                            needsVerification = userPreferences.needsEmailVerification()
+                        )
+                    }
                 }
             }
             else -> {}
@@ -131,12 +167,37 @@ fun ProfileScreen(
     
     // Get user info from state
     val userInfo = when (val state = profileState) {
-        is ProfileUiState.Success -> state.user
+        is ProfileUiState.Success -> {
+            android.util.Log.d("ProfileScreen", "Profile loaded: ${state.user.name}")
+            state.user
+        }
+        is ProfileUiState.Error -> {
+            android.util.Log.e("ProfileScreen", "Profile error: ${state.message}")
+            null
+        }
+        is ProfileUiState.Loading -> {
+            android.util.Log.d("ProfileScreen", "Profile loading...")
+            null
+        }
         else -> null
     }
     
-    val userName = userInfo?.name ?: userPreferences.getUserName() ?: "User"
-    val userPhone = userInfo?.phoneNumber ?: "+216 XX XXX XXX"
+    // Get user name - prioritize API data, then saved preferences, fallback to "User"
+    val userName = when {
+        !userInfo?.name.isNullOrBlank() -> {
+            android.util.Log.d("ProfileScreen", "Using name from API: ${userInfo!!.name}")
+            userInfo.name!!
+        }
+        !userPreferences.getUserName().isNullOrBlank() -> {
+            android.util.Log.d("ProfileScreen", "Using name from preferences: ${userPreferences.getUserName()}")
+            userPreferences.getUserName()!!
+        }
+        else -> {
+            android.util.Log.w("ProfileScreen", "No name found, using default 'User'")
+            "User"
+        }
+    }
+    
     // Use photoUrl from API response, fallback to saved photoUrl from preferences
     val photoUrl = userInfo?.photoUrl ?: userPreferences.getPhotoUrl()
     
@@ -358,22 +419,27 @@ fun ProfileScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Name
-                Text(
-                    text = userName,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-
-                Spacer(Modifier.height(4.dp))
-
-                // Phone
-                Text(
-                    text = userPhone,
-                    fontSize = 15.sp,
-                    color = TextSecondary
-                )
+                // Name - always show, will update when profile loads
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = userName,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    // Show loading indicator if profile is loading
+                    if (profileState is ProfileUiState.Loading) {
+                        Spacer(Modifier.width(8.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Primary,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
 
                 Spacer(Modifier.height(24.dp))
 
@@ -390,7 +456,7 @@ fun ProfileScreen(
                     )
 
                     // Divider
-                    Divider(
+                    VerticalDivider(
                         modifier = Modifier
                             .width(1.dp)
                             .height(50.dp),
@@ -463,7 +529,7 @@ fun ProfileScreen(
             )
         ) {
             Icon(
-                imageVector = Icons.Default.Logout,
+                imageVector = Icons.Default.ExitToApp,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp)
             )

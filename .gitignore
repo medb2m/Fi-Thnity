@@ -1,1 +1,40 @@
+# Ignore all markdown files except README.md at root
+*.md
+!README.md
+
+# Ignore Projet Android folder
+Projet Android/
+
+# Ignore testapp folder
+testapp/
+
+# Ignore logo/image files at root
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Backend specific ignores
+backend/.env.example
+backend/README.md
+
+# Fithnity specific ignores
+fithnity/.idea/
 fithnity/app/google-services.json
+fithnity/gradle/wrapper/gradle-wrapper.jar
+
+# IDE files (general)
+.idea/
+*.iml
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.log
+
