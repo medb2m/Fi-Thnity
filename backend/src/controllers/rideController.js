@@ -101,12 +101,14 @@ export const getRides = async (req, res) => {
 
     res.json({
       success: true,
-      data: rides,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / limit)
+      data: {
+        data: rides,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit)
+        }
       }
     });
   } catch (error) {

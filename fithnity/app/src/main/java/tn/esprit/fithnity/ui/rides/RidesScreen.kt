@@ -783,7 +783,7 @@ private fun AddRideFormDialog(
                             calendar.set(java.util.Calendar.MINUTE, minute)
                             calendar.set(java.util.Calendar.SECOND, 0)
                             
-                            // Format as ISO 8601
+                            // Format as ISO 8601 (backend will parse as local time)
                             java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).format(calendar.time)
                         }
                         
