@@ -885,6 +885,14 @@ private fun DestinationMapDialog(
     var selectedLocation by remember { mutableStateOf<LatLng?>(null) }
     var selectedAddress by remember { mutableStateOf<String?>(null) }
     var isLoadingAddress by remember { mutableStateOf(false) }
+    var shouldCreateMapView by remember { mutableStateOf(false) }
+    
+    // Ensure MapLibre is initialized before creating MapView
+    LaunchedEffect(Unit) {
+        val app = context.applicationContext as? tn.esprit.fithnity.FiThnityApplication
+        app?.ensureMapLibreInitialized()
+        shouldCreateMapView = true
+    }
     
     // Get address from coordinates
     fun getAddressFromLocation(latLng: LatLng) {
@@ -921,31 +929,41 @@ private fun DestinationMapDialog(
                     .height(500.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Map View
+                // Map View - created after MapLibre initialization
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                 ) {
-                    AndroidView(
-                        factory = { ctx ->
-                            MapView(ctx).apply {
-                                getMapAsync { map ->
-                                    mapLibreMap = map
-                                    setupDestinationMapStyle(map, initialLocation) { success ->
-                                        if (success) {
-                                            // Add marker at center
-                                            map.getStyle { style ->
-                                                addDestinationMarker(style, initialLocation)
+                    if (shouldCreateMapView) {
+                        AndroidView(
+                            factory = { ctx ->
+                                MapView(ctx).apply {
+                                    getMapAsync { map ->
+                                        mapLibreMap = map
+                                        setupDestinationMapStyle(map, initialLocation) { success ->
+                                            if (success) {
+                                                // Add marker at center
+                                                map.getStyle { style ->
+                                                    addDestinationMarker(style, initialLocation)
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // Show loading indicator while MapLibre initializes
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
                     
                     // Center crosshair indicator
                     Box(

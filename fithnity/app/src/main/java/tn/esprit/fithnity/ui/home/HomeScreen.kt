@@ -49,13 +49,14 @@ fun HomeScreen(
     showWelcomeBanner: Boolean = false,
     onWelcomeBannerDismissed: () -> Unit = {}
 ) {
-    // MapLibre is initialized in FiThnityApplication.onCreate()
     // Track if map is loading
     var mapLoadError by remember { mutableStateOf(false) }
     // Track welcome banner visibility (local state)
     var bannerVisible by remember(showWelcomeBanner) { mutableStateOf(showWelcomeBanner) }
     // Store reference to the map for location updates
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
+    // Track if MapView should be created (deferred to prevent blocking)
+    var shouldCreateMapView by remember { mutableStateOf(false) }
     // Location state
     val locationState = rememberLocationState()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -65,6 +66,17 @@ fun HomeScreen(
     var lastLocationUpdate by remember { mutableStateOf<Long?>(null) }
     // Track if this is the first location update
     var isFirstLocationUpdate by remember { mutableStateOf(true) }
+    
+    // Initialize MapLibre lazily and defer MapView creation to prevent ANR
+    LaunchedEffect(Unit) {
+        // Ensure MapLibre is initialized before creating MapView
+        val app = context.applicationContext as? tn.esprit.fithnity.FiThnityApplication
+        app?.ensureMapLibreInitialized()
+        
+        // Small delay to allow UI to render first, then create MapView
+        kotlinx.coroutines.delay(50)
+        shouldCreateMapView = true
+    }
     
     // Auto-dismiss welcome banner after 3 seconds if it should be shown
     LaunchedEffect(showWelcomeBanner) {
@@ -93,20 +105,22 @@ fun HomeScreen(
                 )
         )
 
-        // Bottom Layer: Map (full background)
-        AndroidView(
-            factory = { ctx ->
-                MapView(ctx).apply {
-                    getMapAsync { map ->
-                        mapLibreMap = map
-                        setupMapStyle(map) { success ->
-                            mapLoadError = !success
+        // Bottom Layer: Map (full background) - created after initial render to prevent ANR
+        if (shouldCreateMapView) {
+            AndroidView(
+                factory = { ctx ->
+                    MapView(ctx).apply {
+                        getMapAsync { map ->
+                            mapLibreMap = map
+                            setupMapStyle(map) { success ->
+                                mapLoadError = !success
+                            }
                         }
                     }
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // Layer 1: Map loading error indicator (on top of map)
         if (mapLoadError) {

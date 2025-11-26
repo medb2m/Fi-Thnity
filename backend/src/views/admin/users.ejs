@@ -8,7 +8,10 @@
 </head>
 <body>
     <div class="header">
-        <h1>🚗 Fi Thnity Admin Panel</h1>
+        <h1 style="display: flex; align-items: center; gap: 0.75rem;">
+            <img src="/fithnity_logo.png" alt="Fi Thnity Logo" style="width: 40px; height: 40px; border-radius: 50%;">
+            Fi Thnity Admin Panel
+        </h1>
         <div class="subtitle">Save Time, Save Tunisia</div>
     </div>
 
@@ -72,9 +75,7 @@
                                 <td>
                                     <div class="action-buttons">
                                         <button class="btn btn-primary btn-sm" onclick="openEditModal('<%= user._id %>', '<%= user.name %>', '<%= user.email || '' %>', '<%= user.phoneNumber || '' %>', <%= user.isActive %>)">Edit</button>
-                                        <form method="POST" action="/admin/users/<%= user._id %>/delete" style="display: inline;">
-                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this user? This action cannot be undone.')">Delete</button>
-                                        </form>
+                                        <button class="btn btn-danger btn-sm" onclick="openDeleteModal('<%= user._id %>', '<%= user.name %>', '<%= user.email || '' %>')">Delete</button>
                                     </div>
                                 </td>
                             </tr>
@@ -149,7 +150,7 @@
                 </div>
                 <div class="form-group">
                     <label for="editPhoneNumber">Phone Number</label>
-                    <input type="tel" id="editPhoneNumber" name="phoneNumber" class="form-control">
+                    <input type="tel" id="editPhoneNumber" name="phoneNumber" class="form-control" placeholder="+216 XX XXX XXX">
                 </div>
                 <div class="form-group">
                     <label>
@@ -161,6 +162,34 @@
                     <button type="submit" class="btn btn-success">Update User</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 style="color: #D62828;">⚠️ Confirm Deletion</h2>
+                <span class="close" onclick="closeDeleteModal()">&times;</span>
+            </div>
+            <div style="padding: 1.5rem;">
+                <p style="margin-bottom: 1rem; font-size: 1.1rem;">Are you sure you want to delete this user?</p>
+                <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 1rem; margin-bottom: 1.5rem; border-radius: 4px;">
+                    <strong>User Details:</strong>
+                    <div style="margin-top: 0.5rem;">
+                        <div><strong>Name:</strong> <span id="deleteUserName"></span></div>
+                        <div><strong>Email:</strong> <span id="deleteUserEmail"></span></div>
+                    </div>
+                </div>
+                <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 1rem; margin-bottom: 1.5rem; border-radius: 4px;">
+                    <strong style="color: #721c24;">⚠️ Warning:</strong>
+                    <p style="margin: 0.5rem 0 0 0; color: #721c24;">This action cannot be undone. All user data, rides, and posts associated with this user will be permanently deleted.</p>
+                </div>
+                <form method="POST" id="deleteForm" style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn" onclick="closeDeleteModal()">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Yes, Delete User</button>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -176,27 +205,45 @@
 
         // Edit Modal Functions
         function openEditModal(id, name, email, phoneNumber, isActive) {
-            document.getElementById('editName').value = name;
-            document.getElementById('editEmail').value = email;
-            document.getElementById('editPhoneNumber').value = phoneNumber;
-            document.getElementById('editIsActive').checked = isActive;
+            document.getElementById('editName').value = name || '';
+            document.getElementById('editEmail').value = email || '';
+            document.getElementById('editPhoneNumber').value = phoneNumber || '';
+            document.getElementById('editIsActive').checked = isActive === true || isActive === 'true';
             document.getElementById('editForm').action = '/admin/users/' + id + '/update';
             document.getElementById('editModal').style.display = 'block';
         }
 
         function closeEditModal() {
             document.getElementById('editModal').style.display = 'none';
+            // Reset form
+            document.getElementById('editForm').reset();
+        }
+
+        // Delete Modal Functions
+        function openDeleteModal(id, name, email) {
+            document.getElementById('deleteUserName').textContent = name || 'N/A';
+            document.getElementById('deleteUserEmail').textContent = email || 'N/A';
+            document.getElementById('deleteForm').action = '/admin/users/' + id + '/delete';
+            document.getElementById('deleteModal').style.display = 'block';
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
         }
 
         // Close modal when clicking outside
         window.onclick = function(event) {
             const createModal = document.getElementById('createModal');
             const editModal = document.getElementById('editModal');
+            const deleteModal = document.getElementById('deleteModal');
             if (event.target == createModal) {
                 closeCreateModal();
             }
             if (event.target == editModal) {
                 closeEditModal();
+            }
+            if (event.target == deleteModal) {
+                closeDeleteModal();
             }
         }
 

@@ -32,7 +32,7 @@ object LocaleManager {
             }
             else -> {
                 Log.d(TAG, "Creating locale for: $languageCode")
-                Locale(languageCode)
+                Locale.forLanguageTag(languageCode)
             }
         }
 
@@ -59,6 +59,7 @@ object LocaleManager {
 
     /**
      * Update app resources with new locale
+     * Optimized to avoid heavy operations that can cause ANR
      */
     private fun updateResources(context: Context, locale: Locale): Context {
         Log.d(TAG, "updateResources called with locale: ${locale.language}")
@@ -70,17 +71,20 @@ object LocaleManager {
             Log.d(TAG, "Using Android N+ method")
             configuration.setLocale(locale)
             configuration.setLayoutDirection(locale)
+            // createConfigurationContext is fast and doesn't block
             contextResult = context.createConfigurationContext(configuration)
         } else {
             Log.d(TAG, "Using legacy method")
             @Suppress("DEPRECATION")
             configuration.locale = locale
+            // Avoid calling updateConfiguration on application context to prevent ANR
+            // Only update the specific context's resources
             @Suppress("DEPRECATION")
             context.resources.updateConfiguration(configuration, context.resources.displayMetrics)
         }
         
-        // Force update the main application resources as well
-        context.applicationContext.resources.updateConfiguration(configuration, context.applicationContext.resources.displayMetrics)
+        // Don't update application context resources here - it's heavy and can cause ANR
+        // The application context will be updated in attachBaseContext when needed
         
         Log.d(TAG, "Resources updated. New config locale: ${contextResult.resources.configuration.locales[0].language}")
         return contextResult
@@ -145,7 +149,7 @@ object LocaleManager {
     fun getLocaleForLanguageCode(languageCode: String): Locale {
         return when (languageCode) {
             "auto" -> getSystemLocale()
-            else -> Locale(languageCode)
+            else -> Locale.forLanguageTag(languageCode)
         }
     }
 }

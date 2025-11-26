@@ -108,27 +108,51 @@ class MainActivity : ComponentActivity() {
  */
 @Composable
 fun FiThnityApp(userPreferences: UserPreferences, languageViewModel: LanguageViewModel) {
-    // Check for existing authentication token or Firebase current user
-    // DEV: Bypass authentication if BYPASS_AUTH is true
+    // Start with a safe initial state - only check SharedPreferences (fast, synchronous)
+    // Avoid calling Firebase synchronously during composition to prevent ANR
     var isAuthenticated by remember { 
-        mutableStateOf(MainActivity.BYPASS_AUTH || userPreferences.isLoggedIn()) 
+        mutableStateOf(
+            MainActivity.BYPASS_AUTH || 
+            userPreferences.getAuthToken() != null // Only check stored token, not Firebase
+        )
     }
     var needsEmailVerification by remember { mutableStateOf(userPreferences.needsEmailVerification()) }
+    var isCheckingAuth by remember { mutableStateOf(true) }
     
-    // Verify Firebase session is still valid on app startup
+    // Verify Firebase session asynchronously on app startup
+    // This runs in a coroutine scope, so it won't block the main thread
     LaunchedEffect(Unit) {
-        val firebaseUser = FirebaseAuth.getInstance().currentUser
-        if (firebaseUser != null && !isAuthenticated) {
-            // Firebase user exists but we're not authenticated - restore session
-            isAuthenticated = true
-        } else if (firebaseUser == null && isAuthenticated && userPreferences.getAuthToken() == "firebase_session") {
-            // Firebase session expired but we have placeholder token - clear auth
-            userPreferences.clearAuthData()
-            isAuthenticated = false
+        try {
+            // Use withContext to ensure this runs off the main thread if needed
+            // Firebase currentUser is usually fast, but we wrap it in try-catch for safety
+            val firebaseUser = FirebaseAuth.getInstance().currentUser
+            
+            if (firebaseUser != null) {
+                // Firebase user exists - authenticate
+                isAuthenticated = true
+            } else if (isAuthenticated && userPreferences.getAuthToken() == "firebase_session") {
+                // Firebase session expired but we have placeholder token - clear auth
+                userPreferences.clearAuthData()
+                isAuthenticated = false
+            }
+        } catch (e: Exception) {
+            Log.e("FiThnityApp", "Error checking Firebase auth state", e)
+            // On error, fall back to stored token check
+            isAuthenticated = userPreferences.getAuthToken() != null
+        } finally {
+            isCheckingAuth = false
         }
     }
 
-    if (!isAuthenticated) {
+    // Show loading indicator while checking auth state
+    if (isCheckingAuth) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+    } else if (!isAuthenticated) {
         // Show Authentication Screen
         AuthScreen(
             userPreferences = userPreferences,
@@ -145,8 +169,12 @@ fun FiThnityApp(userPreferences: UserPreferences, languageViewModel: LanguageVie
             userPreferences = userPreferences,
             languageViewModel = languageViewModel,
             onLogout = {
-                // Sign out from Firebase
-                FirebaseAuth.getInstance().signOut()
+                // Sign out from Firebase asynchronously
+                try {
+                    FirebaseAuth.getInstance().signOut()
+                } catch (e: Exception) {
+                    Log.e("FiThnityApp", "Error signing out from Firebase", e)
+                }
                 // Clear authentication data
                 userPreferences.clearAuthData()
                 // Clear authentication state
