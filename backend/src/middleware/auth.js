@@ -1,150 +1,9 @@
 import jwt from 'jsonwebtoken';
-import { getFirebaseAuth } from '../config/firebase.js';
 import User from '../models/User.js';
 
 /**
- * Middleware to verify Firebase ID token
- * Expects Authorization header with "Bearer <token>"
- */
-export const verifyFirebaseToken = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-
-    console.log('🔐 verifyFirebaseToken: Checking authorization header');
-    console.log('   Header present:', !!authHeader);
-    console.log('   Header starts with Bearer:', authHeader?.startsWith('Bearer '));
-    console.log('   Request path:', req.path);
-    console.log('   Request method:', req.method);
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('❌ verifyFirebaseToken: No valid authorization header');
-      return res.status(401).json({
-        success: false,
-        message: 'No token provided. Authorization header must be "Bearer <token>"'
-      });
-    }
-
-    const idToken = authHeader.split('Bearer ')[1];
-    console.log('🔐 verifyFirebaseToken: Token extracted, length:', idToken?.length);
-
-    // Verify the token with Firebase Admin
-    try {
-      const decodedToken = await getFirebaseAuth().verifyIdToken(idToken);
-      console.log('✅ verifyFirebaseToken: Token verified successfully');
-      console.log('   User UID:', decodedToken.uid);
-
-      // Attach Firebase user info to request
-      req.firebaseUser = {
-        uid: decodedToken.uid,
-        phone: decodedToken.phone_number,
-        email: decodedToken.email
-      };
-
-      // Try to find user in database
-      let user = await User.findOne({ firebaseUid: decodedToken.uid });
-      console.log('👤 verifyFirebaseToken: User lookup result:', user ? 'Found' : 'Not found');
-
-      // If user doesn't exist in our DB, create them
-      if (!user) {
-        console.log('👤 verifyFirebaseToken: Creating new user in database');
-        user = await User.create({
-          firebaseUid: decodedToken.uid,
-          name: decodedToken.name || 'User',
-          phoneNumber: decodedToken.phone_number || '',
-          photoUrl: decodedToken.picture || null
-        });
-        console.log('✅ verifyFirebaseToken: New user created:', user._id);
-      }
-
-      // Attach user to request
-      req.user = user;
-      console.log('✅ verifyFirebaseToken: Authentication successful, proceeding to next middleware');
-
-      next();
-    } catch (firebaseError) {
-      console.error('❌ verifyFirebaseToken: Firebase token verification failed');
-      console.error('   Error code:', firebaseError.code);
-      console.error('   Error message:', firebaseError.message);
-      console.error('   Stack:', firebaseError.stack);
-
-      if (firebaseError.code === 'auth/id-token-expired') {
-        return res.status(401).json({
-          success: false,
-          message: 'Token expired. Please login again.'
-        });
-      }
-
-      if (firebaseError.code === 'auth/argument-error') {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid token format'
-        });
-      }
-
-      // Check if it's a Firebase initialization error
-      if (firebaseError.message?.includes('not initialized') || firebaseError.message?.includes('Firebase Admin SDK')) {
-        console.error('❌ CRITICAL: Firebase Admin SDK is not initialized!');
-        console.error('   This is a server configuration issue.');
-        console.error('   The server needs firebase-service-account.json or environment variables.');
-        return res.status(500).json({
-          success: false,
-          message: 'Server configuration error: Firebase Admin SDK not initialized',
-          error: 'Server is not properly configured. Please contact administrator.',
-          code: 'FIREBASE_NOT_INITIALIZED'
-        });
-      }
-
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication failed',
-        error: firebaseError.message
-      });
-    }
-  } catch (error) {
-    console.error('❌ verifyFirebaseToken: Unexpected error:', error);
-    console.error('   Stack:', error.stack);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error during authentication',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Optional authentication - doesn't fail if no token
- * Useful for endpoints that have different behavior for authenticated users
- */
-export const optionalAuth = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return next(); // Continue without auth
-    }
-
-    const idToken = authHeader.split('Bearer ')[1];
-    const decodedToken = await getFirebaseAuth().verifyIdToken(idToken);
-
-    req.firebaseUser = {
-      uid: decodedToken.uid,
-      phone: decodedToken.phone_number,
-      email: decodedToken.email
-    };
-
-    const user = await User.findOne({ firebaseUid: decodedToken.uid });
-    req.user = user;
-
-    next();
-  } catch (error) {
-    // Silently fail and continue without auth
-    next();
-  }
-};
-
-/**
  * Unified authentication middleware
- * Handles both JWT (email auth) and Firebase tokens (mobile auth)
+ * Handles JWT tokens (email auth and OTP phone auth)
  */
 export const authenticate = async (req, res, next) => {
   try {
@@ -159,7 +18,7 @@ export const authenticate = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
-    // Try JWT first (email auth)
+    // Verify JWT token
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findById(decoded.userId);
@@ -179,42 +38,15 @@ export const authenticate = async (req, res, next) => {
       }
 
       req.user = user;
-      req.authType = 'jwt';
+      req.authType = decoded.authType || 'jwt';
       return next();
     } catch (jwtError) {
-      // If JWT fails, try Firebase token (mobile auth)
-      try {
-        const decodedToken = await getFirebaseAuth().verifyIdToken(token);
-
-        req.firebaseUser = {
-          uid: decodedToken.uid,
-          phone: decodedToken.phone_number,
-          email: decodedToken.email
-        };
-
-        let user = await User.findOne({ firebaseUid: decodedToken.uid });
-
-        // Create user if doesn't exist
-        if (!user) {
-          user = await User.create({
-            firebaseUid: decodedToken.uid,
-            name: decodedToken.name || 'User',
-            phoneNumber: decodedToken.phone_number || '',
-            photoUrl: decodedToken.picture || null,
-            authType: 'firebase'
-          });
-        }
-
-        req.user = user;
-        req.authType = 'firebase';
-        return next();
-      } catch (firebaseError) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid or expired token',
-          error: firebaseError.message
-        });
-      }
+      console.error('JWT verification error:', jwtError.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token',
+        error: jwtError.message
+      });
     }
   } catch (error) {
     console.error('Authentication error:', error);
@@ -223,6 +55,35 @@ export const authenticate = async (req, res, next) => {
       message: 'Authentication failed',
       error: error.message
     });
+  }
+};
+
+/**
+ * Optional authentication - doesn't fail if no token
+ * Useful for endpoints that have different behavior for authenticated users
+ */
+export const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next(); // Continue without auth
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findById(decoded.userId);
+      req.user = user;
+    } catch (error) {
+      // Silently fail and continue without auth
+    }
+
+    next();
+  } catch (error) {
+    // Silently fail and continue without auth
+    next();
   }
 };
 

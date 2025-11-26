@@ -10,7 +10,7 @@ import {
   deletePost,
   getMyPosts
 } from '../controllers/communityController.js';
-import { verifyFirebaseToken, optionalAuth } from '../middleware/auth.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
 import { uploadCommunityPost } from '../middleware/upload.js';
 
@@ -19,7 +19,7 @@ const router = express.Router();
 // Create a new post (with optional image upload)
 router.post(
   '/posts',
-  verifyFirebaseToken,
+  authenticate,
   uploadCommunityPost.single('image'), // Handle single image upload
   [
     body('content').notEmpty().trim().isLength({ min: 1, max: 500 }),
@@ -44,7 +44,7 @@ router.get('/posts/:postId', optionalAuth, getPostById);
 // Vote on a post (Reddit-style upvote/downvote)
 router.post(
   '/posts/:postId/vote',
-  verifyFirebaseToken,
+  authenticate,
   [
     body('vote').optional().isIn(['up', 'down', null]),
     handleValidationErrors
@@ -58,7 +58,7 @@ router.post('/posts/:postId/like', verifyFirebaseToken, toggleLike);
 // Add a comment to a post
 router.post(
   '/posts/:postId/comments',
-  verifyFirebaseToken,
+  authenticate,
   [
     body('content').notEmpty().trim().isLength({ min: 1, max: 200 }),
     handleValidationErrors

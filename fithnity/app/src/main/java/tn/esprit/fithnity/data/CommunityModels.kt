@@ -8,7 +8,6 @@ import com.google.gson.annotations.SerializedName
 data class CommunityPostResponse(
     val _id: String,
     val user: UserInfo,
-    val firebaseUid: String,
     val content: String,
     val postType: String? = null,
     val imageUrl: String? = null,

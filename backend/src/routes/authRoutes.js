@@ -9,6 +9,11 @@ import {
   resetPassword,
   getCurrentUser
 } from '../controllers/authController.js';
+import {
+  sendOTP,
+  verifyOTP,
+  resendOTP
+} from '../controllers/otpController.js';
 import { authenticate } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
 
@@ -121,5 +126,72 @@ router.post(
  * GET /api/auth/me
  */
 router.get('/me', authenticate, getCurrentUser);
+
+/**
+ * Phone OTP Authentication Routes
+ */
+
+/**
+ * Send OTP code to phone number
+ * POST /api/auth/otp/send
+ */
+router.post(
+  '/otp/send',
+  [
+    body('phoneNumber')
+      .notEmpty()
+      .withMessage('Phone number is required')
+      .matches(/^\+[1-9]\d{1,14}$/)
+      .withMessage('Phone number must be in E.164 format (e.g., +21626204432)'),
+    handleValidationErrors
+  ],
+  sendOTP
+);
+
+/**
+ * Verify OTP code and login/register
+ * POST /api/auth/otp/verify
+ */
+router.post(
+  '/otp/verify',
+  [
+    body('phoneNumber')
+      .notEmpty()
+      .withMessage('Phone number is required')
+      .matches(/^\+[1-9]\d{1,14}$/)
+      .withMessage('Phone number must be in E.164 format (e.g., +21626204432)'),
+    body('code')
+      .notEmpty()
+      .withMessage('OTP code is required')
+      .isLength({ min: 6, max: 6 })
+      .withMessage('OTP code must be 6 digits')
+      .matches(/^\d{6}$/)
+      .withMessage('OTP code must contain only digits'),
+    body('name')
+      .optional()
+      .trim()
+      .isLength({ min: 2, max: 50 })
+      .withMessage('Name must be between 2 and 50 characters'),
+    handleValidationErrors
+  ],
+  verifyOTP
+);
+
+/**
+ * Resend OTP code
+ * POST /api/auth/otp/resend
+ */
+router.post(
+  '/otp/resend',
+  [
+    body('phoneNumber')
+      .notEmpty()
+      .withMessage('Phone number is required')
+      .matches(/^\+[1-9]\d{1,14}$/)
+      .withMessage('Phone number must be in E.164 format (e.g., +21626204432)'),
+    handleValidationErrors
+  ],
+  resendOTP
+);
 
 export default router;

@@ -20,7 +20,6 @@ export const createPost = async (req, res) => {
 
     const post = await CommunityPost.create({
       user: req.user._id,
-      firebaseUid: req.firebaseUser.uid,
       content,
       postType: postType || 'GENERAL',
       location,

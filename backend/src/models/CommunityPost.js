@@ -22,11 +22,7 @@ const communityPostSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  firebaseUid: {
-    type: String,
-    required: true,
-    index: true
-  },
+  // Removed firebaseUid - using phone authentication instead
   content: {
     type: String,
     required: true,

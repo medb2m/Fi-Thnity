@@ -38,3 +38,22 @@ Thumbs.db
 *.tmp
 *.log
 
+# Node.js and npm
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+
+# Twilio credentials (if stored in files)
+*credentials*.json
+*twilio*.json
+
+# Test scripts - test-twilio.js is safe to commit (uses env vars only)
+# Keep test-twilio.js.example as a template
+

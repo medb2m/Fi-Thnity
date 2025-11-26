@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 
 // Import configurations
 import connectDB from './config/database.js';
-import initializeFirebase from './config/firebase.js';
+import initializeTwilio from './config/twilio.js';
 import './config/email.js'; // Initialize email service
 
 // Import scheduled jobs
@@ -36,16 +36,15 @@ const PORT = process.env.PORT || 3000;
 // Connect to MongoDB
 connectDB();
 
-// Initialize Firebase Admin
-const firebaseInitialized = initializeFirebase();
+// Initialize Twilio
+const twilioInitialized = initializeTwilio();
+if (!twilioInitialized) {
+  console.warn('⚠️  WARNING: Twilio not initialized!');
+  console.warn('⚠️  OTP/SMS endpoints will fail until Twilio is configured.');
+}
 
 // Initialize scheduled jobs (after DB connection)
 initializeScheduledJobs();
-if (!firebaseInitialized) {
-  console.warn('⚠️  WARNING: Firebase Admin SDK not initialized!');
-  console.warn('⚠️  Authentication endpoints will fail until Firebase is configured.');
-  console.warn('⚠️  See logs above for configuration instructions.');
-}
 
 // Middleware
 // Configure Helmet for HTTP (adjust for production with HTTPS)
