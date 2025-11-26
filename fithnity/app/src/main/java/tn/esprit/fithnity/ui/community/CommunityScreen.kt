@@ -1,6 +1,8 @@
 package tn.esprit.fithnity.ui.community
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,54 +16,90 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
+import tn.esprit.fithnity.data.CommunityPostResponse
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
-import androidx.compose.ui.res.stringResource
-import tn.esprit.fithnity.R
+import java.text.SimpleDateFormat
+import java.util.*
 
 /**
- * Community Screen showing social feed
+ * Community Screen showing social feed (Facebook-style)
  */
 @Composable
 fun CommunityScreen(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: CommunityViewModel = viewModel()
 ) {
-    val posts = remember { emptyList<Post>() } // TODO: Get from ViewModel
+    val uiState by viewModel.uiState.collectAsState()
+
+    // Load posts on first composition
+    LaunchedEffect(Unit) {
+        viewModel.loadPosts(sort = "score")
+    }
 
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp)
-        ) {
-            // Header
-            Text(
-                text = stringResource(R.string.community),
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            // Posts List
-            if (posts.isEmpty()) {
-                // Empty State
-                EmptyCommunityState()
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+        when (val state = uiState) {
+            is CommunityUiState.Loading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(posts) { post ->
-                        PostCard(post = post) {
-                            // TODO: Navigate to post detail
+                    CircularProgressIndicator()
+                }
+            }
+            is CommunityUiState.Error -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Error loading posts",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = state.message,
+                        fontSize = 14.sp,
+                        color = TextSecondary
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Button(onClick = { viewModel.loadPosts(sort = "score") }) {
+                        Text("Retry")
+                    }
+                }
+            }
+            is CommunityUiState.Success -> {
+                if (state.posts.isEmpty()) {
+                    EmptyCommunityState()
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(state.posts) { post ->
+                            PostCard(
+                                post = post,
+                                viewModel = viewModel,
+                                onCommentClick = { postId ->
+                                    // TODO: Navigate to comments screen or show dialog
+                                }
+                            )
                         }
                     }
                 }
@@ -81,7 +119,7 @@ fun CommunityScreen(
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
-                contentDescription = stringResource(R.string.new_post)
+                contentDescription = "New Post"
             )
         }
     }
@@ -109,7 +147,7 @@ private fun EmptyCommunityState() {
         Spacer(Modifier.height(24.dp))
 
         Text(
-            text = stringResource(R.string.no_posts_yet),
+            text = "No posts yet",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = TextSecondary
@@ -118,7 +156,7 @@ private fun EmptyCommunityState() {
         Spacer(Modifier.height(8.dp))
 
         Text(
-            text = stringResource(R.string.be_first_to_share),
+            text = "Be the first to share something!",
             fontSize = 15.sp,
             color = TextHint
         )
@@ -126,67 +164,79 @@ private fun EmptyCommunityState() {
 }
 
 /**
- * Post Card Component
+ * Facebook-style Post Card Component
  */
 @Composable
 private fun PostCard(
-    post: Post,
-    onClick: () -> Unit
+    post: CommunityPostResponse,
+    viewModel: CommunityViewModel,
+    onCommentClick: (String) -> Unit
 ) {
+    var showComments by remember { mutableStateOf(false) }
+    var commentText by remember { mutableStateOf("") }
+
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        shape = RoundedCornerShape(0.dp),
         colors = CardDefaults.cardColors(
             containerColor = Surface
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 4.dp
+            defaultElevation = 1.dp
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
-            // Header: User Info
+            // Header: User Info (Facebook-style)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // User Avatar
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(PrimaryLight),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = Color.White
-                        )
+                // User Avatar with profile picture
+                AsyncImage(
+                    model = post.user.photoUrl?.let { url ->
+                        if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
+                    },
+                    contentDescription = "Profile picture",
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop,
+                    error = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                                .background(PrimaryLight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = Color.White
+                            )
+                        }
                     }
+                )
 
-                    Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(12.dp))
 
-                    Column {
-                        Text(
-                            text = post.userName,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = post.time,
-                            fontSize = 13.sp,
-                            color = TextSecondary
-                        )
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = post.user.name ?: "User",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = post.timeAgo ?: formatTimeAgo(post.createdAt),
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
                 }
 
                 // More Options
@@ -194,6 +244,7 @@ private fun PostCard(
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "More",
+                        modifier = Modifier.size(20.dp),
                         tint = TextHint
                     )
                 }
@@ -209,77 +260,245 @@ private fun PostCard(
                 lineHeight = 22.sp
             )
 
-            Spacer(Modifier.height(16.dp))
+            // Post Image (if available)
+            post.imageUrl?.let { imageUrl ->
+                Spacer(Modifier.height(12.dp))
+                val fullImageUrl = if (imageUrl.startsWith("http")) {
+                    imageUrl
+                } else {
+                    "http://72.61.145.239:9090$imageUrl"
+                }
+                AsyncImage(
+                    model = fullImageUrl,
+                    contentDescription = "Post image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
 
-            // Actions: Like, Comment, Share
+            Spacer(Modifier.height(12.dp))
+
+            // Reddit-style Voting Section
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Like
-                PostAction(
-                    icon = Icons.Default.Favorite,
-                    count = post.likes,
-                    label = stringResource(R.string.like),
-                    color = Accent
-                )
+                // Left: Upvote/Downvote buttons (Reddit-style)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Upvote button
+                    IconButton(
+                        onClick = {
+                            val newVote = if (post.userVote == "up") null else "up"
+                            viewModel.votePost(post._id, newVote)
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowUpward,
+                            contentDescription = "Upvote",
+                            modifier = Modifier.size(20.dp),
+                            tint = if (post.userVote == "up") Color(0xFFFF4500) else TextHint
+                        )
+                    }
 
-                // Comment
-                PostAction(
-                    icon = Icons.Default.Comment,
-                    count = post.comments,
-                    label = stringResource(R.string.comment),
-                    color = Primary
-                )
+                    // Score display
+                    Text(
+                        text = "${post.score}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
 
-                // Share
-                PostAction(
-                    icon = Icons.Default.Share,
-                    count = post.shares,
-                    label = stringResource(R.string.share),
-                    color = Secondary
-                )
+                    // Downvote button
+                    IconButton(
+                        onClick = {
+                            val newVote = if (post.userVote == "down") null else "down"
+                            viewModel.votePost(post._id, newVote)
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowDownward,
+                            contentDescription = "Downvote",
+                            modifier = Modifier.size(20.dp),
+                            tint = if (post.userVote == "down") Color(0xFF6A5ACD) else TextHint
+                        )
+                    }
+                }
+
+                // Right: Comment button
+                Row(
+                    modifier = Modifier.clickable { showComments = !showComments },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Comment,
+                        contentDescription = "Comment",
+                        modifier = Modifier.size(20.dp),
+                        tint = TextHint
+                    )
+                    Text(
+                        text = "${post.commentsCount}",
+                        fontSize = 14.sp,
+                        color = TextHint
+                    )
+                }
+            }
+
+            // Comments Section
+            if (showComments) {
+                Spacer(Modifier.height(12.dp))
+                Divider()
+                Spacer(Modifier.height(12.dp))
+
+                // Existing comments
+                post.comments?.forEach { comment ->
+                    CommentItem(comment = comment)
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // Add comment input
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = commentText,
+                        onValueChange = { commentText = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Write a comment...", fontSize = 14.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        )
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            if (commentText.isNotBlank()) {
+                                viewModel.addComment(post._id, commentText)
+                                commentText = ""
+                            }
+                        },
+                        enabled = commentText.isNotBlank()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = "Send comment",
+                            tint = if (commentText.isNotBlank()) Primary else TextHint
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 /**
- * Post Action Button Component
+ * Comment Item Component
  */
 @Composable
-private fun PostAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    count: Int,
-    label: String,
-    color: Color
-) {
-    TextButton(
-        onClick = { /* TODO: Handle action */ }
+private fun CommentItem(comment: tn.esprit.fithnity.data.CommentResponse) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            modifier = Modifier.size(20.dp),
-            tint = color
+        // Commenter avatar
+        AsyncImage(
+            model = comment.user.photoUrl?.let { url ->
+                if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
+            },
+            contentDescription = "Commenter avatar",
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop,
+            error = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                        .background(PrimaryLight),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White
+                    )
+                }
+            }
         )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = if (count > 0) count.toString() else label,
-            fontSize = 14.sp,
-            color = color
-        )
+
+        Spacer(Modifier.width(8.dp))
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFFF0F2F5), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Column {
+                    Text(
+                        text = comment.user.name ?: "User",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = comment.content,
+                        fontSize = 14.sp,
+                        color = TextPrimary,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = formatTimeAgo(comment.createdAt),
+                fontSize = 11.sp,
+                color = TextHint
+            )
+        }
     }
 }
 
-// Data Model
-private data class Post(
-    val id: String,
-    val userName: String,
-    val userAvatar: String? = null,
-    val time: String,
-    val content: String,
-    val likes: Int = 0,
-    val comments: Int = 0,
-    val shares: Int = 0
-)
+/**
+ * Format time ago string
+ */
+private fun formatTimeAgo(dateString: String?): String {
+    if (dateString == null) return "Just now"
+    
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+        sdf.timeZone = TimeZone.getTimeZone("UTC")
+        val date = sdf.parse(dateString)
+        val now = Date()
+        val diff = now.time - (date?.time ?: 0)
+        
+        when {
+            diff < 60000 -> "Just now"
+            diff < 3600000 -> "${diff / 60000}m ago"
+            diff < 86400000 -> "${diff / 3600000}h ago"
+            diff < 604800000 -> "${diff / 86400000}d ago"
+            else -> {
+                val displayFormat = SimpleDateFormat("MMM d", Locale.US)
+                displayFormat.format(date ?: now)
+            }
+        }
+    } catch (e: Exception) {
+        "Just now"
+    }
+}
