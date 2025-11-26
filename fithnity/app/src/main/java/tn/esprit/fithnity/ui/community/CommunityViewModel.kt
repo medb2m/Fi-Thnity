@@ -3,12 +3,13 @@ package tn.esprit.fithnity.ui.community
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseAuth
+// Firebase removed - using JWT tokens instead
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -34,7 +35,6 @@ sealed class CreatePostUiState {
 
 class CommunityViewModel : ViewModel() {
     private val api = NetworkModule.communityApi
-    private val firebaseAuth = FirebaseAuth.getInstance()
 
     private val _uiState = MutableStateFlow<CommunityUiState>(CommunityUiState.Loading)
     val uiState: StateFlow<CommunityUiState> = _uiState.asStateFlow()
@@ -43,30 +43,10 @@ class CommunityViewModel : ViewModel() {
     val createPostState: StateFlow<CreatePostUiState> = _createPostState.asStateFlow()
 
     /**
-     * Get Firebase ID token for authentication
-     */
-    private suspend fun getFirebaseIdToken(): String? {
-        return suspendCoroutine { cont ->
-            val user = firebaseAuth.currentUser
-            if (user == null) {
-                cont.resume(null)
-                return@suspendCoroutine
-            }
-            user.getIdToken(true)
-                .addOnSuccessListener { result ->
-                    cont.resume(result.token)
-                }
-                .addOnFailureListener {
-                    Log.e(TAG, "Failed to get Firebase token", it)
-                    cont.resume(null)
-                }
-        }
-    }
-
-    /**
      * Load all community posts
      */
     fun loadPosts(
+        authToken: String? = null,
         postType: String? = null,
         sort: String = "score", // "score" or "new"
         page: Int = 1,
@@ -76,8 +56,7 @@ class CommunityViewModel : ViewModel() {
         _uiState.value = CommunityUiState.Loading
 
         try {
-            val token = getFirebaseIdToken()
-            val bearer = if (token != null) "Bearer $token" else null
+            val bearer = if (authToken != null) "Bearer $authToken" else null
             
             val response = api.getPosts(
                 bearer = bearer,
@@ -89,8 +68,9 @@ class CommunityViewModel : ViewModel() {
             Log.d(TAG, "loadPosts: Response received - success: ${response.success}")
 
             if (response.success && response.data != null) {
-                Log.d(TAG, "loadPosts: Posts loaded successfully - ${response.data.size} posts")
-                _uiState.value = CommunityUiState.Success(response.data)
+                val posts = response.data
+                Log.d(TAG, "loadPosts: Posts loaded successfully - ${posts.size} posts")
+                _uiState.value = CommunityUiState.Success(posts)
             } else {
                 val errorMsg = response.message ?: response.error ?: "Failed to load posts"
                 Log.e(TAG, "loadPosts: Failed - $errorMsg")
@@ -106,6 +86,7 @@ class CommunityViewModel : ViewModel() {
      * Create a new post
      */
     fun createPost(
+        authToken: String?,
         content: String,
         postType: String? = null,
         imageFile: File? = null
@@ -114,7 +95,7 @@ class CommunityViewModel : ViewModel() {
         _createPostState.value = CreatePostUiState.Loading
 
         try {
-            val token = getFirebaseIdToken()
+            val token = authToken
             if (token == null) {
                 _createPostState.value = CreatePostUiState.Error("Not authenticated. Please sign in.")
                 return@launch
@@ -163,11 +144,11 @@ class CommunityViewModel : ViewModel() {
     /**
      * Vote on a post
      */
-    fun votePost(postId: String, vote: String?) = viewModelScope.launch {
+    fun votePost(authToken: String?, postId: String, vote: String?) = viewModelScope.launch {
         Log.d(TAG, "votePost: Voting on post $postId with vote: $vote")
 
         try {
-            val token = getFirebaseIdToken()
+            val token = authToken
             if (token == null) {
                 Log.e(TAG, "votePost: Not authenticated")
                 return@launch
@@ -194,11 +175,11 @@ class CommunityViewModel : ViewModel() {
     /**
      * Add a comment to a post
      */
-    fun addComment(postId: String, content: String) = viewModelScope.launch {
+    fun addComment(authToken: String?, postId: String, content: String) = viewModelScope.launch {
         Log.d(TAG, "addComment: Adding comment to post $postId")
 
         try {
-            val token = getFirebaseIdToken()
+            val token = authToken
             if (token == null) {
                 Log.e(TAG, "addComment: Not authenticated")
                 return@launch
@@ -212,8 +193,8 @@ class CommunityViewModel : ViewModel() {
 
             if (response.success) {
                 Log.d(TAG, "addComment: Comment added successfully")
-                // Refresh posts to get updated comments
-                loadPosts()
+                // Refresh posts to get updated comments (will need authToken passed from screen)
+                // loadPosts(authToken)
             } else {
                 Log.e(TAG, "addComment: Failed - ${response.message}")
             }

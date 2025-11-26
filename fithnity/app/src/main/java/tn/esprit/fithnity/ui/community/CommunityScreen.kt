@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import tn.esprit.fithnity.data.CommunityPostResponse
+import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
 import java.text.SimpleDateFormat
@@ -36,13 +37,15 @@ import java.util.*
 fun CommunityScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    userPreferences: UserPreferences,
     viewModel: CommunityViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val authToken = userPreferences.getAuthToken()
 
     // Load posts on first composition
     LaunchedEffect(Unit) {
-        viewModel.loadPosts(sort = "score")
+        viewModel.loadPosts(authToken = authToken, sort = "score")
     }
 
     Box(
@@ -96,6 +99,7 @@ fun CommunityScreen(
                             PostCard(
                                 post = post,
                                 viewModel = viewModel,
+                                authToken = authToken,
                                 onCommentClick = { postId ->
                                     // TODO: Navigate to comments screen or show dialog
                                 }
@@ -170,6 +174,7 @@ private fun EmptyCommunityState() {
 private fun PostCard(
     post: CommunityPostResponse,
     viewModel: CommunityViewModel,
+    authToken: String?,
     onCommentClick: (String) -> Unit
 ) {
     var showComments by remember { mutableStateOf(false) }
@@ -196,32 +201,34 @@ private fun PostCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // User Avatar with profile picture
-                AsyncImage(
-                    model = post.user.photoUrl?.let { url ->
-                        if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
-                    },
-                    contentDescription = "Profile picture",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop,
-                    error = {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .background(PrimaryLight),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                                tint = Color.White
-                            )
-                        }
+                val profileImageUrl = post.user.photoUrl?.let { url ->
+                    if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
+                }
+                if (profileImageUrl != null) {
+                    AsyncImage(
+                        model = profileImageUrl,
+                        contentDescription = "Profile picture",
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryLight),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.White
+                        )
                     }
-                )
+                }
 
                 Spacer(Modifier.width(12.dp))
 
@@ -295,7 +302,7 @@ private fun PostCard(
                     IconButton(
                         onClick = {
                             val newVote = if (post.userVote == "up") null else "up"
-                            viewModel.votePost(post._id, newVote)
+                            viewModel.votePost(authToken = authToken, postId = post._id, vote = newVote)
                         },
                         modifier = Modifier.size(32.dp)
                     ) {
@@ -320,7 +327,7 @@ private fun PostCard(
                     IconButton(
                         onClick = {
                             val newVote = if (post.userVote == "down") null else "down"
-                            viewModel.votePost(post._id, newVote)
+                            viewModel.votePost(authToken = authToken, postId = post._id, vote = newVote)
                         },
                         modifier = Modifier.size(32.dp)
                     ) {
@@ -385,7 +392,7 @@ private fun PostCard(
                     IconButton(
                         onClick = {
                             if (commentText.isNotBlank()) {
-                                viewModel.addComment(post._id, commentText)
+                                viewModel.addComment(authToken = authToken, postId = post._id, content = commentText)
                                 commentText = ""
                             }
                         },
@@ -412,32 +419,34 @@ private fun CommentItem(comment: tn.esprit.fithnity.data.CommentResponse) {
         modifier = Modifier.fillMaxWidth()
     ) {
         // Commenter avatar
-        AsyncImage(
-            model = comment.user.photoUrl?.let { url ->
-                if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
-            },
-            contentDescription = "Commenter avatar",
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape),
-            contentScale = ContentScale.Crop,
-            error = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                        .background(PrimaryLight),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = Color.White
-                    )
-                }
+        val commenterImageUrl = comment.user.photoUrl?.let { url ->
+            if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
+        }
+        if (commenterImageUrl != null) {
+            AsyncImage(
+                model = commenterImageUrl,
+                contentDescription = "Commenter avatar",
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryLight),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = Color.White
+                )
             }
-        )
+        }
 
         Spacer(Modifier.width(8.dp))
 

@@ -3,12 +3,11 @@ package tn.esprit.fithnity.ui.rides
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseAuth
+// Firebase removed - using JWT tokens instead
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import tn.esprit.fithnity.data.*
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -30,7 +29,6 @@ sealed class CreateRideUiState {
 class RideViewModel : ViewModel() {
     private val api = NetworkModule.rideApi
     private val TAG = "RideViewModel"
-    private val firebaseAuth = FirebaseAuth.getInstance()
 
     private val _uiState = MutableStateFlow<RideUiState>(RideUiState.Idle)
     val uiState: StateFlow<RideUiState> = _uiState.asStateFlow()
@@ -39,30 +37,10 @@ class RideViewModel : ViewModel() {
     val createRideState: StateFlow<CreateRideUiState> = _createRideState.asStateFlow()
 
     /**
-     * Get Firebase ID token for authentication
-     */
-    private suspend fun getFirebaseIdToken(): String? {
-        return suspendCoroutine { cont ->
-            val user = firebaseAuth.currentUser
-            if (user == null) {
-                cont.resume(null)
-                return@suspendCoroutine
-            }
-            user.getIdToken(true)
-                .addOnSuccessListener { result ->
-                    cont.resume(result.token)
-                }
-                .addOnFailureListener {
-                    Log.e(TAG, "Failed to get Firebase token", it)
-                    cont.resume(null)
-                }
-        }
-    }
-
-    /**
      * Create a new ride (offer or request)
      */
     fun createRide(
+        authToken: String?,
         rideType: String, // "REQUEST" or "OFFER"
         transportType: String, // "TAXI", "TAXI_COLLECTIF", "PRIVATE_CAR", "METRO", "BUS"
         origin: Location,
@@ -76,7 +54,7 @@ class RideViewModel : ViewModel() {
         _createRideState.value = CreateRideUiState.Loading
 
         try {
-            val token = getFirebaseIdToken()
+            val token = authToken
             if (token == null) {
                 _createRideState.value = CreateRideUiState.Error("Not authenticated. Please sign in.")
                 return@launch

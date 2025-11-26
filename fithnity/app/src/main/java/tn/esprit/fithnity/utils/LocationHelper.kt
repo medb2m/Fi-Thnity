@@ -11,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
-import kotlinx.coroutines.tasks.await
 
 /**
  * Data class to hold location information

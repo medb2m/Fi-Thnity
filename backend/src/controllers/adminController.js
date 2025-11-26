@@ -310,7 +310,7 @@ export const createRide = async (req, res) => {
     // Create ride
     const ride = await Ride.create({
       user: userId,
-      firebaseUid: user.firebaseUid || 'admin-created',
+      // Removed firebaseUid - using phone authentication instead
       rideType,
       transportType,
       origin: {

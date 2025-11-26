@@ -3,21 +3,18 @@ package tn.esprit.fithnity.ui
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import tn.esprit.fithnity.data.*
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
 
 sealed class AuthUiState {
     object Idle : AuthUiState()
     object Loading : AuthUiState()
     data class Success(val user: UserInfo, val needsEmailVerification: Boolean = false) : AuthUiState()
     data class Error(val message: String) : AuthUiState()
+    data class OTPSent(val phoneNumber: String) : AuthUiState() // New state for OTP sent
 }
 
 class AuthViewModel : ViewModel() {
@@ -46,7 +43,7 @@ class AuthViewModel : ViewModel() {
             Log.d(TAG, "registerWithEmail: Response received - success: ${resp.success}")
             if (resp.success && resp.data != null) {
                 Log.d(TAG, "registerWithEmail: Registration successful for userId: ${resp.data.userId}")
-                _uiState.value = AuthUiState.Success(UserInfo(resp.data.userId, name, email, null, null, null, false))
+                _uiState.value = AuthUiState.Success(UserInfo(resp.data.userId, name, email, null, null, false))
             } else {
                 val errorMsg = resp.message ?: resp.error ?: "Registration failed"
                 Log.e(TAG, "registerWithEmail: Registration failed - $errorMsg")
@@ -65,17 +62,14 @@ class AuthViewModel : ViewModel() {
         // DEV: Check for magic credentials to bypass backend
         if (email.equals(MAGIC_EMAIL, ignoreCase = true) && password == MAGIC_PASSWORD) {
             Log.d(TAG, "loginWithEmail: Magic credentials detected - bypassing backend")
-            // Simulate a small delay for realistic UX
             kotlinx.coroutines.delay(500)
             
-            // Create a mock user and token
             authToken = "dev_magic_token_${System.currentTimeMillis()}"
             val mockUser = UserInfo(
                 _id = "dev_user_id",
                 name = "Dev User",
                 email = email,
                 phoneNumber = null,
-                firebaseUid = null,
                 photoUrl = null,
                 isVerified = true,
                 emailVerified = true
@@ -91,7 +85,6 @@ class AuthViewModel : ViewModel() {
             Log.d(TAG, "loginWithEmail: Response received - success: ${resp.success}")
             if (resp.success && resp.data != null) {
                 Log.d(TAG, "loginWithEmail: Login successful for user: ${resp.data.user._id}")
-                // Store auth token for persistence
                 authToken = resp.data.token
                 val needsVerification = resp.data.needsVerification ?: false
                 Log.d(TAG, "loginWithEmail: Email verification needed: $needsVerification")
@@ -107,45 +100,59 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun syncFirebaseUser(firebaseUser: FirebaseUser, name: String, email: String? = null, photoUrl: String? = null) = viewModelScope.launch {
-        Log.d(TAG, "syncFirebaseUser: Starting Firebase sync for uid: ${firebaseUser.uid}")
+    /**
+     * Send OTP code to phone number
+     */
+    fun sendOTP(phoneNumber: String) = viewModelScope.launch {
+        Log.d(TAG, "sendOTP: Sending OTP to $phoneNumber")
         _uiState.value = AuthUiState.Loading
         try {
-            // Get Firebase ID token on a suspendCoroutine for better coroutine support
-            val idToken = suspendCoroutine<String?> { cont ->
-                firebaseUser.getIdToken(true)
-                    .addOnSuccessListener { result -> cont.resume(result.token) }
-                    .addOnFailureListener { ex -> cont.resumeWithException(ex) }
-            }
-            if (idToken == null) {
-                Log.e(TAG, "syncFirebaseUser: Firebase token unavailable")
-                _uiState.value = AuthUiState.Error("Firebase token unavailable")
-                return@launch
-            }
-            Log.d(TAG, "syncFirebaseUser: Firebase token obtained")
-            val request = FirebaseRegisterRequest(
-                firebaseUid = firebaseUser.uid,
-                phoneNumber = firebaseUser.phoneNumber ?: "",
-                name = name,
-                email = email,
-                photoUrl = photoUrl
-            )
-            val resp = api.syncFirebaseUser(bearer = "Bearer $idToken", request = request)
-            Log.d(TAG, "syncFirebaseUser: Response received - success: ${resp.success}")
+            val resp = api.sendOTP(SendOTPRequest(phoneNumber))
+            Log.d(TAG, "sendOTP: Response received - success: ${resp.success}")
             if (resp.success && resp.data != null) {
-                Log.d(TAG, "syncFirebaseUser: Sync successful for user: ${resp.data._id}")
-                // Store the Firebase ID token for persistence
-                authToken = idToken
-                _uiState.value = AuthUiState.Success(resp.data)
+                Log.d(TAG, "sendOTP: OTP sent successfully")
+                _uiState.value = AuthUiState.OTPSent(phoneNumber)
             } else {
-                val errorMsg = resp.message ?: resp.error ?: "Firebase user sync failed"
-                Log.e(TAG, "syncFirebaseUser: Sync failed - $errorMsg")
+                val errorMsg = resp.message ?: resp.error ?: "Failed to send OTP"
+                Log.e(TAG, "sendOTP: Failed - $errorMsg")
                 _uiState.value = AuthUiState.Error(errorMsg)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "syncFirebaseUser: Exception occurred", e)
+            Log.e(TAG, "sendOTP: Exception occurred", e)
             _uiState.value = AuthUiState.Error(e.message ?: "Unknown error")
         }
+    }
+
+    /**
+     * Verify OTP code and login/register
+     */
+    fun verifyOTP(phoneNumber: String, code: String, name: String? = null) = viewModelScope.launch {
+        Log.d(TAG, "verifyOTP: Verifying OTP for $phoneNumber")
+        _uiState.value = AuthUiState.Loading
+        try {
+            val resp = api.verifyOTP(VerifyOTPRequest(phoneNumber, code, name))
+            Log.d(TAG, "verifyOTP: Response received - success: ${resp.success}")
+            if (resp.success && resp.data != null) {
+                Log.d(TAG, "verifyOTP: OTP verified successfully for user: ${resp.data.user._id}")
+                authToken = resp.data.token
+                _uiState.value = AuthUiState.Success(resp.data.user, needsEmailVerification = false)
+            } else {
+                val errorMsg = resp.message ?: resp.error ?: "Invalid OTP code"
+                Log.e(TAG, "verifyOTP: Failed - $errorMsg")
+                _uiState.value = AuthUiState.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyOTP: Exception occurred", e)
+            _uiState.value = AuthUiState.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    /**
+     * Resend OTP code
+     */
+    fun resendOTP(phoneNumber: String) = viewModelScope.launch {
+        Log.d(TAG, "resendOTP: Resending OTP to $phoneNumber")
+        sendOTP(phoneNumber) // Reuse sendOTP logic
     }
 
     fun resetState() {

@@ -67,15 +67,9 @@ fun ProfileScreen(
     
     // Load profile when screen is visible
     LaunchedEffect(Unit) {
-        // Try Firebase token first, then fallback to stored token
+        // Use stored JWT token
         scope.launch {
-            val firebaseToken = try {
-                profileViewModel.getFirebaseIdToken()
-            } catch (e: Exception) {
-                android.util.Log.e("ProfileScreen", "Error getting Firebase token", e)
-                null
-            }
-            val token = firebaseToken ?: authToken
+            val token = authToken
             android.util.Log.d("ProfileScreen", "Loading profile with token: ${if (token != null) "present" else "null"}")
             if (token != null) {
                 profileViewModel.loadProfile(token)
@@ -88,12 +82,7 @@ fun ProfileScreen(
     // Reload profile when authToken changes
     LaunchedEffect(authToken) {
         scope.launch {
-            val firebaseToken = try {
-                profileViewModel.getFirebaseIdToken()
-            } catch (e: Exception) {
-                null
-            }
-            val token = firebaseToken ?: authToken
+            val token = authToken
             if (token != null) {
                 profileViewModel.loadProfile(token)
             }
@@ -155,8 +144,8 @@ fun ProfileScreen(
                 val file = getFileFromUri(context, it)
                 if (file != null) {
                     imageFile = file
-                    // Try Firebase token first, then fallback to stored auth token
-                    val token = profileViewModel.getFirebaseIdToken() ?: authToken
+                    // Use stored JWT token
+                    val token = authToken
                     if (token != null) {
                         profileViewModel.uploadProfilePicture(file, token)
                     }

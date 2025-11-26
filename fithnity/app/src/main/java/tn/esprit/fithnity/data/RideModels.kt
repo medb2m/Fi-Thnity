@@ -46,7 +46,6 @@ data class CreateRideRequest(
 data class RideResponse(
     val _id: String,
     val user: UserInfo?,
-    val firebaseUid: String,
     val rideType: String,
     val transportType: String,
     val origin: Location,

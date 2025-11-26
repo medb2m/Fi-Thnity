@@ -32,10 +32,27 @@ transporter.verify((error, success) => {
 });
 
 /**
+ * Get server base URL (IP or domain)
+ */
+const getServerUrl = () => {
+  // Priority: SERVER_URL > SERVER_IP:PORT > default server IP
+  if (process.env.SERVER_URL) {
+    return process.env.SERVER_URL.replace(/\/$/, ''); // Remove trailing slash
+  }
+  
+  // Use SERVER_IP from env, or default to production server IP
+  const serverIP = process.env.SERVER_IP || '72.61.145.239';
+  const port = process.env.PORT || '9090';
+  
+  return `http://${serverIP}:${port}`;
+};
+
+/**
  * Send verification email
  */
 export const sendVerificationEmail = async (email, name, token) => {
-  const verificationUrl = `${process.env.APP_URL}/api/auth/verify-email?token=${token}`;
+  const serverUrl = getServerUrl();
+  const verificationUrl = `${serverUrl}/api/auth/verify-email?token=${token}`;
 
   const mailOptions = {
     from: process.env.EMAIL_FROM,

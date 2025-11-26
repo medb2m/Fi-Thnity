@@ -65,9 +65,6 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     // OkHttp logging interceptor for debugging
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    // Firebase Auth (using BOM)
-    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
-    implementation("com.google.firebase:firebase-auth-ktx")
     // Jetpack Compose Lifecycle ViewModel integration
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
     // Core Modern Compose (in case needed)
@@ -87,5 +84,4 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.0.1")
 }
 
-// Apply Google Services plugin for Firebase
-apply(plugin = "com.google.gms.google-services")
+// Google Services plugin removed - using Twilio OTP instead

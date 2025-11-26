@@ -3,7 +3,7 @@ package tn.esprit.fithnity.ui.user
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseAuth
+// Firebase removed - using JWT tokens instead
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,8 +35,8 @@ class ProfileViewModel : ViewModel() {
     val uploadState: StateFlow<ProfileUiState> = _uploadState.asStateFlow()
 
     fun loadProfile(authToken: String?) = viewModelScope.launch {
-        // Try Firebase token first, then fallback to stored token
-        val token = getFirebaseIdToken() ?: authToken
+        // Use stored JWT token
+        val token = authToken
         
         if (token == null) {
             _uiState.value = ProfileUiState.Error("Not authenticated")
@@ -59,8 +59,8 @@ class ProfileViewModel : ViewModel() {
     }
 
     fun uploadProfilePicture(imageFile: File, authToken: String?) = viewModelScope.launch {
-        // Try Firebase token first, then fallback to stored token
-        val token = getFirebaseIdToken() ?: authToken
+        // Use stored JWT token
+        val token = authToken
         
         if (token == null) {
             _uploadState.value = ProfileUiState.Error("Not authenticated")
@@ -92,7 +92,6 @@ class ProfileViewModel : ViewModel() {
                         name = null,
                         email = null,
                         phoneNumber = null,
-                        firebaseUid = null,
                         photoUrl = resp.data.photoUrl,
                         isVerified = null,
                         emailVerified = null
@@ -108,25 +107,6 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
-    fun getFirebaseAuthToken(): String? {
-        val user = FirebaseAuth.getInstance().currentUser
-        return user?.let {
-            // This is a suspend function, so we'll handle it in the calling code
-            null
-        }
-    }
-
-    suspend fun getFirebaseIdToken(): String? {
-        return suspendCoroutine { cont ->
-            val user = FirebaseAuth.getInstance().currentUser
-            if (user == null) {
-                cont.resume(null)
-                return@suspendCoroutine
-            }
-            user.getIdToken(true)
-                .addOnSuccessListener { result -> cont.resume(result.token) }
-                .addOnFailureListener { ex -> cont.resumeWithException(ex) }
-        }
-    }
+    // Firebase methods removed - using JWT tokens from UserPreferences instead
 }
 

@@ -9,7 +9,7 @@ import {
   deleteRide,
   findMatchingRides
 } from '../controllers/rideController.js';
-import { verifyFirebaseToken } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
 
 const router = express.Router();
@@ -17,7 +17,7 @@ const router = express.Router();
 // Create a new ride
 router.post(
   '/',
-  verifyFirebaseToken,
+  authenticate,
   [
     body('rideType').isIn(['REQUEST', 'OFFER']),
     body('transportType').isIn(['TAXI', 'TAXI_COLLECTIF', 'PRIVATE_CAR', 'METRO', 'BUS']),
@@ -45,7 +45,7 @@ router.get('/my-rides', verifyFirebaseToken, getMyRides);
 // Find matching rides
 router.post(
   '/match',
-  verifyFirebaseToken,
+  authenticate,
   [
     body('origin.latitude').isFloat({ min: -90, max: 90 }),
     body('origin.longitude').isFloat({ min: -180, max: 180 }),
@@ -64,7 +64,7 @@ router.get('/:rideId', getRideById);
 // Update ride status
 router.put(
   '/:rideId/status',
-  verifyFirebaseToken,
+  authenticate,
   [
     body('status').isIn(['ACTIVE', 'MATCHED', 'COMPLETED', 'CANCELLED', 'EXPIRED']),
     handleValidationErrors

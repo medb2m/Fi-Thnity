@@ -5,9 +5,4 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
 }
 
-// Google Services classpath for Firebase
-buildscript {
-    dependencies {
-        classpath("com.google.gms:google-services:4.4.1")
-    }
-}
+// Google Services removed - using Twilio OTP instead

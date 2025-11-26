@@ -12,8 +12,11 @@ import { fileURLToPath } from 'url';
 
 // Import configurations
 import connectDB from './config/database.js';
-import initializeFirebase from './config/firebase.js';
+import initializeTwilio from './config/twilio.js';
 import './config/email.js'; // Initialize email service
+
+// Import scheduled jobs
+import { initializeScheduledJobs } from './jobs/scheduledJobs.js';
 
 // Import routes
 import authRoutes from './routes/authRoutes.js';
@@ -33,13 +36,15 @@ const PORT = process.env.PORT || 3000;
 // Connect to MongoDB
 connectDB();
 
-// Initialize Firebase Admin
-const firebaseInitialized = initializeFirebase();
-if (!firebaseInitialized) {
-  console.warn('⚠️  WARNING: Firebase Admin SDK not initialized!');
-  console.warn('⚠️  Authentication endpoints will fail until Firebase is configured.');
-  console.warn('⚠️  See logs above for configuration instructions.');
+// Initialize Twilio
+const twilioInitialized = initializeTwilio();
+if (!twilioInitialized) {
+  console.warn('⚠️  WARNING: Twilio not initialized!');
+  console.warn('⚠️  OTP/SMS endpoints will fail until Twilio is configured.');
 }
+
+// Initialize scheduled jobs (after DB connection)
+initializeScheduledJobs();
 
 // Middleware
 // Configure Helmet for HTTP (adjust for production with HTTPS)
@@ -103,6 +108,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rides', rideRoutes);
 app.use('/api/community', communityRoutes);
+
+// Debug: Log registered routes
+console.log('📋 Registered API routes:');
+console.log('   POST /api/auth/otp/send');
+console.log('   POST /api/auth/otp/verify');
+console.log('   POST /api/auth/otp/resend');
 
 // Admin Panel Routes
 app.use('/admin', adminRoutes);

@@ -85,15 +85,19 @@ export const register = async (req, res) => {
 /**
  * Verify email address
  * GET /api/auth/verify-email?token=xxx
+ * Renders an HTML page instead of JSON
  */
 export const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
 
     if (!token) {
-      return res.status(400).json({
-        success: false,
-        message: 'Verification token is required'
+      return res.status(400).render('email-verification', {
+        status: 'error',
+        errorMessage: 'Verification token is required. Please check your email for the complete verification link.',
+        userName: null,
+        authToken: null,
+        token: null
       });
     }
 
@@ -101,9 +105,12 @@ export const verifyEmail = async (req, res) => {
     const verificationToken = await VerificationToken.verifyToken(token, 'email-verification');
 
     if (!verificationToken) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired verification token'
+      return res.status(400).render('email-verification', {
+        status: 'error',
+        errorMessage: 'Invalid or expired verification token. The link may have expired (valid for 24 hours) or has already been used.',
+        userName: null,
+        authToken: null,
+        token: token.substring(0, 10) + '...' // Show partial token for debugging
       });
     }
 
@@ -127,20 +134,22 @@ export const verifyEmail = async (req, res) => {
     // Generate auth token
     const authToken = generateAuthToken(user._id);
 
-    res.json({
-      success: true,
-      message: 'Email verified successfully! Welcome to Fi Thnity!',
-      data: {
-        user: user.getPublicProfile(),
-        token: authToken
-      }
+    // Render success page
+    return res.render('email-verification', {
+      status: 'success',
+      userName: user.name || user.email,
+      authToken: authToken,
+      errorMessage: null,
+      token: null
     });
   } catch (error) {
     console.error('Email verification error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error verifying email',
-      error: error.message
+    return res.status(500).render('email-verification', {
+      status: 'error',
+      errorMessage: 'An error occurred while verifying your email. Please try again or contact support.',
+      userName: null,
+      authToken: null,
+      token: req.query.token ? req.query.token.substring(0, 10) + '...' : null
     });
   }
 };

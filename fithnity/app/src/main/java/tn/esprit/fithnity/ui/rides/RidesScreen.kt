@@ -51,6 +51,7 @@ import android.location.Geocoder
 import java.io.IOException
 import tn.esprit.fithnity.data.Location
 import androidx.lifecycle.viewmodel.compose.viewModel
+import tn.esprit.fithnity.data.UserPreferences
 
 /**
  * Rides Screen showing list of offers and demands
@@ -60,11 +61,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun RidesScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    userPreferences: UserPreferences,
     viewModel: RideViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
+    val authToken = userPreferences.getAuthToken()
     var selectedFilter by remember { mutableStateOf(RideFilter.ALL) }
     var selectedVehicleType by remember { mutableStateOf(VehicleType.ALL) }
-    var showAddRideForm by remember { mutableStateOf(false) }
+    var showRideTypeSelection by remember { mutableStateOf(false) }
+    var selectedRideType by remember { mutableStateOf<RideType?>(null) }
 
     Column(
         modifier = modifier
@@ -86,7 +90,7 @@ fun RidesScreen(
             
             // Add Ride Button
             FloatingActionButton(
-                onClick = { showAddRideForm = true },
+                onClick = { showRideTypeSelection = true },
                 modifier = Modifier.size(48.dp),
                 containerColor = Primary,
                 contentColor = Color.White
@@ -300,7 +304,7 @@ fun RidesScreen(
     LaunchedEffect(createRideState) {
         when (val state = createRideState) {
             is CreateRideUiState.Success -> {
-                showAddRideForm = false
+                selectedRideType = null
                 viewModel.resetCreateRideState()
                 // Refresh rides list
                 viewModel.loadRides()
@@ -312,15 +316,154 @@ fun RidesScreen(
         }
     }
     
-    if (showAddRideForm) {
-        AddRideFormDialog(
-            onDismiss = { 
-                showAddRideForm = false
-                viewModel.resetCreateRideState()
-            },
-            viewModel = viewModel
+    // Ride Type Selection Dialog
+    if (showRideTypeSelection) {
+        RideTypeSelectionDialog(
+            onDismiss = { showRideTypeSelection = false },
+            onRideTypeSelected = { rideType ->
+                selectedRideType = rideType
+                showRideTypeSelection = false
+            }
         )
     }
+    
+    // Add Ride Form Dialog (shown after type selection)
+    selectedRideType?.let { rideType ->
+        AddRideFormDialog(
+            onDismiss = { 
+                selectedRideType = null
+                viewModel.resetCreateRideState()
+            },
+            rideType = rideType,
+            viewModel = viewModel,
+            authToken = authToken
+        )
+    }
+}
+
+/**
+ * Ride Type Selection Dialog
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RideTypeSelectionDialog(
+    onDismiss: () -> Unit,
+    onRideTypeSelected: (RideType) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Choose Ride Type",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "What would you like to do?",
+                    fontSize = 14.sp,
+                    color = TextSecondary
+                )
+                
+                // Offer Option
+                Card(
+                    onClick = { onRideTypeSelected(RideType.OFFER) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Accent.copy(alpha = 0.1f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = Accent
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.offer_ride),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Share your ride with others",
+                                fontSize = 13.sp,
+                                color = TextSecondary
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = TextSecondary
+                        )
+                    }
+                }
+                
+                // Request Option
+                Card(
+                    onClick = { onRideTypeSelected(RideType.REQUEST) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Primary.copy(alpha = 0.1f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = Primary
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.need_ride),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Find a ride for your trip",
+                                fontSize = 13.sp,
+                                color = TextSecondary
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = TextSecondary
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 /**
@@ -330,7 +473,9 @@ fun RidesScreen(
 @Composable
 private fun AddRideFormDialog(
     onDismiss: () -> Unit,
-    viewModel: RideViewModel
+    rideType: RideType,
+    viewModel: RideViewModel,
+    authToken: String?
 ) {
     val createRideState by viewModel.createRideState.collectAsState()
     val context = LocalContext.current
@@ -464,11 +609,13 @@ private fun AddRideFormDialog(
         }
     }
     
+    val isOffer = rideType == RideType.OFFER
+    
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Add New Ride Offer",
+                text = if (isOffer) "Add New Ride Offer" else "Add New Ride Request",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -712,14 +859,14 @@ private fun AddRideFormDialog(
                     )
                 }
                 
-                // Seats Available
+                // Seats Available (for offers) or Number of Passengers (for requests)
                 OutlinedTextField(
                     value = seatsAvailable,
                     onValueChange = { 
                         seatsAvailable = it.filter { char -> char.isDigit() }
                         seatsError = validateSeats(seatsAvailable)
                     },
-                    label = { Text("Available Seats *") },
+                    label = { Text(if (isOffer) "Available Seats *" else "Number of Passengers *") },
                     placeholder = { Text("e.g., 3") },
                     leadingIcon = {
                         Icon(Icons.Default.Person, null)
@@ -796,7 +943,8 @@ private fun AddRideFormDialog(
                         
                         // Create API request
                         viewModel.createRide(
-                            rideType = "OFFER", // Currently only supporting offers
+                            authToken = authToken,
+                            rideType = if (isOffer) "OFFER" else "REQUEST",
                             transportType = transportType,
                             origin = Location(
                                 latitude = originLocation!!.latitude,
@@ -830,7 +978,11 @@ private fun AddRideFormDialog(
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(if (createRideState is CreateRideUiState.Loading) "Publishing..." else "Publish")
+                Text(if (createRideState is CreateRideUiState.Loading) {
+                    if (isOffer) "Publishing..." else "Submitting..."
+                } else {
+                    if (isOffer) "Publish" else "Submit Request"
+                })
             }
         },
         dismissButton = {
@@ -1478,6 +1630,10 @@ private enum class RideFilter {
 
 private enum class VehicleType {
     ALL, PERSONAL_CAR, TAXI
+}
+
+private enum class RideType {
+    REQUEST, OFFER
 }
 
 private data class MatchingInfo(

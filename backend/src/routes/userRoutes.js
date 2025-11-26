@@ -8,9 +8,8 @@ import {
   getUserStats,
   getUserById,
   getAllUsers,
-  firebaseRegisterOrUpdate
 } from '../controllers/userController.js';
-import { verifyFirebaseToken, authenticate } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
 import upload from '../middleware/upload.js';
 
@@ -62,18 +61,6 @@ router.get('/:userId', getUserById);
 // Get all users (for admin)
 router.get('/', getAllUsers);
 
-// Add route for Firebase phone registration/sync (before export default)
-router.post(
-  '/firebase',
-  verifyFirebaseToken,
-  [
-    body('firebaseUid').notEmpty(),
-    body('phoneNumber').notEmpty(),
-    body('name').optional().trim().default('User'),
-    // email and photoUrl are optional
-    handleValidationErrors
-  ],
-  firebaseRegisterOrUpdate
-);
+// Firebase route removed - using OTP authentication instead
 
 export default router;
