@@ -1,4 +1,14 @@
 import twilio from 'twilio';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES Module dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Ensure environment variables are loaded
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 // Twilio credentials must be set via environment variables
 // Never commit secrets to the repository!

@@ -1,15 +1,20 @@
 // Load environment variables FIRST before any other imports
 import dotenv from 'dotenv';
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES Module dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env file from backend directory
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieSession from 'cookie-session';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
 // Import configurations
 import connectDB from './config/database.js';
 import initializeTwilio from './config/twilio.js';
@@ -24,10 +29,6 @@ import userRoutes from './routes/userRoutes.js';
 import rideRoutes from './routes/rideRoutes.js';
 import communityRoutes from './routes/communityRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
-
-// ES Module dirname equivalent
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Initialize Express app
 const app = express();

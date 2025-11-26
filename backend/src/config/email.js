@@ -1,8 +1,14 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES Module dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Ensure environment variables are loaded
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 // Log email configuration for debugging
 console.log('📧 Email Configuration:');
