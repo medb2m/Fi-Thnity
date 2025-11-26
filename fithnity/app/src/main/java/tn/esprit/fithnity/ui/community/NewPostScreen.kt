@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.theme.*
 import java.io.File
 import java.io.FileOutputStream
@@ -37,10 +38,12 @@ import java.io.InputStream
 fun NewPostScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    userPreferences: UserPreferences,
     viewModel: CommunityViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val authToken = userPreferences.getAuthToken()
     
     var postContent by remember { mutableStateOf("") }
     var selectedPostType by remember { mutableStateOf("GENERAL") }
@@ -90,6 +93,7 @@ fun NewPostScreen(
                         onClick = {
                             if (postContent.isNotBlank()) {
                                 viewModel.createPost(
+                                    authToken = authToken,
                                     content = postContent,
                                     postType = selectedPostType,
                                     imageFile = imageFile

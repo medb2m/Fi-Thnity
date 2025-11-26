@@ -79,12 +79,18 @@ fun FiThnityNavGraph(
 
         // Rides Screen
         composable(Screen.Rides.route) {
-            RidesScreen(navController = navController)
+            RidesScreen(
+                navController = navController,
+                userPreferences = userPreferences
+            )
         }
 
         // Community Screen
         composable(Screen.Community.route) {
-            CommunityScreen(navController = navController)
+            CommunityScreen(
+                navController = navController,
+                userPreferences = userPreferences
+            )
         }
 
         // Chat Screen (placeholder for now)
@@ -148,7 +154,10 @@ fun FiThnityNavGraph(
 
         // New Post Screen
         composable(Screen.NewPost.route) {
-            NewPostScreen(navController = navController)
+            NewPostScreen(
+                navController = navController,
+                userPreferences = userPreferences
+            )
         }
 
         // Post Detail Screen (placeholder for now)

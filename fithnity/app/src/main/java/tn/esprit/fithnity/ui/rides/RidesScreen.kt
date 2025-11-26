@@ -51,6 +51,7 @@ import android.location.Geocoder
 import java.io.IOException
 import tn.esprit.fithnity.data.Location
 import androidx.lifecycle.viewmodel.compose.viewModel
+import tn.esprit.fithnity.data.UserPreferences
 
 /**
  * Rides Screen showing list of offers and demands
@@ -60,8 +61,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun RidesScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    userPreferences: UserPreferences,
     viewModel: RideViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
+    val authToken = userPreferences.getAuthToken()
     var selectedFilter by remember { mutableStateOf(RideFilter.ALL) }
     var selectedVehicleType by remember { mutableStateOf(VehicleType.ALL) }
     var showRideTypeSelection by remember { mutableStateOf(false) }
@@ -332,7 +335,8 @@ fun RidesScreen(
                 viewModel.resetCreateRideState()
             },
             rideType = rideType,
-            viewModel = viewModel
+            viewModel = viewModel,
+            authToken = authToken
         )
     }
 }
@@ -470,7 +474,8 @@ private fun RideTypeSelectionDialog(
 private fun AddRideFormDialog(
     onDismiss: () -> Unit,
     rideType: RideType,
-    viewModel: RideViewModel
+    viewModel: RideViewModel,
+    authToken: String?
 ) {
     val createRideState by viewModel.createRideState.collectAsState()
     val context = LocalContext.current
@@ -938,6 +943,7 @@ private fun AddRideFormDialog(
                         
                         // Create API request
                         viewModel.createRide(
+                            authToken = authToken,
                             rideType = if (isOffer) "OFFER" else "REQUEST",
                             transportType = transportType,
                             origin = Location(
