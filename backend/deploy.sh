@@ -20,13 +20,13 @@ echo "📋 Branche actuelle: $(git branch --show-current)"
 echo "⬇️  Récupération des dernières modifications..."
 git pull origin main || git pull origin master
 
-# Installer les nouvelles dépendances (sans dev dependencies pour la prod)
+# Installer les nouvelles dépendances (avec dev dependencies pour nodemon)
 echo "📦 Installation des dépendances..."
-npm install --omit=dev
+npm install
 
 # Redémarrer l'application avec PM2
 echo "🔄 Redémarrage de l'application..."
-pm2 restart fi-thnity-backend || pm2 start npm --name "fi-thnity-backend" -- run start
+pm2 restart fi-thnity-backend || pm2 start npm --name "fi-thnity-backend" -- run dev
 
 echo "✅ Déploiement terminé avec succès!"
 echo "========================================="
