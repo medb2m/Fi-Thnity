@@ -32,6 +32,18 @@ data class CommunityPostsListResponse(
 )
 
 /**
+ * API response for community posts list
+ * Backend returns: { success: true, data: [...], pagination: {...} }
+ */
+data class CommunityPostsApiResponse(
+    val success: Boolean,
+    val data: List<CommunityPostResponse>,
+    val pagination: PaginationInfo? = null,
+    val message: String? = null,
+    val error: String? = null
+)
+
+/**
  * Pagination information
  */
 data class PaginationInfo(

@@ -90,7 +90,7 @@ class CommunityViewModel : ViewModel() {
             Log.d(TAG, "loadPosts: Response received - success: ${response.success}")
 
             if (response.success && response.data != null) {
-                val posts = response.data.data
+                val posts = response.data
                 Log.d(TAG, "loadPosts: Posts loaded successfully - ${posts.size} posts")
                 _uiState.value = CommunityUiState.Success(posts)
             } else {

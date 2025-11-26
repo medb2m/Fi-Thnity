@@ -20,6 +20,7 @@ import tn.esprit.fithnity.ui.rides.RidesScreen
 import tn.esprit.fithnity.ui.user.ProfileScreen
 import tn.esprit.fithnity.ui.user.SettingsScreen
 import tn.esprit.fithnity.ui.community.CommunityScreen
+import tn.esprit.fithnity.ui.community.NewPostScreen
 import tn.esprit.fithnity.ui.theme.*
 import tn.esprit.fithnity.ui.LanguageViewModel
 
@@ -141,6 +142,29 @@ fun FiThnityNavGraph(
             PlaceholderScreen(
                 title = "Need a Ride",
                 message = "Request ride feature coming soon!",
+                navController = navController
+            )
+        }
+
+        // New Post Screen
+        composable(Screen.NewPost.route) {
+            NewPostScreen(navController = navController)
+        }
+
+        // Post Detail Screen (placeholder for now)
+        composable(
+            route = Screen.PostDetail.route,
+            arguments = listOf(
+                androidx.navigation.navArgument("postId") {
+                    type = androidx.navigation.NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val postId = backStackEntry.arguments?.getString("postId") ?: ""
+            // TODO: Implement PostDetailScreen
+            PlaceholderScreen(
+                title = "Post Details",
+                message = "Post detail feature coming soon!\nPost ID: $postId",
                 navController = navController
             )
         }
