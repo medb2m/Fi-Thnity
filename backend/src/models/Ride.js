@@ -115,7 +115,8 @@ rideSchema.virtual('isShareable').get(function() {
 
 // Auto-set expiration time (2 hours from departure date, or 2 hours from creation if no departure date)
 rideSchema.pre('save', function(next) {
-  if (this.isNew && !this.expiresAt) {
+  // Always ensure expiresAt is set if it's missing
+  if (!this.expiresAt) {
     // If departureDate is set, expire 2 hours after departure
     // Otherwise, expire 2 hours from now
     const baseDate = this.departureDate || new Date();

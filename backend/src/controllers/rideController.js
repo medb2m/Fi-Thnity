@@ -7,6 +7,11 @@ import User from '../models/User.js';
  */
 export const createRide = async (req, res) => {
   try {
+    console.log('🚗 createRide: Starting ride creation');
+    console.log('   User ID:', req.user._id);
+    console.log('   Firebase UID:', req.firebaseUser.uid);
+    console.log('   Request body:', JSON.stringify(req.body, null, 2));
+
     const {
       rideType,
       transportType,
@@ -18,11 +23,65 @@ export const createRide = async (req, res) => {
       price
     } = req.body;
 
+    // Validate required fields
+    if (!rideType) {
+      console.log('❌ createRide: Missing rideType');
+      return res.status(400).json({
+        success: false,
+        message: 'rideType is required'
+      });
+    }
+
+    if (!transportType) {
+      console.log('❌ createRide: Missing transportType');
+      return res.status(400).json({
+        success: false,
+        message: 'transportType is required'
+      });
+    }
+
+    if (!origin || !origin.latitude || !origin.longitude || !origin.address) {
+      console.log('❌ createRide: Invalid origin');
+      return res.status(400).json({
+        success: false,
+        message: 'origin with latitude, longitude, and address is required'
+      });
+    }
+
+    if (!destination || !destination.latitude || !destination.longitude || !destination.address) {
+      console.log('❌ createRide: Invalid destination');
+      return res.status(400).json({
+        success: false,
+        message: 'destination with latitude, longitude, and address is required'
+      });
+    }
+
     // Parse departureDate if provided (ISO 8601 string)
-    let parsedDepartureDate = departureDate ? new Date(departureDate) : new Date();
+    let parsedDepartureDate;
+    if (departureDate) {
+      parsedDepartureDate = new Date(departureDate);
+      // Check if date parsing failed
+      if (isNaN(parsedDepartureDate.getTime())) {
+        console.log('❌ createRide: Invalid departureDate format:', departureDate);
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid departureDate format. Expected ISO 8601 format (e.g., 2025-11-26T14:30:00)'
+        });
+      }
+    } else {
+      parsedDepartureDate = new Date();
+    }
     
-    // Validate departureDate is not in the past
-    if (parsedDepartureDate < new Date()) {
+    console.log('📅 createRide: Departure date:', parsedDepartureDate.toISOString());
+    console.log('📅 createRide: Departure date (local):', parsedDepartureDate.toString());
+    
+    // Validate departureDate is not in the past (allow 1 minute buffer for clock differences)
+    const now = new Date();
+    const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
+    if (parsedDepartureDate < oneMinuteAgo) {
+      console.log('❌ createRide: Departure date is in the past');
+      console.log('   Departure:', parsedDepartureDate.toISOString());
+      console.log('   Now:', now.toISOString());
       return res.status(400).json({
         success: false,
         message: 'Departure date cannot be in the past'
@@ -32,6 +91,7 @@ export const createRide = async (req, res) => {
     // Validate price for taxi rides
     if (['TAXI', 'TAXI_COLLECTIF'].includes(transportType)) {
       if (!price || price <= 0) {
+        console.log('❌ createRide: Price required for taxi rides');
         return res.status(400).json({
           success: false,
           message: 'Price is required for taxi rides'
@@ -39,25 +99,67 @@ export const createRide = async (req, res) => {
       }
     }
 
-    const ride = await Ride.create({
+    // Calculate expiration time (2 hours from departure date)
+    const expiresAt = new Date(parsedDepartureDate.getTime() + 2 * 60 * 60 * 1000);
+    console.log('⏰ createRide: Expires at:', expiresAt.toISOString());
+
+    // Ensure all numeric values are valid
+    const originLat = parseFloat(origin.latitude);
+    const originLng = parseFloat(origin.longitude);
+    const destLat = parseFloat(destination.latitude);
+    const destLng = parseFloat(destination.longitude);
+    
+    if (isNaN(originLat) || isNaN(originLng) || isNaN(destLat) || isNaN(destLng)) {
+      console.log('❌ createRide: Invalid coordinates');
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid latitude or longitude values'
+      });
+    }
+
+    const rideData = {
       user: req.user._id,
       firebaseUid: req.firebaseUser.uid,
-      rideType,
-      transportType,
-      origin,
-      destination,
-      availableSeats: availableSeats || 1,
-      notes: notes || '',
+      rideType: rideType.trim().toUpperCase(),
+      transportType: transportType.trim().toUpperCase(),
+      origin: {
+        latitude: originLat,
+        longitude: originLng,
+        address: origin.address.trim()
+      },
+      destination: {
+        latitude: destLat,
+        longitude: destLng,
+        address: destination.address.trim()
+      },
+      availableSeats: availableSeats ? Math.max(1, Math.min(8, parseInt(availableSeats))) : 1,
+      notes: notes ? notes.trim().substring(0, 200) : '',
       departureDate: parsedDepartureDate,
-      price: ['TAXI', 'TAXI_COLLECTIF'].includes(transportType) ? price : null
-    });
+      expiresAt: expiresAt,
+      price: (() => {
+        const normalizedTransportType = transportType.trim().toUpperCase();
+        if (['TAXI', 'TAXI_COLLECTIF'].includes(normalizedTransportType)) {
+          const parsedPrice = price ? parseFloat(price) : null;
+          console.log('💰 createRide: Price for taxi:', parsedPrice);
+          return parsedPrice;
+        }
+        return null;
+      })()
+    };
+
+    console.log('📝 createRide: Ride data prepared:', JSON.stringify(rideData, null, 2));
+    
+    const ride = await Ride.create(rideData);
+    console.log('✅ createRide: Ride created, ID:', ride._id);
 
     // Calculate and save distance
     ride.calculateDistance();
     await ride.save();
+    console.log('✅ createRide: Distance calculated:', ride.distance, 'km');
 
     // Populate user info
     await ride.populate('user', 'name photoUrl rating');
+    console.log('✅ createRide: User populated');
 
     res.status(201).json({
       success: true,
@@ -65,7 +167,29 @@ export const createRide = async (req, res) => {
       data: ride
     });
   } catch (error) {
-    console.error('Create ride error:', error);
+    console.error('❌ createRide: Error creating ride');
+    console.error('   Error name:', error.name);
+    console.error('   Error message:', error.message);
+    
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      console.error('   Validation errors:');
+      const validationErrors = {};
+      for (const field in error.errors) {
+        validationErrors[field] = error.errors[field].message;
+        console.error(`     - ${field}: ${error.errors[field].message}`);
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Ride validation failed',
+        errors: validationErrors,
+        error: error.message
+      });
+    }
+
+    // Handle other errors
+    console.error('   Stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error creating ride',
