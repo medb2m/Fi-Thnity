@@ -8,7 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -89,8 +90,9 @@ class CommunityViewModel : ViewModel() {
             Log.d(TAG, "loadPosts: Response received - success: ${response.success}")
 
             if (response.success && response.data != null) {
-                Log.d(TAG, "loadPosts: Posts loaded successfully - ${response.data.size} posts")
-                _uiState.value = CommunityUiState.Success(response.data)
+                val posts = response.data.data
+                Log.d(TAG, "loadPosts: Posts loaded successfully - ${posts.size} posts")
+                _uiState.value = CommunityUiState.Success(posts)
             } else {
                 val errorMsg = response.message ?: response.error ?: "Failed to load posts"
                 Log.e(TAG, "loadPosts: Failed - $errorMsg")

@@ -81,13 +81,6 @@ data class RidesListResponse(
     val pagination: PaginationInfo?
 )
 
-data class PaginationInfo(
-    val page: Int,
-    val limit: Int,
-    val total: Int,
-    val pages: Int
-)
-
 data class UpdateRideStatusRequest(
     val status: String // "ACTIVE", "MATCHED", "COMPLETED", "CANCELLED", "EXPIRED"
 )

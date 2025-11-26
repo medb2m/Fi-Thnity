@@ -196,32 +196,34 @@ private fun PostCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // User Avatar with profile picture
-                AsyncImage(
-                    model = post.user.photoUrl?.let { url ->
-                        if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
-                    },
-                    contentDescription = "Profile picture",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop,
-                    error = {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .background(PrimaryLight),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                                tint = Color.White
-                            )
-                        }
+                val profileImageUrl = post.user.photoUrl?.let { url ->
+                    if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
+                }
+                if (profileImageUrl != null) {
+                    AsyncImage(
+                        model = profileImageUrl,
+                        contentDescription = "Profile picture",
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryLight),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.White
+                        )
                     }
-                )
+                }
 
                 Spacer(Modifier.width(12.dp))
 
@@ -412,32 +414,34 @@ private fun CommentItem(comment: tn.esprit.fithnity.data.CommentResponse) {
         modifier = Modifier.fillMaxWidth()
     ) {
         // Commenter avatar
-        AsyncImage(
-            model = comment.user.photoUrl?.let { url ->
-                if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
-            },
-            contentDescription = "Commenter avatar",
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape),
-            contentScale = ContentScale.Crop,
-            error = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                        .background(PrimaryLight),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = Color.White
-                    )
-                }
+        val commenterImageUrl = comment.user.photoUrl?.let { url ->
+            if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
+        }
+        if (commenterImageUrl != null) {
+            AsyncImage(
+                model = commenterImageUrl,
+                contentDescription = "Commenter avatar",
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryLight),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = Color.White
+                )
             }
-        )
+        }
 
         Spacer(Modifier.width(8.dp))
 
