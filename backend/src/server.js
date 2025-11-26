@@ -15,6 +15,9 @@ import connectDB from './config/database.js';
 import initializeFirebase from './config/firebase.js';
 import './config/email.js'; // Initialize email service
 
+// Import scheduled jobs
+import { initializeScheduledJobs } from './jobs/scheduledJobs.js';
+
 // Import routes
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -35,6 +38,9 @@ connectDB();
 
 // Initialize Firebase Admin
 const firebaseInitialized = initializeFirebase();
+
+// Initialize scheduled jobs (after DB connection)
+initializeScheduledJobs();
 if (!firebaseInitialized) {
   console.warn('⚠️  WARNING: Firebase Admin SDK not initialized!');
   console.warn('⚠️  Authentication endpoints will fail until Firebase is configured.');

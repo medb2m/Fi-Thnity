@@ -207,9 +207,11 @@ export const getRides = async (req, res) => {
     const { rideType, transportType, page = 1, limit = 20 } = req.query;
     const skip = (page - 1) * limit;
 
+    const now = new Date();
     const query = {
       status: 'ACTIVE',
-      expiresAt: { $gt: new Date() }
+      expiresAt: { $gt: now },
+      departureDate: { $gt: now } // Also filter by departure date to exclude past rides
     };
 
     if (rideType) query.rideType = rideType;
@@ -405,11 +407,13 @@ export const findMatchingRides = async (req, res) => {
 
     // Find opposite type rides (if looking for offer, find requests and vice versa)
     const oppositeType = rideType === 'REQUEST' ? 'OFFER' : 'REQUEST';
+    const now = new Date();
 
     const rides = await Ride.find({
       rideType: oppositeType,
       status: 'ACTIVE',
-      expiresAt: { $gt: new Date() },
+      expiresAt: { $gt: now },
+      departureDate: { $gt: now }, // Also filter by departure date
       user: { $ne: req.user._id } // Exclude own rides
     }).populate('user', 'name photoUrl rating');
 
