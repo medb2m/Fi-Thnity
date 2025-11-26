@@ -34,7 +34,12 @@ const PORT = process.env.PORT || 3000;
 connectDB();
 
 // Initialize Firebase Admin
-initializeFirebase();
+const firebaseInitialized = initializeFirebase();
+if (!firebaseInitialized) {
+  console.warn('⚠️  WARNING: Firebase Admin SDK not initialized!');
+  console.warn('⚠️  Authentication endpoints will fail until Firebase is configured.');
+  console.warn('⚠️  See logs above for configuration instructions.');
+}
 
 // Middleware
 // Configure Helmet for HTTP (adjust for production with HTTPS)

@@ -1,5 +1,5 @@
 import admin from 'firebase-admin';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -9,58 +9,116 @@ const __dirname = dirname(__filename);
 let firebaseApp = null;
 
 const initializeFirebase = () => {
+  // Skip if already initialized
+  if (firebaseApp) {
+    return firebaseApp;
+  }
+
   try {
-    // Try to load service account from file (recommended for production)
-    const serviceAccountPath = join(__dirname, '../../firebase-service-account.json');
+    // Try multiple possible paths for the service account file
+    const possiblePaths = [
+      join(__dirname, '../../firebase-service-account.json'), // Relative to config folder
+      join(process.cwd(), 'firebase-service-account.json'), // Root of project
+      '/opt/fi-thnity/backend/firebase-service-account.json', // Production path
+      process.env.FIREBASE_SERVICE_ACCOUNT_PATH // Custom path from env
+    ].filter(Boolean); // Remove undefined values
 
-    try {
-      const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+    let serviceAccount = null;
+    let loadedFrom = null;
 
-      // Validate that it's actually an Admin SDK service account (not google-services.json)
-      if (!serviceAccount.private_key || !serviceAccount.client_email) {
-        console.warn('⚠️  firebase-service-account.json is not a valid Admin SDK service account.');
-        console.warn('⚠️  It appears to be a google-services.json (Android client config).');
-        console.warn('⚠️  Please download the Admin SDK service account from Firebase Console.');
-        throw new Error('Invalid service account file');
-      }
+    // Try to load from file first
+    for (const serviceAccountPath of possiblePaths) {
+      try {
+        if (serviceAccountPath && existsSync(serviceAccountPath)) {
+          const fileContent = readFileSync(serviceAccountPath, 'utf8');
+          serviceAccount = JSON.parse(fileContent);
 
-      firebaseApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.europe-west1.firebasedatabase.app`
-      });
+          // Validate that it's actually an Admin SDK service account
+          if (!serviceAccount.private_key || !serviceAccount.client_email) {
+            console.warn(`⚠️  ${serviceAccountPath} is not a valid Admin SDK service account.`);
+            console.warn('⚠️  It appears to be a google-services.json (Android client config).');
+            serviceAccount = null;
+            continue;
+          }
 
-      console.log('✅ Firebase Admin initialized with service account file');
-    } catch (fileError) {
-      // Fallback to environment variables if file doesn't exist
-      if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
-        firebaseApp = admin.initializeApp({
-          credential: admin.credential.cert({
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          }),
-          databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.europe-west1.firebasedatabase.app`
-        });
-
-        console.log('✅ Firebase Admin initialized with environment variables');
-      } else {
-        console.error('❌ Firebase Admin SDK not configured!');
-        console.error('❌ Phone authentication will NOT work.');
-        console.error('');
-        console.error('📋 To fix this, follow these steps:');
-        console.error('1. Go to Firebase Console: https://console.firebase.google.com');
-        console.error('2. Select your project: fi-thnity-11a68');
-        console.error('3. Go to Project Settings → Service Accounts');
-        console.error('4. Click "Generate New Private Key"');
-        console.error('5. Save the file as: backend/firebase-service-account.json');
-        console.error('6. Restart the server');
-        console.error('');
+          loadedFrom = serviceAccountPath;
+          break;
+        }
+      } catch (fileError) {
+        // Try next path
+        continue;
       }
     }
 
-    return firebaseApp;
+    // If file loading failed, try environment variables
+    if (!serviceAccount) {
+      if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PROJECT_ID) {
+        serviceAccount = {
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        };
+        loadedFrom = 'environment variables';
+      }
+    }
+
+    // Initialize Firebase if we have credentials
+    if (serviceAccount) {
+      const databaseURL = process.env.FIREBASE_DATABASE_URL || 
+                         `https://${(serviceAccount.projectId || process.env.FIREBASE_PROJECT_ID)}-default-rtdb.europe-west1.firebasedatabase.app`;
+
+      try {
+        // Check if Firebase is already initialized
+        const existingApp = admin.apps.find(app => app.name === '[DEFAULT]');
+        if (existingApp) {
+          firebaseApp = existingApp;
+          console.log(`✅ Firebase Admin already initialized, reusing existing instance`);
+        } else {
+          firebaseApp = admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            databaseURL: databaseURL
+          });
+          console.log(`✅ Firebase Admin initialized successfully`);
+        }
+        console.log(`   Loaded from: ${loadedFrom}`);
+        console.log(`   Database URL: ${databaseURL}`);
+        return firebaseApp;
+      } catch (initError) {
+        // If initialization fails (e.g., already initialized), try to get existing app
+        if (initError.code === 'app/duplicate-app') {
+          firebaseApp = admin.app();
+          console.log(`✅ Firebase Admin already initialized, using existing instance`);
+          return firebaseApp;
+        }
+        throw initError;
+      }
+    } else {
+      console.error('❌ Firebase Admin SDK not configured!');
+      console.error('❌ Phone authentication and Firebase features will NOT work.');
+      console.error('');
+      console.error('📋 Configuration Options:');
+      console.error('');
+      console.error('Option 1: Service Account File');
+      console.error('  1. Go to Firebase Console: https://console.firebase.google.com');
+      console.error('  2. Select your project: fi-thnity-11a68');
+      console.error('  3. Go to Project Settings → Service Accounts');
+      console.error('  4. Click "Generate New Private Key"');
+      console.error('  5. Save the file as: backend/firebase-service-account.json');
+      console.error('');
+      console.error('Option 2: Environment Variables');
+      console.error('  Set these environment variables:');
+      console.error('  - FIREBASE_PROJECT_ID');
+      console.error('  - FIREBASE_PRIVATE_KEY');
+      console.error('  - FIREBASE_CLIENT_EMAIL');
+      console.error('');
+      console.error('Tried paths:');
+      possiblePaths.forEach(path => console.error(`  - ${path}`));
+      console.error('');
+      return null;
+    }
   } catch (error) {
     console.error('❌ Error initializing Firebase Admin:', error.message);
+    console.error('Stack:', error.stack);
     return null;
   }
 };
@@ -74,7 +132,11 @@ export const getFirebaseApp = () => {
 };
 export const getFirebaseAuth = () => {
   if (!firebaseApp) {
-    throw new Error('Firebase Admin SDK is not initialized. Please configure firebase-service-account.json');
+    // Try to initialize one more time
+    initializeFirebase();
+    if (!firebaseApp) {
+      throw new Error('Firebase Admin SDK is not initialized. Please configure firebase-service-account.json or set FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL, and FIREBASE_PROJECT_ID environment variables.');
+    }
   }
   return admin.auth();
 };
