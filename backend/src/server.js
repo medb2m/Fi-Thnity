@@ -109,6 +109,12 @@ app.use('/api/users', userRoutes);
 app.use('/api/rides', rideRoutes);
 app.use('/api/community', communityRoutes);
 
+// Debug: Log registered routes
+console.log('📋 Registered API routes:');
+console.log('   POST /api/auth/otp/send');
+console.log('   POST /api/auth/otp/verify');
+console.log('   POST /api/auth/otp/resend');
+
 // Admin Panel Routes
 app.use('/admin', adminRoutes);
 

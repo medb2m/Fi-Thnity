@@ -148,6 +148,11 @@ router.post(
   sendOTP
 );
 
+// Debug route to verify OTP routes are loaded
+router.get('/otp/test', (req, res) => {
+  res.json({ success: true, message: 'OTP routes are working!' });
+});
+
 /**
  * Verify OTP code and login/register
  * POST /api/auth/otp/verify
