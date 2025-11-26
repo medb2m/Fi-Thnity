@@ -6,16 +6,35 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, '../uploads/profile-pictures');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Create uploads directories if they don't exist
+const profilePicturesDir = path.join(__dirname, '../uploads/profile-pictures');
+const communityPostsDir = path.join(__dirname, '../uploads/community-posts');
+if (!fs.existsSync(profilePicturesDir)) {
+  fs.mkdirSync(profilePicturesDir, { recursive: true });
+}
+if (!fs.existsSync(communityPostsDir)) {
+  fs.mkdirSync(communityPostsDir, { recursive: true });
 }
 
-// Configure storage
-const storage = multer.diskStorage({
+// Configure storage for profile pictures
+const profileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadsDir);
+    cb(null, profilePicturesDir);
+  },
+  filename: (req, file, cb) => {
+    // Generate unique filename: userId-timestamp.extension
+    const userId = req.user?._id?.toString() || 'unknown';
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    const filename = `${userId}-${timestamp}${ext}`;
+    cb(null, filename);
+  }
+});
+
+// Configure storage for community posts
+const communityPostStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, communityPostsDir);
   },
   filename: (req, file, cb) => {
     // Generate unique filename: userId-timestamp.extension
@@ -67,14 +86,24 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Configure multer
+// Configure multer for profile pictures
 const upload = multer({
-  storage: storage,
+  storage: profileStorage,
   fileFilter: fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
   }
 });
 
+// Configure multer for community posts
+const uploadCommunityPost = multer({
+  storage: communityPostStorage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit for posts
+  }
+});
+
 export default upload;
+export { uploadCommunityPost };
 

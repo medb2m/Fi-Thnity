@@ -43,6 +43,21 @@ const communityPostSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  // Reddit-style voting system
+  upvotes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  downvotes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  score: {
+    type: Number,
+    default: 0,
+    index: true
+  },
+  // Keep likes for backward compatibility (deprecated, use score instead)
   likes: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
@@ -103,15 +118,20 @@ communityPostSchema.virtual('timeAgo').get(function() {
   return Math.floor(seconds) + ' seconds ago';
 });
 
-// Update likesCount when likes array changes
+// Update counts when arrays change
 communityPostSchema.pre('save', function(next) {
   this.likesCount = this.likes?.length || 0;
   this.commentsCount = this.comments?.length || 0;
+  // Calculate score: upvotes - downvotes
+  const upvoteCount = this.upvotes?.length || 0;
+  const downvoteCount = this.downvotes?.length || 0;
+  this.score = upvoteCount - downvoteCount;
   next();
 });
 
 // Indexes for performance
 communityPostSchema.index({ postType: 1, isActive: 1, createdAt: -1 });
+communityPostSchema.index({ postType: 1, isActive: 1, score: -1 }); // For sorting by score
 communityPostSchema.index({ 'location.latitude': 1, 'location.longitude': 1 });
 
 const CommunityPost = mongoose.model('CommunityPost', communityPostSchema);
