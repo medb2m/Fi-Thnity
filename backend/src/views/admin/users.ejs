@@ -26,7 +26,7 @@
     <div class="container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
             <h2 style="color: #006D9C; margin: 0;">Users Management</h2>
-            <button class="btn btn-primary" onclick="openCreateModal()">+ Add New User</button>
+            <button class="btn btn-primary" id="openCreateBtn">+ Add New User</button>
         </div>
 
         <!-- Success/Error Messages -->
@@ -74,8 +74,16 @@
                                 <td><%= new Date(user.createdAt).toLocaleDateString() %></td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="btn btn-primary btn-sm" onclick="openEditModal('<%= user._id %>', '<%= user.name %>', '<%= user.email || '' %>', '<%= user.phoneNumber || '' %>', <%= user.isActive %>)">Edit</button>
-                                        <button class="btn btn-danger btn-sm" onclick="openDeleteModal('<%= user._id %>', '<%= user.name %>', '<%= user.email || '' %>')">Delete</button>
+                                        <button class="btn btn-primary btn-sm edit-user-btn" 
+                                                data-user-id="<%= user._id %>"
+                                                data-user-name="<%= user.name %>"
+                                                data-user-email="<%= user.email || '' %>"
+                                                data-user-phone="<%= user.phoneNumber || '' %>"
+                                                data-user-active="<%= user.isActive %>">Edit</button>
+                                        <button class="btn btn-danger btn-sm delete-user-btn"
+                                                data-user-id="<%= user._id %>"
+                                                data-user-name="<%= user.name %>"
+                                                data-user-email="<%= user.email || '' %>">Delete</button>
                                     </div>
                                 </td>
                             </tr>
@@ -99,7 +107,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Add New User</h2>
-                <span class="close" onclick="closeCreateModal()">&times;</span>
+                <span class="close" id="closeCreateModal">&times;</span>
             </div>
             <form method="POST" action="/admin/users/create">
                 <div class="form-group">
@@ -125,7 +133,7 @@
                     </label>
                 </div>
                 <div style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="btn" onclick="closeCreateModal()">Cancel</button>
+                    <button type="button" class="btn" id="cancelCreateBtn">Cancel</button>
                     <button type="submit" class="btn btn-success">Create User</button>
                 </div>
             </form>
@@ -137,7 +145,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Edit User</h2>
-                <span class="close" onclick="closeEditModal()">&times;</span>
+                <span class="close" id="closeEditModal">&times;</span>
             </div>
             <form method="POST" id="editForm">
                 <div class="form-group">
@@ -158,7 +166,7 @@
                     </label>
                 </div>
                 <div style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="btn" onclick="closeEditModal()">Cancel</button>
+                    <button type="button" class="btn" id="cancelEditBtn">Cancel</button>
                     <button type="submit" class="btn btn-success">Update User</button>
                 </div>
             </form>
@@ -170,7 +178,7 @@
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
                 <h2 style="color: #D62828;">⚠️ Confirm Deletion</h2>
-                <span class="close" onclick="closeDeleteModal()">&times;</span>
+                <span class="close" id="closeDeleteModal">&times;</span>
             </div>
             <div style="padding: 1.5rem;">
                 <p style="margin-bottom: 1rem; font-size: 1.1rem;">Are you sure you want to delete this user?</p>
@@ -186,7 +194,7 @@
                     <p style="margin: 0.5rem 0 0 0; color: #721c24;">This action cannot be undone. All user data, rides, and posts associated with this user will be permanently deleted.</p>
                 </div>
                 <form method="POST" id="deleteForm" style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="btn" onclick="closeDeleteModal()">Cancel</button>
+                    <button type="button" class="btn" id="cancelDeleteBtn">Cancel</button>
                     <button type="submit" class="btn btn-danger">Yes, Delete User</button>
                 </form>
             </div>
@@ -208,7 +216,7 @@
             document.getElementById('editName').value = name || '';
             document.getElementById('editEmail').value = email || '';
             document.getElementById('editPhoneNumber').value = phoneNumber || '';
-            document.getElementById('editIsActive').checked = isActive === true || isActive === 'true';
+            document.getElementById('editIsActive').checked = isActive === true || isActive === 'true' || isActive === 'True';
             document.getElementById('editForm').action = '/admin/users/' + id + '/update';
             document.getElementById('editModal').style.display = 'block';
         }
@@ -231,21 +239,84 @@
             document.getElementById('deleteModal').style.display = 'none';
         }
 
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const createModal = document.getElementById('createModal');
-            const editModal = document.getElementById('editModal');
-            const deleteModal = document.getElementById('deleteModal');
-            if (event.target == createModal) {
-                closeCreateModal();
+        // Event Listeners (using event delegation to avoid CSP issues)
+        document.addEventListener('DOMContentLoaded', function() {
+            // Create Modal
+            const openCreateBtn = document.getElementById('openCreateBtn');
+            if (openCreateBtn) {
+                openCreateBtn.addEventListener('click', openCreateModal);
             }
-            if (event.target == editModal) {
-                closeEditModal();
+            
+            const closeCreateModalBtn = document.getElementById('closeCreateModal');
+            if (closeCreateModalBtn) {
+                closeCreateModalBtn.addEventListener('click', closeCreateModal);
             }
-            if (event.target == deleteModal) {
-                closeDeleteModal();
+            
+            const cancelCreateBtn = document.getElementById('cancelCreateBtn');
+            if (cancelCreateBtn) {
+                cancelCreateBtn.addEventListener('click', closeCreateModal);
             }
-        }
+
+            // Edit Modal - using event delegation for dynamically created buttons
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('edit-user-btn')) {
+                    const btn = e.target;
+                    const id = btn.getAttribute('data-user-id');
+                    const name = btn.getAttribute('data-user-name');
+                    const email = btn.getAttribute('data-user-email');
+                    const phone = btn.getAttribute('data-user-phone');
+                    const isActive = btn.getAttribute('data-user-active');
+                    openEditModal(id, name, email, phone, isActive);
+                }
+            });
+
+            const closeEditModalBtn = document.getElementById('closeEditModal');
+            if (closeEditModalBtn) {
+                closeEditModalBtn.addEventListener('click', closeEditModal);
+            }
+            
+            const cancelEditBtn = document.getElementById('cancelEditBtn');
+            if (cancelEditBtn) {
+                cancelEditBtn.addEventListener('click', closeEditModal);
+            }
+
+            // Delete Modal - using event delegation
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('delete-user-btn')) {
+                    const btn = e.target;
+                    const id = btn.getAttribute('data-user-id');
+                    const name = btn.getAttribute('data-user-name');
+                    const email = btn.getAttribute('data-user-email');
+                    openDeleteModal(id, name, email);
+                }
+            });
+
+            const closeDeleteModalBtn = document.getElementById('closeDeleteModal');
+            if (closeDeleteModalBtn) {
+                closeDeleteModalBtn.addEventListener('click', closeDeleteModal);
+            }
+            
+            const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+            if (cancelDeleteBtn) {
+                cancelDeleteBtn.addEventListener('click', closeDeleteModal);
+            }
+
+            // Close modal when clicking outside
+            window.onclick = function(event) {
+                const createModal = document.getElementById('createModal');
+                const editModal = document.getElementById('editModal');
+                const deleteModal = document.getElementById('deleteModal');
+                if (event.target == createModal) {
+                    closeCreateModal();
+                }
+                if (event.target == editModal) {
+                    closeEditModal();
+                }
+                if (event.target == deleteModal) {
+                    closeDeleteModal();
+                }
+            }
+        });
 
         // Auto-hide alerts after 5 seconds
         setTimeout(function() {
