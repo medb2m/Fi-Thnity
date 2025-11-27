@@ -15,6 +15,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.*
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,6 +52,7 @@ import android.location.Geocoder
 import java.io.IOException
 import tn.esprit.fithnity.data.Location
 import androidx.lifecycle.viewmodel.compose.viewModel
+import tn.esprit.fithnity.ui.navigation.SearchState
 
 /**
  * Rides Screen showing list of offers and demands
@@ -60,12 +62,47 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun RidesScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    viewModel: RideViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    viewModel: RideViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    autoOpenRideType: String? = null
 ) {
     var selectedFilter by remember { mutableStateOf(RideFilter.ALL) }
     var selectedVehicleType by remember { mutableStateOf(VehicleType.ALL) }
     var showRideTypeSelection by remember { mutableStateOf(false) }
     var selectedRideType by remember { mutableStateOf<RideType?>(null) }
+    
+    // Search query from global state
+    var searchQuery by remember { mutableStateOf(SearchState.searchQuery) }
+    
+    // Update local state when global state changes
+    LaunchedEffect(SearchState.searchQuery) {
+        searchQuery = SearchState.searchQuery
+    }
+    
+    // Listen to search state changes (for real-time updates)
+    LaunchedEffect(Unit) {
+        SearchState.setSearchHandler { query ->
+            searchQuery = query
+        }
+    }
+    
+    // Cleanup on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            SearchState.clearSearchHandler()
+        }
+    }
+    
+    // Auto-open dialog if autoOpenRideType is provided
+    LaunchedEffect(autoOpenRideType) {
+        when (autoOpenRideType?.uppercase()) {
+            "OFFER" -> {
+                selectedRideType = RideType.OFFER
+            }
+            "REQUEST" -> {
+                selectedRideType = RideType.REQUEST
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -263,7 +300,7 @@ fun RidesScreen(
             else -> getSampleRides()
         }
         
-        // Filter rides based on selected filters
+        // Filter rides based on selected filters and search query
         val filteredRides = allRides.filter { ride ->
             val matchesFilter = when (selectedFilter) {
                 RideFilter.ALL -> true
@@ -275,7 +312,16 @@ fun RidesScreen(
                 VehicleType.PERSONAL_CAR -> ride.vehicleType == VehicleType.PERSONAL_CAR
                 VehicleType.TAXI -> ride.vehicleType == VehicleType.TAXI
             }
-            matchesFilter && matchesVehicleType
+            // Search filter: match origin, destination, or user name
+            val matchesSearch = if (searchQuery.isBlank()) {
+                true
+            } else {
+                val queryLower = searchQuery.lowercase()
+                ride.origin.lowercase().contains(queryLower) ||
+                ride.destination.lowercase().contains(queryLower) ||
+                ride.userName.lowercase().contains(queryLower)
+            }
+            matchesFilter && matchesVehicleType && matchesSearch
         }
 
         if (filteredRides.isEmpty()) {

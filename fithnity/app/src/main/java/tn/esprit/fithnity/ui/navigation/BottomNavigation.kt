@@ -30,6 +30,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import tn.esprit.fithnity.R
+import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
 
 /**
@@ -189,7 +190,10 @@ private fun BottomNavItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QuickActionsSheet(onDismiss: () -> Unit) {
+fun QuickActionsSheet(
+    navController: NavHostController,
+    onDismiss: () -> Unit
+) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
     ModalBottomSheet(
@@ -232,14 +236,20 @@ fun QuickActionsSheet(onDismiss: () -> Unit) {
                 icon = Icons.Default.DirectionsCar,
                 title = stringResource(R.string.i_need_ride),
                 subtitle = "Find a ride to your destination",
-                onClick = { /* TODO */ }
+                onClick = {
+                    onDismiss()
+                    navController.navigate("${Screen.Rides.route}?autoOpen=REQUEST")
+                }
             )
             
             QuickActionItem(
                 icon = Icons.Default.LocalTaxi,
                 title = stringResource(R.string.i_offer_ride),
                 subtitle = "Share your ride with others",
-                onClick = { /* TODO */ }
+                onClick = {
+                    onDismiss()
+                    navController.navigate("${Screen.Rides.route}?autoOpen=OFFER")
+                }
             )
             
             QuickActionItem(

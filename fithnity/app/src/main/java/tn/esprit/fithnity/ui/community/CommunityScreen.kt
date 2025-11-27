@@ -25,6 +25,7 @@ import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import tn.esprit.fithnity.data.CommunityPostResponse
 import tn.esprit.fithnity.ui.navigation.Screen
+import tn.esprit.fithnity.ui.navigation.SearchState
 import tn.esprit.fithnity.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -39,6 +40,23 @@ fun CommunityScreen(
     viewModel: CommunityViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    
+    // Search query from global state
+    var searchQuery by remember { mutableStateOf(SearchState.searchQuery) }
+    
+    // Listen to search state changes
+    LaunchedEffect(Unit) {
+        SearchState.setSearchHandler { query ->
+            searchQuery = query
+        }
+    }
+    
+    // Cleanup on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            SearchState.clearSearchHandler()
+        }
+    }
 
     // Load posts on first composition
     LaunchedEffect(Unit) {
@@ -84,7 +102,18 @@ fun CommunityScreen(
                 }
             }
             is CommunityUiState.Success -> {
-                if (state.posts.isEmpty()) {
+                // Filter posts by search query
+                val filteredPosts = if (searchQuery.isBlank()) {
+                    state.posts
+                } else {
+                    val queryLower = searchQuery.lowercase()
+                    state.posts.filter { post ->
+                        post.content.lowercase().contains(queryLower) ||
+                        (post.user.name?.lowercase()?.contains(queryLower) == true)
+                    }
+                }
+                
+                if (filteredPosts.isEmpty()) {
                     EmptyCommunityState()
                 } else {
                     LazyColumn(
@@ -92,7 +121,7 @@ fun CommunityScreen(
                         contentPadding = PaddingValues(vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(state.posts) { post ->
+                        items(filteredPosts) { post ->
                             PostCard(
                                 post = post,
                                 viewModel = viewModel,

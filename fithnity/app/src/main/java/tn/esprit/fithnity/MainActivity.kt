@@ -13,6 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.zIndex
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.platform.LocalDensity
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -31,6 +36,10 @@ import tn.esprit.fithnity.ui.LanguageViewModel
 import android.util.Log
 import androidx.compose.material.icons.filled.Bolt
 import tn.esprit.fithnity.ui.navigation.QuickActionsSheet
+import tn.esprit.fithnity.ui.navigation.PlaceSuggestionsDropdown
+import tn.esprit.fithnity.ui.navigation.SearchState
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
@@ -227,53 +236,88 @@ fun MainAppScreen(
     val showBottomNavigation = remember { true }
 
     if (showQuickActionsSheet) {
-        QuickActionsSheet(onDismiss = { showQuickActionsSheet = false })
+        QuickActionsSheet(
+            navController = navController,
+            onDismiss = { showQuickActionsSheet = false }
+        )
     }
 
-    Scaffold(
-        containerColor = androidx.compose.ui.graphics.Color.White,
-        topBar = {
-            if (showTopBar) {
-                FiThnityTopBar(navController = navController)
-            }
-        },
-        bottomBar = {
-            if (showBottomNavigation) {
-                FiThnityBottomNavigation(
-                    navController = navController,
-                    onQuickActionsClick = { showQuickActionsSheet = true }
-                )
-            }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // Navigation Graph
-            FiThnityNavGraph(
-                navController = navController,
-                onLogout = onLogout,
-                isFirstHomeVisit = isFirstHomeVisit,
-                onFirstHomeVisitComplete = { isFirstHomeVisit = false },
-                userPreferences = userPreferences,
-                languageViewModel = languageViewModel
-            )
-
-            // Email Verification Alert
-            if (showAlert) {
-                Box(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    AlertBanner(
-                        message = "Please verify your email to access all features",
-                        type = AlertType.WARNING,
-                        isVisible = showAlert,
-                        onDismiss = { showAlert = false },
-                        autoDismissMillis = 2000L
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = androidx.compose.ui.graphics.Color.White,
+            topBar = {
+                if (showTopBar) {
+                    FiThnityTopBar(navController = navController)
+                }
+            },
+            bottomBar = {
+                if (showBottomNavigation) {
+                    FiThnityBottomNavigation(
+                        navController = navController,
+                        onQuickActionsClick = { showQuickActionsSheet = true }
                     )
                 }
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                // Navigation Graph
+                FiThnityNavGraph(
+                    navController = navController,
+                    onLogout = onLogout,
+                    isFirstHomeVisit = isFirstHomeVisit,
+                    onFirstHomeVisitComplete = { isFirstHomeVisit = false },
+                    userPreferences = userPreferences,
+                    languageViewModel = languageViewModel
+                )
+
+                // Email Verification Alert
+                if (showAlert) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        AlertBanner(
+                            message = "Please verify your email to access all features",
+                            type = AlertType.WARNING,
+                            isVisible = showAlert,
+                            onDismiss = { showAlert = false },
+                            autoDismissMillis = 2000L
+                        )
+                    }
+                }
+            }
+        }
+        
+        // Place Suggestions Dropdown - Positioned directly below TopBar (only on HomeScreen)
+        if (SearchState.isHomeScreen && SearchState.showSuggestions && showTopBar) {
+            val density = LocalDensity.current
+            val statusBarHeight = with(density) {
+                WindowInsets.statusBars.getTop(density).toDp()
+            }
+            // TopBar height: status bar + 12dp padding + 44dp search bar + 12dp padding = ~68dp + status bar
+            val topBarHeight = statusBarHeight + 68.dp
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = topBarHeight) // Position directly below TopBar
+                    .zIndex(1000f)
+            ) {
+                PlaceSuggestionsDropdown(
+                    isVisible = SearchState.showSuggestions,
+                    isLoading = SearchState.isLoadingSuggestions,
+                    suggestions = SearchState.placeSuggestions,
+                    searchQuery = SearchState.searchQuery,
+                    onSuggestionSelected = { address ->
+                        val addressLine = address.getAddressLine(0) ?: SearchState.searchQuery
+                        SearchState.updateQuery(addressLine)
+                        SearchState.updateSuggestions(emptyList(), false, false)
+                    }
+                )
             }
         }
     }

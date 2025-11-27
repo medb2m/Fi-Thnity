@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,11 +33,14 @@ import org.json.JSONArray
 import tn.esprit.fithnity.BuildConfig
 import tn.esprit.fithnity.ui.components.GlassCard
 import tn.esprit.fithnity.ui.navigation.Screen
+import tn.esprit.fithnity.ui.navigation.SearchState
 import tn.esprit.fithnity.ui.theme.*
 import androidx.compose.ui.res.stringResource
 import tn.esprit.fithnity.R
 import tn.esprit.fithnity.utils.rememberLocationState
 import android.widget.Toast
+import android.location.Geocoder
+import java.io.IOException
 
 /**
  * Modern Home Screen with MapLibre
@@ -66,6 +70,53 @@ fun HomeScreen(
     var lastLocationUpdate by remember { mutableStateOf<Long?>(null) }
     // Track if this is the first location update
     var isFirstLocationUpdate by remember { mutableStateOf(true) }
+    // Track when user manually requests to center on location
+    var shouldCenterOnLocation by remember { mutableStateOf(0) }
+    
+    // Search query from global state
+    var searchQuery by remember { mutableStateOf(SearchState.searchQuery) }
+    
+    // Listen to search state changes for map location search
+    LaunchedEffect(Unit) {
+        SearchState.setSearchHandler { query ->
+            searchQuery = query
+            // If query is not empty, try to geocode it
+            if (query.isNotBlank() && mapLibreMap != null) {
+                try {
+                    val geocoder = Geocoder(context, java.util.Locale.getDefault())
+                    val allAddresses = geocoder.getFromLocationName(query, 5) ?: emptyList()
+                    // Filter to only include addresses in Tunisia
+                    val tunisiaAddresses = allAddresses.filter { address ->
+                        address.countryName?.equals("Tunisia", ignoreCase = true) == true ||
+                        address.countryCode?.equals("TN", ignoreCase = true) == true ||
+                        address.countryName?.equals("Tunisie", ignoreCase = true) == true
+                    }
+                    if (tunisiaAddresses.isNotEmpty()) {
+                        val address = tunisiaAddresses[0]
+                        val location = LatLng(address.latitude, address.longitude)
+                        
+                        // Center map on searched location
+                        val cameraUpdate = org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(
+                            CameraPosition.Builder()
+                                .target(location)
+                                .zoom(15.0)
+                                .build()
+                        )
+                        mapLibreMap?.animateCamera(cameraUpdate, 1000)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeScreen", "Error geocoding search query", e)
+                }
+            }
+        }
+    }
+    
+    // Cleanup on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            SearchState.clearSearchHandler()
+        }
+    }
     
     // Initialize MapLibre lazily and defer MapView creation to prevent ANR
     LaunchedEffect(Unit) {
@@ -235,7 +286,12 @@ fun HomeScreen(
         FloatingActionButton(
             onClick = {
                 isFollowingLocation = true
+                // Always request location update
                 locationState.requestLocation()
+                // If we already have a location, center immediately while waiting for update
+                if (locationState.location != null && mapLibreMap != null) {
+                    shouldCenterOnLocation++
+                }
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -258,7 +314,7 @@ fun HomeScreen(
         }
         
         // Handle location updates and center map
-        LaunchedEffect(locationState.location, mapLibreMap) {
+        LaunchedEffect(locationState.location, mapLibreMap, shouldCenterOnLocation) {
             val location = locationState.location
             val map = mapLibreMap
             
@@ -267,10 +323,12 @@ fun HomeScreen(
                     val userLocation = LatLng(location.latitude, location.longitude)
                     val currentTime = System.currentTimeMillis()
                     
-                    // Only update if location is new (avoid unnecessary updates)
-                    if (lastLocationUpdate == null || 
-                        (currentTime - (lastLocationUpdate ?: 0)) > 2000) { // Update at most every 2 seconds
-                        
+                    // Update if location is new OR if user manually requested to center
+                    val shouldUpdate = lastLocationUpdate == null || 
+                        (currentTime - (lastLocationUpdate ?: 0)) > 2000 || // Update at most every 2 seconds for automatic updates
+                        shouldCenterOnLocation > 0 // Always update when user manually requests
+                    
+                    if (shouldUpdate) {
                         lastLocationUpdate = currentTime
                         
                         // Center map on user location with smooth animation
@@ -326,41 +384,6 @@ fun HomeScreen(
             locationState.error?.let { errorMessage ->
                 isFollowingLocation = false
                 Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
-            }
-        }
-        
-        // Show indicator when location is being tracked
-        if (isFollowingLocation && locationState.location != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 100.dp, end = 20.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Primary.copy(alpha = 0.9f),
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(8.dp, 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MyLocation,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = Color.White
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Tracking location",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
             }
         }
     }

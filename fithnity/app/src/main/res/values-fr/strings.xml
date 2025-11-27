@@ -6,6 +6,9 @@
     <string name="welcome">Bienvenue</string>
     <string name="welcome_back">Bon retour ! 👋</string>
     <string name="search_placeholder">Rechercher des trajets, lieux...</string>
+    <string name="search_places">Rechercher des lieux sur la carte...</string>
+    <string name="search_rides">Rechercher des trajets par origine, destination...</string>
+    <string name="search_posts">Rechercher des publications dans la communauté...</string>
     <string name="profile">Profil</string>
     <string name="settings">Paramètres</string>
     <string name="logout">Déconnexion</string>

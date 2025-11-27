@@ -12,8 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.home.HomeScreen
 import tn.esprit.fithnity.ui.rides.RidesScreen
@@ -76,9 +78,26 @@ fun FiThnityNavGraph(
             )
         }
 
-        // Rides Screen
+        // Rides Screen (base route without parameters)
         composable(Screen.Rides.route) {
             RidesScreen(navController = navController)
+        }
+        
+        // Rides Screen with optional autoOpen parameter
+        composable(
+            route = "${Screen.Rides.route}?autoOpen={autoOpen}",
+            arguments = listOf(
+                navArgument("autoOpen") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) { backStackEntry ->
+            val autoOpen = backStackEntry.arguments?.getString("autoOpen") ?: ""
+            RidesScreen(
+                navController = navController,
+                autoOpenRideType = autoOpen.takeIf { it.isNotEmpty() }
+            )
         }
 
         // Community Screen

@@ -54,7 +54,10 @@ fun BottomNavigationPreview() {
         }
         
         if (showQuickActions) {
-            QuickActionsSheet(onDismiss = { showQuickActions = false })
+            QuickActionsSheet(
+                navController = navController,
+                onDismiss = { showQuickActions = false }
+            )
         }
     }
 }
