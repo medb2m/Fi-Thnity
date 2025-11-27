@@ -42,8 +42,26 @@ class AuthViewModel : ViewModel() {
             val resp = api.register(RegisterRequest(name, email, password))
             Log.d(TAG, "registerWithEmail: Response received - success: ${resp.success}")
             if (resp.success && resp.data != null) {
-                Log.d(TAG, "registerWithEmail: Registration successful for userId: ${resp.data.userId}")
-                _uiState.value = AuthUiState.Success(UserInfo(resp.data.userId, name, email, null, null, false))
+                // Save authentication token
+                authToken = resp.data.token
+                userPreferences.saveAuthToken(resp.data.token)
+                
+                // Save user info
+                val user = resp.data.user
+                userPreferences.saveUserId(user._id ?: "")
+                userPreferences.saveUserName(user.name ?: name)
+                userPreferences.saveUserEmail(user.email ?: email)
+                
+                // Save email verification status
+                val needsVerification = resp.data.needsVerification ?: !resp.data.emailVerified
+                userPreferences.saveNeedsEmailVerification(needsVerification)
+                
+                Log.d(TAG, "registerWithEmail: Registration successful - userId: ${user._id}, emailVerified: ${resp.data.emailVerified}")
+                
+                _uiState.value = AuthUiState.Success(
+                    user,
+                    needsEmailVerification = needsVerification
+                )
             } else {
                 val errorMsg = resp.message ?: resp.error ?: "Registration failed"
                 Log.e(TAG, "registerWithEmail: Registration failed - $errorMsg")
