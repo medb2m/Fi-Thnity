@@ -39,6 +39,7 @@ fun ChatScreen(
     conversationId: String,
     otherUserId: String,
     otherUserName: String = "User",
+    otherUserPhoto: String? = null,
     modifier: Modifier = Modifier,
     userPreferences: UserPreferences,
     viewModel: ChatViewModel = viewModel()
@@ -50,7 +51,7 @@ fun ChatScreen(
     
     var messageText by remember { mutableStateOf("") }
     var displayUserName by remember { mutableStateOf(otherUserName) }
-    var otherUserPhoto by remember { mutableStateOf<String?>(null) }
+    var displayUserPhoto by remember { mutableStateOf(otherUserPhoto) }
     
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -68,10 +69,12 @@ fun ChatScreen(
                 coroutineScope.launch {
                     listState.animateScrollToItem(messages.size - 1)
                 }
-                // Get other user photo from messages (name already passed via navigation)
-                messages.firstOrNull()?.let { msg ->
-                    if (msg.sender._id != currentUserId) {
-                        otherUserPhoto = msg.sender.photoUrl
+                // Update photo from messages if not already set (fallback)
+                if (displayUserPhoto == null) {
+                    messages.firstOrNull()?.let { msg ->
+                        if (msg.sender._id != currentUserId) {
+                            displayUserPhoto = msg.sender.photoUrl
+                        }
                     }
                 }
             }
@@ -108,11 +111,11 @@ fun ChatScreen(
                             .background(Color.White.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (otherUserPhoto != null && otherUserPhoto!!.isNotEmpty()) {
-                            val fullPhotoUrl = if (otherUserPhoto!!.startsWith("http")) {
-                                otherUserPhoto
+                        if (displayUserPhoto != null && displayUserPhoto!!.isNotEmpty()) {
+                            val fullPhotoUrl = if (displayUserPhoto!!.startsWith("http")) {
+                                displayUserPhoto
                             } else {
-                                "http://72.61.145.239:9090$otherUserPhoto"
+                                "http://72.61.145.239:9090$displayUserPhoto"
                             }
                             AsyncImage(
                                 model = fullPhotoUrl,

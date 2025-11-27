@@ -136,17 +136,29 @@ fun FiThnityNavGraph(
                 navArgument("otherUserName") {
                     type = NavType.StringType
                     defaultValue = "User"
+                },
+                navArgument("otherUserPhoto") {
+                    type = NavType.StringType
+                    defaultValue = "none"
                 }
             )
         ) { backStackEntry ->
             val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
             val otherUserId = backStackEntry.arguments?.getString("otherUserId") ?: ""
             val otherUserName = backStackEntry.arguments?.getString("otherUserName") ?: "User"
+            val otherUserPhotoRaw = backStackEntry.arguments?.getString("otherUserPhoto") ?: "none"
+            val otherUserPhoto = if (otherUserPhotoRaw == "none" || otherUserPhotoRaw.isEmpty()) {
+                null
+            } else {
+                val decoded = java.net.URLDecoder.decode(otherUserPhotoRaw, "UTF-8")
+                if (decoded == "none" || decoded.isEmpty()) null else decoded
+            }
             ChatScreen(
                 navController = navController,
                 conversationId = conversationId,
                 otherUserId = otherUserId,
                 otherUserName = java.net.URLDecoder.decode(otherUserName, "UTF-8"),
+                otherUserPhoto = otherUserPhoto,
                 userPreferences = userPreferences
             )
         }

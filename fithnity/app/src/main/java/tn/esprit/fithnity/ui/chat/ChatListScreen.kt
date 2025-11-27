@@ -123,8 +123,24 @@ fun ChatListScreen(
                                     conversation = conversation,
                                     onClick = {
                                         val userName = conversation.otherUser.name ?: "User"
+                                        val userPhoto = conversation.otherUser.photoUrl
+                                        
+                                        // Extract relative path from full URL if needed
+                                        val photoPath = if (userPhoto != null && userPhoto.isNotEmpty()) {
+                                            if (userPhoto.startsWith("http://72.61.145.239:9090")) {
+                                                userPhoto.substring("http://72.61.145.239:9090".length)
+                                            } else if (userPhoto.startsWith("http")) {
+                                                "none" // External URL, use placeholder
+                                            } else {
+                                                userPhoto // Already a relative path
+                                            }
+                                        } else {
+                                            "none" // Placeholder for null/empty
+                                        }
+                                        
                                         val encodedName = java.net.URLEncoder.encode(userName, "UTF-8")
-                                        navController.navigate("chat_detail/${conversation._id}/${conversation.otherUser._id}/$encodedName")
+                                        val encodedPhoto = java.net.URLEncoder.encode(photoPath, "UTF-8")
+                                        navController.navigate("chat_detail/${conversation._id}/${conversation.otherUser._id}/$encodedName/$encodedPhoto")
                                     }
                                 )
                             }
@@ -190,9 +206,26 @@ fun ChatListScreen(
                 onUserSelected = { user ->
                     showNewChatDialog = false
                     viewModel.getOrCreateConversation(authToken, user._id) { conversation ->
-                        val userName = user.name ?: "User"
+                        // Use conversation's otherUser data (from API response)
+                        val userName = conversation.otherUser.name ?: "User"
+                        val userPhoto = conversation.otherUser.photoUrl
+                        
+                        // Extract relative path from full URL if needed
+                        val photoPath = if (userPhoto != null && userPhoto.isNotEmpty()) {
+                            if (userPhoto.startsWith("http://72.61.145.239:9090")) {
+                                userPhoto.substring("http://72.61.145.239:9090".length)
+                            } else if (userPhoto.startsWith("http")) {
+                                "none" // External URL, use placeholder
+                            } else {
+                                userPhoto // Already a relative path
+                            }
+                        } else {
+                            "none" // Placeholder for null/empty
+                        }
+                        
                         val encodedName = java.net.URLEncoder.encode(userName, "UTF-8")
-                        navController.navigate("chat_detail/${conversation._id}/${user._id}/$encodedName")
+                        val encodedPhoto = java.net.URLEncoder.encode(photoPath, "UTF-8")
+                        navController.navigate("chat_detail/${conversation._id}/${conversation.otherUser._id}/$encodedName/$encodedPhoto")
                     }
                 }
             )
