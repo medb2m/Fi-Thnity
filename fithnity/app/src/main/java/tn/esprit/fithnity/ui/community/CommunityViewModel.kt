@@ -177,10 +177,25 @@ class CommunityViewModel : ViewModel() {
                 request = VoteRequest(vote = vote)
             )
 
-            if (response.success) {
-                Log.d(TAG, "votePost: Vote successful")
-                // Refresh posts to get updated scores
-                loadPosts()
+            if (response.success && response.data != null) {
+                Log.d(TAG, "votePost: Vote successful - new score: ${response.data.score}")
+                
+                // Update the post in the current state with the new vote data
+                val currentState = _uiState.value
+                if (currentState is CommunityUiState.Success) {
+                    val updatedPosts = currentState.posts.map { post ->
+                        if (post._id == postId) {
+                            post.copy(
+                                score = response.data.score ?: post.score,
+                                userVote = response.data.userVote
+                            )
+                        } else {
+                            post
+                        }
+                    }
+                    _uiState.value = CommunityUiState.Success(updatedPosts)
+                    Log.d(TAG, "votePost: UI updated with new vote")
+                }
             } else {
                 Log.e(TAG, "votePost: Failed - ${response.message}")
             }
@@ -208,10 +223,27 @@ class CommunityViewModel : ViewModel() {
                 request = CommentRequest(content = content)
             )
 
-            if (response.success) {
+            if (response.success && response.data != null) {
                 Log.d(TAG, "addComment: Comment added successfully")
-                // Refresh posts to get updated comments (will need authToken passed from screen)
-                // loadPosts(authToken)
+                
+                // Update the post in the current state with the new comment
+                val currentState = _uiState.value
+                if (currentState is CommunityUiState.Success) {
+                    val updatedPosts = currentState.posts.map { post ->
+                        if (post._id == postId) {
+                            // Add the new comment to the post
+                            val updatedComments = (post.comments ?: emptyList()) + response.data
+                            post.copy(
+                                comments = updatedComments,
+                                commentsCount = updatedComments.size
+                            )
+                        } else {
+                            post
+                        }
+                    }
+                    _uiState.value = CommunityUiState.Success(updatedPosts)
+                    Log.d(TAG, "addComment: UI updated with new comment")
+                }
             } else {
                 Log.e(TAG, "addComment: Failed - ${response.message}")
             }
