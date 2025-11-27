@@ -20,7 +20,31 @@ const router = express.Router();
 router.post(
   '/posts',
   authenticate,
-  uploadCommunityPost.single('image'), // Handle single image upload
+  // Handle multer errors before validation
+  (req, res, next) => {
+    uploadCommunityPost.single('image')(req, res, (err) => {
+      if (err) {
+        console.error('Multer error:', err);
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: 'File too large. Maximum size is 10MB.'
+          });
+        }
+        if (err.message && err.message.includes('Invalid file type')) {
+          return res.status(400).json({
+            success: false,
+            message: err.message
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          message: 'Error uploading file: ' + err.message
+        });
+      }
+      next();
+    });
+  },
   [
     body('content').notEmpty().trim().isLength({ min: 1, max: 500 }),
     body('postType').optional().isIn(['ACCIDENT', 'DELAY', 'ROAD_CLOSURE', 'GENERAL']),

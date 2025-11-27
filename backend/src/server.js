@@ -75,8 +75,9 @@ app.use(cors({
   credentials: true
 }));
 app.use(morgan('dev')); // Logging
-app.use(express.json()); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+// Increase body size limits for file uploads
+app.use(express.json({ limit: '50mb' })); // Parse JSON bodies
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Parse URL-encoded bodies
 
 // Session middleware for admin panel
 app.use(cookieSession({

@@ -1,4 +1,10 @@
 import CommunityPost from '../models/CommunityPost.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Create a new community post
@@ -6,13 +12,29 @@ import CommunityPost from '../models/CommunityPost.js';
  */
 export const createPost = async (req, res) => {
   try {
+    console.log('Create post request received:', {
+      hasFile: !!req.file,
+      fileName: req.file?.filename,
+      contentLength: req.body.content?.length,
+      postType: req.body.postType,
+      userId: req.user._id
+    });
+
     const { content, postType, location } = req.body;
+    
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Post content is required'
+      });
+    }
     
     // Get image URL from uploaded file or from body
     let imageUrl = null;
     if (req.file) {
       // Image was uploaded via multer
       imageUrl = `/uploads/community-posts/${req.file.filename}`;
+      console.log('Image uploaded successfully:', imageUrl);
     } else if (req.body.imageUrl) {
       // Image URL provided directly (for external URLs)
       imageUrl = req.body.imageUrl;
@@ -20,13 +42,15 @@ export const createPost = async (req, res) => {
 
     const post = await CommunityPost.create({
       user: req.user._id,
-      content,
+      content: content.trim(),
       postType: postType || 'GENERAL',
       location,
       imageUrl: imageUrl || null
     });
 
     await post.populate('user', 'name photoUrl rating');
+
+    console.log('Post created successfully:', post._id);
 
     res.status(201).json({
       success: true,
@@ -35,6 +59,18 @@ export const createPost = async (req, res) => {
     });
   } catch (error) {
     console.error('Create post error:', error);
+    // If file was uploaded but post creation failed, clean up the file
+    if (req.file) {
+      try {
+        const filePath = path.join(__dirname, '../uploads/community-posts', req.file.filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log('Cleaned up uploaded file:', req.file.filename);
+        }
+      } catch (cleanupError) {
+        console.error('Error cleaning up file:', cleanupError);
+      }
+    }
     res.status(500).json({
       success: false,
       message: 'Error creating post',
