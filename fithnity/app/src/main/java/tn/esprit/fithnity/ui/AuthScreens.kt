@@ -584,7 +584,7 @@ fun AuthScreen(
                             
                             if (isValid) {
                                 if (isLogin) viewModel.loginWithEmail(email.trim(), password)
-                                else viewModel.registerWithEmail(name.trim(), email.trim(), password)
+                                else viewModel.registerWithEmail(name.trim(), email.trim(), password, userPreferences)
                             }
                         },
                         enabled = state !is AuthUiState.Loading && 

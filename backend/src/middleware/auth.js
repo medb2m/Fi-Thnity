@@ -30,12 +30,8 @@ export const authenticate = async (req, res, next) => {
         });
       }
 
-      if (user.authType === 'email' && !user.emailVerified) {
-        return res.status(403).json({
-          success: false,
-          message: 'Please verify your email before accessing this resource'
-        });
-      }
+      // Email verification is optional - users can use app features regardless of verification status
+      // The verification status is tracked but doesn't block access
 
       req.user = user;
       req.authType = decoded.authType || 'jwt';

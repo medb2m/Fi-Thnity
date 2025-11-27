@@ -35,26 +35,25 @@ class AuthViewModel : ViewModel() {
     
     fun getAuthToken(): String? = authToken
 
-    fun registerWithEmail(name: String, email: String, password: String) = viewModelScope.launch {
+    fun registerWithEmail(name: String, email: String, password: String, userPreferences: UserPreferences) = viewModelScope.launch {
         Log.d(TAG, "registerWithEmail: Starting registration for email: $email")
         _uiState.value = AuthUiState.Loading
         try {
             val resp = api.register(RegisterRequest(name, email, password))
             Log.d(TAG, "registerWithEmail: Response received - success: ${resp.success}")
             if (resp.success && resp.data != null) {
-                // Save authentication token
+                // Save authentication token and user data
                 authToken = resp.data.token
-                userPreferences.saveAuthToken(resp.data.token)
-                
-                // Save user info
                 val user = resp.data.user
-                userPreferences.saveUserId(user._id ?: "")
-                userPreferences.saveUserName(user.name ?: name)
-                userPreferences.saveUserEmail(user.email ?: email)
-                
-                // Save email verification status
                 val needsVerification = resp.data.needsVerification ?: !resp.data.emailVerified
-                userPreferences.saveNeedsEmailVerification(needsVerification)
+                
+                userPreferences.saveAuthData(
+                    token = resp.data.token,
+                    userId = user._id,
+                    userName = user.name ?: name,
+                    userEmail = user.email ?: email,
+                    needsVerification = needsVerification
+                )
                 
                 Log.d(TAG, "registerWithEmail: Registration successful - userId: ${user._id}, emailVerified: ${resp.data.emailVerified}")
                 
