@@ -390,15 +390,17 @@ private fun PostTypeChip(
  */
 private fun getFileFromUri(context: android.content.Context, uri: Uri): File? {
     return try {
+        android.util.Log.d("NewPostDialog", "Converting URI to File: $uri")
         val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
         inputStream?.let {
             val file = File(context.cacheDir, "post_image_${System.currentTimeMillis()}.jpg")
             val outputStream = FileOutputStream(file)
             
-            it.copyTo(outputStream)
+            val bytesCopied = it.copyTo(outputStream)
             inputStream.close()
             outputStream.close()
             
+            android.util.Log.d("NewPostDialog", "File created: ${file.absolutePath}, size: ${file.length()} bytes ($bytesCopied bytes copied)")
             file
         }
     } catch (e: Exception) {

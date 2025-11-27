@@ -102,6 +102,7 @@ class CommunityViewModel : ViewModel() {
             }
 
             val imagePart = imageFile?.let { file ->
+                Log.d(TAG, "createPost: Preparing image file: ${file.name}, size: ${file.length()} bytes")
                 val mimeType = when (file.extension.lowercase()) {
                     "jpg", "jpeg" -> "image/jpeg"
                     "png" -> "image/png"
@@ -109,20 +110,28 @@ class CommunityViewModel : ViewModel() {
                     "webp" -> "image/webp"
                     else -> "image/jpeg"
                 }
+                Log.d(TAG, "createPost: Image MIME type: $mimeType")
                 val requestFile = file.asRequestBody(mimeType.toMediaTypeOrNull())
-                MultipartBody.Part.createFormData("image", file.name, requestFile)
+                val part = MultipartBody.Part.createFormData("image", file.name, requestFile)
+                Log.d(TAG, "createPost: MultipartBody.Part created for image")
+                part
             }
 
             // Create RequestBody for text fields
             val contentBody = content.toRequestBody("text/plain".toMediaTypeOrNull())
             val postTypeBody = postType?.toRequestBody("text/plain".toMediaTypeOrNull())
 
+            Log.d(TAG, "createPost: About to call API - hasImage: ${imagePart != null}, contentLength: ${content.length}")
+            Log.d(TAG, "createPost: API endpoint: /api/community/posts")
+            
             val response = api.createPost(
                 bearer = "Bearer $token",
                 content = contentBody,
                 postType = postTypeBody,
                 image = imagePart
             )
+            
+            Log.d(TAG, "createPost: API call completed successfully")
             Log.d(TAG, "createPost: Response received - success: ${response.success}")
 
             if (response.success && response.data != null) {
@@ -136,8 +145,16 @@ class CommunityViewModel : ViewModel() {
                 _createPostState.value = CreatePostUiState.Error(errorMsg)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "createPost: Exception occurred", e)
-            _createPostState.value = CreatePostUiState.Error(e.message ?: "Unknown error occurred")
+            Log.e(TAG, "createPost: Exception occurred - Type: ${e.javaClass.simpleName}", e)
+            Log.e(TAG, "createPost: Exception message: ${e.message}")
+            Log.e(TAG, "createPost: Exception cause: ${e.cause?.message}")
+            val errorMessage = when (e) {
+                is java.net.SocketException -> "Connection lost. Please check your internet connection."
+                is java.net.SocketTimeoutException -> "Request timed out. The image might be too large."
+                is java.io.IOException -> "Network error: ${e.message}"
+                else -> e.message ?: "Unknown error occurred"
+            }
+            _createPostState.value = CreatePostUiState.Error(errorMessage)
         }
     }
 
