@@ -23,6 +23,8 @@ import tn.esprit.fithnity.ui.user.ProfileScreen
 import tn.esprit.fithnity.ui.user.SettingsScreen
 import tn.esprit.fithnity.ui.user.EditProfileScreen
 import tn.esprit.fithnity.ui.community.CommunityScreen
+import tn.esprit.fithnity.ui.chat.ChatListScreen
+import tn.esprit.fithnity.ui.chat.ChatScreen
 import tn.esprit.fithnity.ui.theme.*
 import tn.esprit.fithnity.ui.LanguageViewModel
 
@@ -113,13 +115,33 @@ fun FiThnityNavGraph(
             )
         }
 
-        // Chat Screen (placeholder for now)
+        // Chat Screen (conversation list)
         composable(Screen.Chat.route) {
-            // TODO: Implement ChatScreen
-            PlaceholderScreen(
-                title = "Chat",
-                message = "Chat feature coming soon!",
-                navController = navController
+            ChatListScreen(
+                navController = navController,
+                userPreferences = userPreferences
+            )
+        }
+
+        // Chat Detail Screen (individual conversation)
+        composable(
+            route = Screen.ChatDetail.route,
+            arguments = listOf(
+                navArgument("conversationId") {
+                    type = NavType.StringType
+                },
+                navArgument("otherUserId") {
+                    type = NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
+            val otherUserId = backStackEntry.arguments?.getString("otherUserId") ?: ""
+            ChatScreen(
+                navController = navController,
+                conversationId = conversationId,
+                otherUserId = otherUserId,
+                userPreferences = userPreferences
             )
         }
 

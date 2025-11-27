@@ -43,5 +43,10 @@ val GlassOverlay = Color(0x40000000)
 
 // Divider & Shadow
 val Divider = Color(0xFFE5E5EA)
+val DividerColor = Color(0xFFE5E5EA)  // Alias for consistency
 val ShadowLight = Color(0x10000000)
 val ShadowMedium = Color(0x20000000)
+
+// Chat Colors
+val ChatBackground = Color(0xFFECE5DD)  // WhatsApp-style chat background
+val ErrorContainer = Color(0xFFFFF5F5)  // Light red background for errors

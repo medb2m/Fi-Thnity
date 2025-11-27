@@ -29,6 +29,7 @@ import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import rideRoutes from './routes/rideRoutes.js';
 import communityRoutes from './routes/communityRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 
 // Initialize Express app
@@ -184,6 +185,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rides', rideRoutes);
 app.use('/api/community', communityRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Debug: Log registered routes
 console.log('📋 Registered API routes:');

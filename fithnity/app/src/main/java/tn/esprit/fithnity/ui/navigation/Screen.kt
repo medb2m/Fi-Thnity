@@ -93,6 +93,13 @@ sealed class Screen(
         fun createRoute(userId: String) = "chat_conversation/$userId"
     }
 
+    object ChatDetail : Screen(
+        route = "chat_detail/{conversationId}/{otherUserId}",
+        title = "Chat"
+    ) {
+        fun createRoute(conversationId: String, otherUserId: String) = "chat_detail/$conversationId/$otherUserId"
+    }
+
     companion object {
         /**
          * List of screens to show in bottom navigation
