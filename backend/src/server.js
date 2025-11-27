@@ -86,9 +86,25 @@ app.use(cookieSession({
 }));
 
 // Static files
-app.use(express.static(path.join(__dirname, 'public')));
+const publicPath = path.join(__dirname, 'public');
+console.log('📁 Static files directory:', publicPath);
+app.use(express.static(publicPath));
+
 // Serve uploaded profile pictures
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const uploadsPath = path.join(__dirname, 'uploads');
+console.log('📁 Uploads directory:', uploadsPath);
+app.use('/uploads', express.static(uploadsPath));
+
+// Explicit route for logo (fallback)
+app.get('/fithnity_logo.png', (req, res) => {
+  const logoPath = path.join(__dirname, 'public', 'fithnity_logo.png');
+  res.sendFile(logoPath, (err) => {
+    if (err) {
+      console.error('❌ Error serving logo:', err);
+      res.status(404).json({ error: 'Logo not found' });
+    }
+  });
+});
 
 // View engine setup (for admin panel)
 app.set('view engine', 'ejs');

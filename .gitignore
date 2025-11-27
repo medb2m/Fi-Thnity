@@ -8,8 +8,12 @@ Projet Android/
 # Ignore testapp folder
 testapp/
 
-# Ignore logo/image files at root
+# Ignore logo/image files at root (but allow backend/src/public/*.png)
 *.png
+!backend/
+!backend/src/
+!backend/src/public/
+!backend/src/public/*.png
 *.jpg
 *.jpeg
 *.gif
