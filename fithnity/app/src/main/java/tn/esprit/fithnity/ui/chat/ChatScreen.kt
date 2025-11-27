@@ -38,6 +38,7 @@ fun ChatScreen(
     navController: NavHostController,
     conversationId: String,
     otherUserId: String,
+    otherUserName: String = "User",
     modifier: Modifier = Modifier,
     userPreferences: UserPreferences,
     viewModel: ChatViewModel = viewModel()
@@ -48,7 +49,7 @@ fun ChatScreen(
     val currentUserId = userPreferences.getUserId()
     
     var messageText by remember { mutableStateOf("") }
-    var otherUserName by remember { mutableStateOf("User") }
+    var displayUserName by remember { mutableStateOf(otherUserName) }
     var otherUserPhoto by remember { mutableStateOf<String?>(null) }
     
     val listState = rememberLazyListState()
@@ -67,10 +68,9 @@ fun ChatScreen(
                 coroutineScope.launch {
                     listState.animateScrollToItem(messages.size - 1)
                 }
-                // Get other user info from first message
+                // Get other user photo from messages (name already passed via navigation)
                 messages.firstOrNull()?.let { msg ->
                     if (msg.sender._id != currentUserId) {
-                        otherUserName = msg.sender.name ?: "User"
                         otherUserPhoto = msg.sender.photoUrl
                     }
                 }
@@ -135,7 +135,7 @@ fun ChatScreen(
                     Spacer(Modifier.width(12.dp))
 
                     Text(
-                        text = otherUserName,
+                        text = displayUserName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White

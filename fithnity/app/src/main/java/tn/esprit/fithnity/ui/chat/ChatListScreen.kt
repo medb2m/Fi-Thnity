@@ -122,7 +122,9 @@ fun ChatListScreen(
                                 ConversationItem(
                                     conversation = conversation,
                                     onClick = {
-                                        navController.navigate("chat_detail/${conversation._id}/${conversation.otherUser._id}")
+                                        val userName = conversation.otherUser.name ?: "User"
+                                        val encodedName = java.net.URLEncoder.encode(userName, "UTF-8")
+                                        navController.navigate("chat_detail/${conversation._id}/${conversation.otherUser._id}/$encodedName")
                                     }
                                 )
                             }
@@ -188,7 +190,9 @@ fun ChatListScreen(
                 onUserSelected = { user ->
                     showNewChatDialog = false
                     viewModel.getOrCreateConversation(authToken, user._id) { conversation ->
-                        navController.navigate("chat_detail/${conversation._id}/${user._id}")
+                        val userName = user.name ?: "User"
+                        val encodedName = java.net.URLEncoder.encode(userName, "UTF-8")
+                        navController.navigate("chat_detail/${conversation._id}/${user._id}/$encodedName")
                     }
                 }
             )

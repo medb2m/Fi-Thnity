@@ -181,6 +181,9 @@ fun MainAppScreen(
         }
     }
     
+    // Check if current route is a chat detail screen (dynamic route)
+    val isChatDetailScreen = currentRoute?.startsWith("chat_detail/") == true
+    
     // Routes that should NOT show the top bar (they have their own back buttons)
     val routesWithoutTopBar = listOf(
         Screen.Profile.route,
@@ -194,10 +197,7 @@ fun MainAppScreen(
         Screen.Settings.route
     )
     
-    // Check if current route is a chat detail screen (dynamic route)
-    val isChatDetailScreen = currentRoute?.startsWith("chat_detail/") == true
-    
-    val showTopBar = currentRoute !in routesWithoutTopBar
+    val showTopBar = currentRoute !in routesWithoutTopBar && !isChatDetailScreen
     val showBottomNavigation = currentRoute !in routesWithoutBottomNav && !isChatDetailScreen
     var showQuickActionsSheet by remember { mutableStateOf(false) }
 
