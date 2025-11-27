@@ -15,11 +15,15 @@ data class RegisterRequest(
     val password: String
 )
 data class RegisterResponse(
-    val userId: String,
-    val name: String,
-    val email: String,
+    val user: UserInfo,
+    val token: String,
     val emailVerified: Boolean,
-    val emailSent: Boolean = false
+    val needsVerification: Boolean? = null,
+    val emailSent: Boolean = false,
+    // Legacy fields for backwards compatibility
+    val userId: String? = null,
+    val name: String? = null,
+    val email: String? = null
 )
 
 // Email login

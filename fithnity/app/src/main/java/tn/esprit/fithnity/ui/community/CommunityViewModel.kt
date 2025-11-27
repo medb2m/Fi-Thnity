@@ -102,6 +102,7 @@ class CommunityViewModel : ViewModel() {
             }
 
             val imagePart = imageFile?.let { file ->
+                Log.d(TAG, "createPost: Preparing image file: ${file.name}, size: ${file.length()} bytes")
                 val mimeType = when (file.extension.lowercase()) {
                     "jpg", "jpeg" -> "image/jpeg"
                     "png" -> "image/png"
@@ -109,20 +110,28 @@ class CommunityViewModel : ViewModel() {
                     "webp" -> "image/webp"
                     else -> "image/jpeg"
                 }
+                Log.d(TAG, "createPost: Image MIME type: $mimeType")
                 val requestFile = file.asRequestBody(mimeType.toMediaTypeOrNull())
-                MultipartBody.Part.createFormData("image", file.name, requestFile)
+                val part = MultipartBody.Part.createFormData("image", file.name, requestFile)
+                Log.d(TAG, "createPost: MultipartBody.Part created for image")
+                part
             }
 
             // Create RequestBody for text fields
             val contentBody = content.toRequestBody("text/plain".toMediaTypeOrNull())
             val postTypeBody = postType?.toRequestBody("text/plain".toMediaTypeOrNull())
 
+            Log.d(TAG, "createPost: About to call API - hasImage: ${imagePart != null}, contentLength: ${content.length}")
+            Log.d(TAG, "createPost: API endpoint: /api/community/posts")
+            
             val response = api.createPost(
                 bearer = "Bearer $token",
                 content = contentBody,
                 postType = postTypeBody,
                 image = imagePart
             )
+            
+            Log.d(TAG, "createPost: API call completed successfully")
             Log.d(TAG, "createPost: Response received - success: ${response.success}")
 
             if (response.success && response.data != null) {
@@ -136,8 +145,16 @@ class CommunityViewModel : ViewModel() {
                 _createPostState.value = CreatePostUiState.Error(errorMsg)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "createPost: Exception occurred", e)
-            _createPostState.value = CreatePostUiState.Error(e.message ?: "Unknown error occurred")
+            Log.e(TAG, "createPost: Exception occurred - Type: ${e.javaClass.simpleName}", e)
+            Log.e(TAG, "createPost: Exception message: ${e.message}")
+            Log.e(TAG, "createPost: Exception cause: ${e.cause?.message}")
+            val errorMessage = when (e) {
+                is java.net.SocketException -> "Connection lost. Please check your internet connection."
+                is java.net.SocketTimeoutException -> "Request timed out. The image might be too large."
+                is java.io.IOException -> "Network error: ${e.message}"
+                else -> e.message ?: "Unknown error occurred"
+            }
+            _createPostState.value = CreatePostUiState.Error(errorMessage)
         }
     }
 
@@ -160,10 +177,25 @@ class CommunityViewModel : ViewModel() {
                 request = VoteRequest(vote = vote)
             )
 
-            if (response.success) {
-                Log.d(TAG, "votePost: Vote successful")
-                // Refresh posts to get updated scores
-                loadPosts()
+            if (response.success && response.data != null) {
+                Log.d(TAG, "votePost: Vote successful - new score: ${response.data.score}")
+                
+                // Update the post in the current state with the new vote data
+                val currentState = _uiState.value
+                if (currentState is CommunityUiState.Success) {
+                    val updatedPosts = currentState.posts.map { post ->
+                        if (post._id == postId) {
+                            post.copy(
+                                score = response.data.score ?: post.score,
+                                userVote = response.data.userVote
+                            )
+                        } else {
+                            post
+                        }
+                    }
+                    _uiState.value = CommunityUiState.Success(updatedPosts)
+                    Log.d(TAG, "votePost: UI updated with new vote")
+                }
             } else {
                 Log.e(TAG, "votePost: Failed - ${response.message}")
             }
@@ -191,10 +223,27 @@ class CommunityViewModel : ViewModel() {
                 request = CommentRequest(content = content)
             )
 
-            if (response.success) {
+            if (response.success && response.data != null) {
                 Log.d(TAG, "addComment: Comment added successfully")
-                // Refresh posts to get updated comments (will need authToken passed from screen)
-                // loadPosts(authToken)
+                
+                // Update the post in the current state with the new comment
+                val currentState = _uiState.value
+                if (currentState is CommunityUiState.Success) {
+                    val updatedPosts = currentState.posts.map { post ->
+                        if (post._id == postId) {
+                            // Add the new comment to the post
+                            val updatedComments = (post.comments ?: emptyList()) + response.data
+                            post.copy(
+                                comments = updatedComments,
+                                commentsCount = updatedComments.size
+                            )
+                        } else {
+                            post
+                        }
+                    }
+                    _uiState.value = CommunityUiState.Success(updatedPosts)
+                    Log.d(TAG, "addComment: UI updated with new comment")
+                }
             } else {
                 Log.e(TAG, "addComment: Failed - ${response.message}")
             }

@@ -57,7 +57,7 @@ private fun Context.findActivity(): Activity? {
 @Composable
 fun AuthScreen(
     userPreferences: UserPreferences,
-    onAuthSuccess: (name: String, needsEmailVerification: Boolean) -> Unit,
+    onAuthSuccess: (name: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AuthViewModel = viewModel(),
     languageViewModel: LanguageViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
@@ -157,8 +157,7 @@ fun AuthScreen(
             }
             
             onAuthSuccess(
-                user.name ?: user.phoneNumber ?: user.email ?: "User",
-                needsVerification
+                user.name ?: user.phoneNumber ?: user.email ?: "User"
             )
             viewModel.resetState()
         }
@@ -584,7 +583,7 @@ fun AuthScreen(
                             
                             if (isValid) {
                                 if (isLogin) viewModel.loginWithEmail(email.trim(), password)
-                                else viewModel.registerWithEmail(name.trim(), email.trim(), password)
+                                else viewModel.registerWithEmail(name.trim(), email.trim(), password, userPreferences)
                             }
                         },
                         enabled = state !is AuthUiState.Loading && 

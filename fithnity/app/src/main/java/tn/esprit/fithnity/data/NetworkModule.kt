@@ -18,12 +18,13 @@ object NetworkModule {
         level = HttpLoggingInterceptor.Level.BODY
     }
 
-    // Create OkHttp client with logging and timeouts
+    // Create OkHttp client with logging, timeouts, and retry
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(60, TimeUnit.SECONDS)  // Increased for large uploads
+        .readTimeout(60, TimeUnit.SECONDS)     // Increased for large uploads
+        .writeTimeout(60, TimeUnit.SECONDS)    // Increased for large uploads
+        .retryOnConnectionFailure(true)         // Enable retry on connection failure
         .build()
 
     val retrofit: Retrofit = Retrofit.Builder()
@@ -36,6 +37,8 @@ object NetworkModule {
     val userApi: UserApiService get() = retrofit.create(UserApiService::class.java)
     val rideApi: RideApiService get() = retrofit.create(RideApiService::class.java)
     val communityApi: CommunityApiService get() = retrofit.create(CommunityApiService::class.java)
+    val chatApi: ChatApiService get() = retrofit.create(ChatApiService::class.java)
+    val notificationApi: NotificationApiService get() = retrofit.create(NotificationApiService::class.java)
 }
 
 

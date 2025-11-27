@@ -58,16 +58,19 @@ export const register = async (req, res) => {
       // Continue anyway - user is created, they can request resend later
     }
 
+    // Generate JWT token for immediate login
+    const jwtToken = generateAuthToken(user._id);
+
     res.status(201).json({
       success: true,
       message: emailSent
         ? 'Registration successful! Please check your email to verify your account.'
         : 'Registration successful! However, we could not send the verification email. Please use the "Resend Verification" option.',
       data: {
-        userId: user._id,
-        name: user.name,
-        email: user.email,
+        user: user.getPublicProfile(),
+        token: jwtToken,
         emailVerified: false,
+        needsVerification: !user.emailVerified,
         emailSent,
         ...(emailError && { emailError })
       }

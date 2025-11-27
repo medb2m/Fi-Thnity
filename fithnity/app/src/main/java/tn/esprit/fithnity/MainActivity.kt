@@ -25,8 +25,7 @@ import androidx.navigation.compose.rememberNavController
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.AuthScreen
 import tn.esprit.fithnity.ui.theme.FithnityTheme
-import tn.esprit.fithnity.ui.components.AlertBanner
-import tn.esprit.fithnity.ui.components.AlertType
+import tn.esprit.fithnity.ui.components.ToastHost
 import tn.esprit.fithnity.ui.navigation.FiThnityBottomNavigation
 import tn.esprit.fithnity.ui.navigation.FiThnityNavGraph
 import tn.esprit.fithnity.ui.navigation.FiThnityTopBar
@@ -124,22 +123,18 @@ fun FiThnityApp(userPreferences: UserPreferences, languageViewModel: LanguageVie
             userPreferences.getAuthToken() != null
         )
     }
-    var needsEmailVerification by remember { mutableStateOf(userPreferences.needsEmailVerification()) }
-
     if (!isAuthenticated) {
         // Show Authentication Screen
         AuthScreen(
             userPreferences = userPreferences,
             languageViewModel = languageViewModel,
-            onAuthSuccess = { name, needsVerification ->
+            onAuthSuccess = { name ->
                 isAuthenticated = true
-                needsEmailVerification = needsVerification
             }
         )
     } else {
         // Show Main App with Navigation
         MainAppScreen(
-            needsEmailVerification = needsEmailVerification,
             userPreferences = userPreferences,
             languageViewModel = languageViewModel,
             onLogout = {
@@ -147,7 +142,6 @@ fun FiThnityApp(userPreferences: UserPreferences, languageViewModel: LanguageVie
                 userPreferences.clearAuthData()
                 // Clear authentication state
                 isAuthenticated = false
-                needsEmailVerification = false
             }
         )
     }
@@ -158,13 +152,11 @@ fun FiThnityApp(userPreferences: UserPreferences, languageViewModel: LanguageVie
  */
 @Composable
 fun MainAppScreen(
-    needsEmailVerification: Boolean,
     userPreferences: UserPreferences,
     languageViewModel: LanguageViewModel,
     onLogout: () -> Unit
 ) {
     val navController = rememberNavController()
-    var showAlert by remember { mutableStateOf(needsEmailVerification) }
     
     // Track if user has visited home screen for the first time
     var isFirstHomeVisit by remember { mutableStateOf(true) }
@@ -181,6 +173,9 @@ fun MainAppScreen(
         }
     }
     
+    // Check if current route is a chat detail screen (dynamic route)
+    val isChatDetailScreen = currentRoute?.startsWith("chat_detail/") == true
+    
     // Routes that should NOT show the top bar (they have their own back buttons)
     val routesWithoutTopBar = listOf(
         Screen.Profile.route,
@@ -188,11 +183,15 @@ fun MainAppScreen(
         Screen.EditProfile.route
     )
     
-    val showTopBar = currentRoute !in routesWithoutTopBar
-    var showQuickActionsSheet by remember { mutableStateOf(false) }
+    // Routes that should NOT show the bottom navigation (full-screen views)
+    val routesWithoutBottomNav = listOf(
+        Screen.EditProfile.route,
+        Screen.Settings.route
+    )
     
-    // Testing flag: Set to false to hide bottom navigation
-    val showBottomNavigation = remember { true }
+    val showTopBar = currentRoute !in routesWithoutTopBar && !isChatDetailScreen
+    val showBottomNavigation = currentRoute !in routesWithoutBottomNav && !isChatDetailScreen
+    var showQuickActionsSheet by remember { mutableStateOf(false) }
 
     if (showQuickActionsSheet) {
         QuickActionsSheet(
@@ -206,7 +205,10 @@ fun MainAppScreen(
             containerColor = androidx.compose.ui.graphics.Color.White,
             topBar = {
                 if (showTopBar) {
-                    FiThnityTopBar(navController = navController)
+                    FiThnityTopBar(
+                        navController = navController,
+                        userPreferences = userPreferences
+                    )
                 }
             },
             bottomBar = {
@@ -233,20 +235,12 @@ fun MainAppScreen(
                     languageViewModel = languageViewModel
                 )
 
-                // Email Verification Alert
-                if (showAlert) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        AlertBanner(
-                            message = "Please verify your email to access all features",
-                            type = AlertType.WARNING,
-                            isVisible = showAlert,
-                            onDismiss = { showAlert = false },
-                            autoDismissMillis = 2000L
-                        )
-                    }
-                }
+                // Toast Host - Global toast notifications
+                ToastHost(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = if (showTopBar) 0.dp else 8.dp)
+                )
             }
         }
         

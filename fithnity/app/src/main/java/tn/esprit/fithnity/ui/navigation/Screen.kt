@@ -93,6 +93,14 @@ sealed class Screen(
         fun createRoute(userId: String) = "chat_conversation/$userId"
     }
 
+    object ChatDetail : Screen(
+        route = "chat_detail/{conversationId}/{otherUserId}/{otherUserName}/{otherUserPhoto}",
+        title = "Chat"
+    ) {
+        fun createRoute(conversationId: String, otherUserId: String, otherUserName: String, otherUserPhoto: String?) = 
+            "chat_detail/$conversationId/$otherUserId/${java.net.URLEncoder.encode(otherUserName, "UTF-8")}/${java.net.URLEncoder.encode(otherUserPhoto ?: "none", "UTF-8")}"
+    }
+
     companion object {
         /**
          * List of screens to show in bottom navigation

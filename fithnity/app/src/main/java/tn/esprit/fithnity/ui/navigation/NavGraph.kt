@@ -23,7 +23,8 @@ import tn.esprit.fithnity.ui.user.ProfileScreen
 import tn.esprit.fithnity.ui.user.SettingsScreen
 import tn.esprit.fithnity.ui.user.EditProfileScreen
 import tn.esprit.fithnity.ui.community.CommunityScreen
-import tn.esprit.fithnity.ui.community.NewPostScreen
+import tn.esprit.fithnity.ui.chat.ChatListScreen
+import tn.esprit.fithnity.ui.chat.ChatScreen
 import tn.esprit.fithnity.ui.theme.*
 import tn.esprit.fithnity.ui.LanguageViewModel
 
@@ -114,13 +115,51 @@ fun FiThnityNavGraph(
             )
         }
 
-        // Chat Screen (placeholder for now)
+        // Chat Screen (conversation list)
         composable(Screen.Chat.route) {
-            // TODO: Implement ChatScreen
-            PlaceholderScreen(
-                title = "Chat",
-                message = "Chat feature coming soon!",
-                navController = navController
+            ChatListScreen(
+                navController = navController,
+                userPreferences = userPreferences
+            )
+        }
+
+        // Chat Detail Screen (individual conversation)
+        composable(
+            route = Screen.ChatDetail.route,
+            arguments = listOf(
+                navArgument("conversationId") {
+                    type = NavType.StringType
+                },
+                navArgument("otherUserId") {
+                    type = NavType.StringType
+                },
+                navArgument("otherUserName") {
+                    type = NavType.StringType
+                    defaultValue = "User"
+                },
+                navArgument("otherUserPhoto") {
+                    type = NavType.StringType
+                    defaultValue = "none"
+                }
+            )
+        ) { backStackEntry ->
+            val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
+            val otherUserId = backStackEntry.arguments?.getString("otherUserId") ?: ""
+            val otherUserName = backStackEntry.arguments?.getString("otherUserName") ?: "User"
+            val otherUserPhotoRaw = backStackEntry.arguments?.getString("otherUserPhoto") ?: "none"
+            val otherUserPhoto = if (otherUserPhotoRaw == "none" || otherUserPhotoRaw.isEmpty()) {
+                null
+            } else {
+                val decoded = java.net.URLDecoder.decode(otherUserPhotoRaw, "UTF-8")
+                if (decoded == "none" || decoded.isEmpty()) null else decoded
+            }
+            ChatScreen(
+                navController = navController,
+                conversationId = conversationId,
+                otherUserId = otherUserId,
+                otherUserName = java.net.URLDecoder.decode(otherUserName, "UTF-8"),
+                otherUserPhoto = otherUserPhoto,
+                userPreferences = userPreferences
             )
         }
 
@@ -171,13 +210,8 @@ fun FiThnityNavGraph(
             )
         }
 
-        // New Post Screen
-        composable(Screen.NewPost.route) {
-            NewPostScreen(
-                navController = navController,
-                userPreferences = userPreferences
-            )
-        }
+        // New Post Screen - Now handled as dialog in CommunityScreen
+        // Keeping route for backward compatibility but not used
 
         // Post Detail Screen (placeholder for now)
         composable(

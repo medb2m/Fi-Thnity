@@ -34,6 +34,10 @@ import java.io.IOException
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.layout.BoxScope
+import tn.esprit.fithnity.data.UserPreferences
+import tn.esprit.fithnity.ui.notifications.NotificationViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 /**
  * Modern Futuristic Top Bar - All elements in one line
@@ -43,12 +47,26 @@ import kotlinx.coroutines.withContext
 @Composable
 fun FiThnityTopBar(
     navController: NavHostController,
+    userPreferences: UserPreferences,
     modifier: Modifier = Modifier
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val context = LocalContext.current
     val isHomeScreen = currentRoute?.startsWith(Screen.Home.route) == true
+    
+    // Notification ViewModel
+    val notificationViewModel: NotificationViewModel = viewModel()
+    val authToken = remember { userPreferences.getAuthToken() }
+    val unreadCount by notificationViewModel.unreadCount.collectAsState()
+    
+    // Refresh unread count on mount
+    LaunchedEffect(Unit) {
+        notificationViewModel.refreshUnreadCount(authToken)
+    }
+    
+    // Hamburger menu state
+    var showMenuDropdown by remember { mutableStateOf(false) }
     
     // Get search query from global state
     var searchQuery by remember { mutableStateOf(SearchState.searchQuery) }
@@ -147,15 +165,24 @@ fun FiThnityTopBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
             // Hamburger Menu Button (Left)
-            IconButton(
-                onClick = { /* TODO: Open navigation drawer */ },
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = stringResource(R.string.menu),
-                    tint = Primary,
-                    modifier = Modifier.size(26.dp)
+            Box {
+                IconButton(
+                    onClick = { showMenuDropdown = !showMenuDropdown },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = stringResource(R.string.menu),
+                        tint = Primary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                
+                // Dropdown Menu
+                MenuDropdown(
+                    navController = navController,
+                    expanded = showMenuDropdown,
+                    onDismiss = { showMenuDropdown = false }
                 )
             }
             
@@ -235,40 +262,41 @@ fun FiThnityTopBar(
                 }
             }
             
-            // Profile Icon Button (Right)
-            IconButton(
-                onClick = {
-                    navController.navigate(Screen.Profile.route) {
-                        // Pop up to the start destination of the graph to avoid building up a large stack of destinations
-                        // on the back stack as users select items
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        // Avoid multiple copies of the same destination when re-selecting the same item
-                        launchSingleTop = true
-                        // Restore state when re-selecting a previously selected item
-                        restoreState = true
-                    }
-                },
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(
-                            androidx.compose.ui.graphics.Brush.linearGradient(
-                                colors = listOf(Primary.copy(alpha = 0.15f), PrimaryLight.copy(alpha = 0.15f))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
+            // Notification Icon Button (Right)
+            Box(modifier = Modifier.size(40.dp)) {
+                IconButton(
+                    onClick = {
+                        // TODO: Navigate to notifications screen
+                        // For now, just refresh unread count
+                        notificationViewModel.refreshUnreadCount(authToken)
+                    },
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = stringResource(R.string.profile),
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = "Notifications",
                         tint = Primary,
                         modifier = Modifier.size(22.dp)
                     )
+                }
+                
+                // Unread count badge
+                if (unreadCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFEF4444)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
             }
@@ -445,3 +473,73 @@ fun FiThnityDetailTopBar(
     )
 }
 
+/**
+ * Smooth dropdown menu for hamburger menu
+ */
+@Composable
+fun BoxScope.MenuDropdown(
+    navController: NavHostController,
+    expanded: Boolean,
+    onDismiss: () -> Unit
+) {
+    val menuItems = listOf(
+        MenuItem("Profile", Icons.Default.Person, Screen.Profile.route),
+        MenuItem("My offers", Icons.Default.DirectionsCar, null), // TODO: Add route
+        MenuItem("My requests", Icons.Default.Assignment, null), // TODO: Add route
+        MenuItem("My friends", Icons.Default.People, null), // TODO: Add route
+        MenuItem("My posts", Icons.Default.Article, null) // TODO: Add route
+    )
+
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        modifier = Modifier
+            .width(200.dp)
+            .offset(x = 0.dp, y = 8.dp)
+    ) {
+        menuItems.forEachIndexed { index, item ->
+            DropdownMenuItem(
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.title,
+                            tint = Primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = item.title,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary
+                        )
+                    }
+                },
+                onClick = {
+                    if (item.route != null) {
+                        navController.navigate(item.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                    onDismiss()
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Menu item data class
+ */
+private data class MenuItem(
+    val title: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val route: String?
+)
