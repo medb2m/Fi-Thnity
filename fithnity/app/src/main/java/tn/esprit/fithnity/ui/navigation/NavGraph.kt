@@ -101,6 +101,7 @@ fun FiThnityNavGraph(
             val autoOpen = backStackEntry.arguments?.getString("autoOpen") ?: ""
             RidesScreen(
                 navController = navController,
+                userPreferences = userPreferences,
                 autoOpenRideType = autoOpen.takeIf { it.isNotEmpty() }
             )
         }
