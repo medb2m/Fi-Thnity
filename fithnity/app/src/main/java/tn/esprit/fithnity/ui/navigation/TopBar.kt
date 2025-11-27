@@ -34,15 +34,7 @@ import java.io.IOException
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.foundation.border
-import androidx.compose.ui.draw.shadow
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.notifications.NotificationViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -187,13 +179,11 @@ fun FiThnityTopBar(
                 }
                 
                 // Dropdown Menu
-                if (showMenuDropdown) {
-                    MenuDropdown(
-                        navController = navController,
-                        onDismiss = { showMenuDropdown = false },
-                        modifier = Modifier.zIndex(1000f)
-                    )
-                }
+                MenuDropdown(
+                    navController = navController,
+                    expanded = showMenuDropdown,
+                    onDismiss = { showMenuDropdown = false }
+                )
             }
             
             // Modern Borderless Search Bar (Center - takes remaining space)
@@ -487,10 +477,10 @@ fun FiThnityDetailTopBar(
  * Smooth dropdown menu for hamburger menu
  */
 @Composable
-fun MenuDropdown(
+fun BoxScope.MenuDropdown(
     navController: NavHostController,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    expanded: Boolean,
+    onDismiss: () -> Unit
 ) {
     val menuItems = listOf(
         MenuItem("Profile", Icons.Default.Person, Screen.Profile.route),
@@ -500,52 +490,47 @@ fun MenuDropdown(
         MenuItem("My posts", Icons.Default.Article, null) // TODO: Add route
     )
 
-    Popup(
-        alignment = androidx.compose.ui.Alignment.TopStart,
-        offset = IntOffset(16, 60), // Position below hamburger menu
+    DropdownMenu(
+        expanded = expanded,
         onDismissRequest = onDismiss,
-        properties = PopupProperties(
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true
-        ),
-        modifier = modifier
+        modifier = Modifier
+            .width(200.dp)
+            .offset(x = 0.dp, y = 8.dp)
     ) {
-        Surface(
-            modifier = Modifier
-                .width(200.dp)
-                .shadow(8.dp, RoundedCornerShape(12.dp)),
-            shape = RoundedCornerShape(12.dp),
-            color = Color.White,
-            tonalElevation = 4.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(vertical = 8.dp)
-            ) {
-                menuItems.forEachIndexed { index, item ->
-                    MenuItemRow(
-                        item = item,
-                        onClick = {
-                            if (item.route != null) {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                            onDismiss()
-                        }
-                    )
-                    if (index < menuItems.size - 1) {
-                        Divider(
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                            color = TextSecondary.copy(alpha = 0.1f),
-                            thickness = 0.5.dp
+        menuItems.forEachIndexed { index, item ->
+            DropdownMenuItem(
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.title,
+                            tint = Primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = item.title,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary
                         )
                     }
+                },
+                onClick = {
+                    if (item.route != null) {
+                        navController.navigate(item.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                    onDismiss()
                 }
-            }
+            )
         }
     }
 }
@@ -558,35 +543,3 @@ private data class MenuItem(
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val route: String?
 )
-
-/**
- * Menu item row composable
- */
-@Composable
-private fun MenuItemRow(
-    item: MenuItem,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Icon(
-            imageVector = item.icon,
-            contentDescription = item.title,
-            tint = Primary,
-            modifier = Modifier.size(20.dp)
-        )
-        Text(
-            text = item.title,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = TextPrimary
-        )
-    }
-}
-
