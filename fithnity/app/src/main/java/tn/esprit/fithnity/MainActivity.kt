@@ -205,7 +205,10 @@ fun MainAppScreen(
             containerColor = androidx.compose.ui.graphics.Color.White,
             topBar = {
                 if (showTopBar) {
-                    FiThnityTopBar(navController = navController)
+                    FiThnityTopBar(
+                        navController = navController,
+                        userPreferences = userPreferences
+                    )
                 }
             },
             bottomBar = {

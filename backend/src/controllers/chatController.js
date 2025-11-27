@@ -1,6 +1,7 @@
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
+import { createNotification } from './notificationController.js';
 
 /**
  * Get all conversations for the authenticated user
@@ -265,6 +266,29 @@ export const sendMessage = async (req, res) => {
     });
 
     await conversation.save();
+
+    // Create notifications for other participants
+    const sender = conversation.participants.find(p => p._id.toString() === userId.toString());
+    const senderName = sender?.name || 'Someone';
+    
+    conversation.participants.forEach(async (participant) => {
+      const participantId = participant._id.toString();
+      if (participantId !== userId.toString()) {
+        // Create notification for this participant
+        await createNotification(
+          participantId,
+          'MESSAGE',
+          'New message',
+          `${senderName}: ${content.trim().substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+          {
+            conversationId: conversationId.toString(),
+            messageId: message._id.toString(),
+            senderId: userId.toString(),
+            senderName: senderName
+          }
+        );
+      }
+    });
 
     // TODO: Emit socket event for real-time updates
     // io.to(conversationId).emit('new-message', message);
