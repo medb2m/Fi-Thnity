@@ -550,6 +550,9 @@ fun EditProfileScreen(
                     )
                 }
             }
+            
+            // Add extra space at bottom to prevent content from being hidden under bottom navigation
+            Spacer(Modifier.height(UiConstants.ContentBottomPadding))
         }
     }
 }

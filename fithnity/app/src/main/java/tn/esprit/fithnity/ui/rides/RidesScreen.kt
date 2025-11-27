@@ -291,6 +291,10 @@ fun RidesScreen(
             EmptyRidesState()
         } else {
             LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    bottom = UiConstants.ContentBottomPadding
+                ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(filteredRides) { ride ->
