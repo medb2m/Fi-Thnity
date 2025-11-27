@@ -27,6 +27,7 @@ import tn.esprit.fithnity.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationScreen(
     navController: NavHostController,
@@ -131,8 +132,8 @@ private fun NotificationsList(
 ) {
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(notifications) { notification ->
             NotificationItem(
@@ -170,26 +171,22 @@ private fun NotificationItem(
 ) {
     val isUnread = !notification.read
 
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isUnread) {
-                Primary.copy(alpha = 0.05f) // Light background for unread
-            } else {
-                Color.White // White background for read
-            }
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isUnread) 2.dp else 1.dp
-        )
+        shape = RoundedCornerShape(8.dp),
+        color = if (isUnread) {
+            Primary.copy(alpha = 0.05f) // Light background for unread
+        } else {
+            Color.White // White background for read
+        },
+        tonalElevation = 0.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Icon based on notification type
@@ -278,7 +275,9 @@ private fun NotificationItem(
                         .clip(CircleShape)
                         .background(Primary),
                     contentAlignment = Alignment.Center
-                )
+                ) {
+                    // Empty - just a colored dot
+                }
             }
         }
     }
