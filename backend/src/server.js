@@ -83,6 +83,34 @@ app.use(cors({
   credentials: true
 }));
 app.use(morgan('dev')); // Logging
+
+// Request logging middleware (before body parsing)
+app.use((req, res, next) => {
+  if (req.path.includes('/api/community/posts') && req.method === 'POST') {
+    console.log('🔍 Incoming POST to /api/community/posts');
+    console.log('   URL:', req.url);
+    console.log('   Path:', req.path);
+    console.log('   Headers:', {
+      'content-type': req.headers['content-type'],
+      'content-length': req.headers['content-length'],
+      'authorization': req.headers['authorization'] ? 'Present' : 'Missing',
+      'user-agent': req.headers['user-agent']?.substring(0, 50)
+    });
+    // Log request start time
+    req._startTime = Date.now();
+  }
+  next();
+});
+
+// Error handler for uncaught errors during request parsing
+app.use((err, req, res, next) => {
+  if (req.path.includes('/api/community/posts') && req.method === 'POST') {
+    console.error('❌ Error during request parsing:', err);
+    console.error('   Error stack:', err.stack);
+  }
+  next(err);
+});
+
 // Increase body size limits for file uploads
 app.use(express.json({ limit: '50mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Parse URL-encoded bodies
@@ -132,7 +160,10 @@ app.get('/health', (req, res) => {
 // Multer error handler (must be before routes to catch multer errors)
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
-    console.error('Multer error:', err);
+    console.error('❌ Multer error:', err);
+    console.error('   Error code:', err.code);
+    console.error('   Error field:', err.field);
+    console.error('   Request path:', req.path);
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
