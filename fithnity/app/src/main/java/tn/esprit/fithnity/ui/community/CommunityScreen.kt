@@ -60,10 +60,20 @@ fun CommunityScreen(
         }
     }
     val authToken = userPreferences.getAuthToken()
+    
+    // State for showing new post dialog
+    var showNewPostDialog by remember { mutableStateOf(false) }
 
     // Load posts on first composition
     LaunchedEffect(Unit) {
         viewModel.loadPosts(authToken = authToken, sort = "score")
+    }
+    
+    // Reload posts when dialog closes (in case a post was created)
+    LaunchedEffect(showNewPostDialog) {
+        if (!showNewPostDialog) {
+            viewModel.loadPosts(authToken = authToken, sort = "score")
+        }
     }
 
     Box(
@@ -145,7 +155,7 @@ fun CommunityScreen(
         // Floating Action Button for New Post
         FloatingActionButton(
             onClick = {
-                navController.navigate(Screen.NewPost.route)
+                showNewPostDialog = true
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -156,6 +166,18 @@ fun CommunityScreen(
             Icon(
                 imageVector = Icons.Default.Add,
                 contentDescription = "New Post"
+            )
+        }
+        
+        // New Post Dialog
+        if (showNewPostDialog) {
+            NewPostDialog(
+                onDismiss = { showNewPostDialog = false },
+                onPostCreated = {
+                    // Post was created, dialog will close automatically
+                },
+                userPreferences = userPreferences,
+                viewModel = viewModel
             )
         }
     }

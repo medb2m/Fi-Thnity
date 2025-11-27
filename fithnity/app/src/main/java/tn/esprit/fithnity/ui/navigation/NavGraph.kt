@@ -23,7 +23,6 @@ import tn.esprit.fithnity.ui.user.ProfileScreen
 import tn.esprit.fithnity.ui.user.SettingsScreen
 import tn.esprit.fithnity.ui.user.EditProfileScreen
 import tn.esprit.fithnity.ui.community.CommunityScreen
-import tn.esprit.fithnity.ui.community.NewPostScreen
 import tn.esprit.fithnity.ui.theme.*
 import tn.esprit.fithnity.ui.LanguageViewModel
 
@@ -171,13 +170,8 @@ fun FiThnityNavGraph(
             )
         }
 
-        // New Post Screen
-        composable(Screen.NewPost.route) {
-            NewPostScreen(
-                navController = navController,
-                userPreferences = userPreferences
-            )
-        }
+        // New Post Screen - Now handled as dialog in CommunityScreen
+        // Keeping route for backward compatibility but not used
 
         // Post Detail Screen (placeholder for now)
         composable(
