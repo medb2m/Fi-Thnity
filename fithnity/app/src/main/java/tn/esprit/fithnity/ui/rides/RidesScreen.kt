@@ -48,6 +48,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import android.location.Geocoder
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import java.io.IOException
 import tn.esprit.fithnity.data.Location
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -1033,17 +1038,59 @@ private fun DestinationMapDialog(
     initialLocation: LatLng
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var selectedLocation by remember { mutableStateOf<LatLng?>(null) }
     var selectedAddress by remember { mutableStateOf<String?>(null) }
     var isLoadingAddress by remember { mutableStateOf(false) }
     var shouldCreateMapView by remember { mutableStateOf(false) }
+    var mapView by remember { mutableStateOf<MapView?>(null) }
     
     // Ensure MapLibre is initialized before creating MapView
     LaunchedEffect(Unit) {
         val app = context.applicationContext as? tn.esprit.fithnity.FiThnityApplication
         app?.ensureMapLibreInitialized()
         shouldCreateMapView = true
+    }
+    
+    // Manage MapView lifecycle
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            mapView?.let { view ->
+                try {
+                    when (event) {
+                        Lifecycle.Event.ON_START -> view.onStart()
+                        Lifecycle.Event.ON_RESUME -> view.onResume()
+                        Lifecycle.Event.ON_PAUSE -> view.onPause()
+                        Lifecycle.Event.ON_STOP -> view.onStop()
+                        Lifecycle.Event.ON_DESTROY -> {
+                            view.onDestroy()
+                            mapView = null
+                            mapLibreMap = null
+                        }
+                        else -> {}
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("RidesScreen", "Error in MapView lifecycle: ${event.name}", e)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            // Clean up MapView on dispose
+            mapView?.let { view ->
+                try {
+                    view.onPause()
+                    view.onStop()
+                    view.onDestroy()
+                } catch (e: Exception) {
+                    android.util.Log.e("RidesScreen", "Error destroying MapView", e)
+                }
+            }
+            mapView = null
+            mapLibreMap = null
+        }
     }
     
     // Get address from coordinates
@@ -1092,20 +1139,53 @@ private fun DestinationMapDialog(
                         AndroidView(
                             factory = { ctx ->
                                 MapView(ctx).apply {
+                                    mapView = this
+                                    // Call onStart immediately after creation
+                                    try {
+                                        onStart()
+                                        onResume()
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("RidesScreen", "Error starting MapView", e)
+                                    }
                                     getMapAsync { map ->
-                                        mapLibreMap = map
-                                        setupDestinationMapStyle(map, initialLocation) { success ->
-                                            if (success) {
-                                                // Add marker at center
-                                                map.getStyle { style ->
-                                                    addDestinationMarker(style, initialLocation)
+                                        try {
+                                            mapLibreMap = map
+                                            setupDestinationMapStyle(map, initialLocation) { success ->
+                                                if (success && mapLibreMap != null && mapView != null) {
+                                                    try {
+                                                        // Add marker at center
+                                                        map.getStyle { style ->
+                                                            try {
+                                                                addDestinationMarker(style, initialLocation)
+                                                            } catch (e: Exception) {
+                                                                android.util.Log.e("RidesScreen", "Error adding destination marker", e)
+                                                            }
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        android.util.Log.e("RidesScreen", "Error getting map style", e)
+                                                    }
                                                 }
                                             }
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("RidesScreen", "Error in getMapAsync callback", e)
                                         }
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            update = { view ->
+                                // Update callback - ensure lifecycle is maintained
+                                try {
+                                    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                                        view.onStart()
+                                    }
+                                    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                                        view.onResume()
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.e("RidesScreen", "Error updating MapView lifecycle", e)
+                                }
+                            }
                         )
                     } else {
                         // Show loading indicator while MapLibre initializes
