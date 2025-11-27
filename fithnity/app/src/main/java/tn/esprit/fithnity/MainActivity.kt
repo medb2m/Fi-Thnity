@@ -25,8 +25,7 @@ import androidx.navigation.compose.rememberNavController
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.AuthScreen
 import tn.esprit.fithnity.ui.theme.FithnityTheme
-import tn.esprit.fithnity.ui.components.AlertBanner
-import tn.esprit.fithnity.ui.components.AlertType
+import tn.esprit.fithnity.ui.components.ToastHost
 import tn.esprit.fithnity.ui.navigation.FiThnityBottomNavigation
 import tn.esprit.fithnity.ui.navigation.FiThnityNavGraph
 import tn.esprit.fithnity.ui.navigation.FiThnityTopBar
@@ -124,22 +123,18 @@ fun FiThnityApp(userPreferences: UserPreferences, languageViewModel: LanguageVie
             userPreferences.getAuthToken() != null
         )
     }
-    var needsEmailVerification by remember { mutableStateOf(userPreferences.needsEmailVerification()) }
-
     if (!isAuthenticated) {
         // Show Authentication Screen
         AuthScreen(
             userPreferences = userPreferences,
             languageViewModel = languageViewModel,
-            onAuthSuccess = { name, needsVerification ->
+            onAuthSuccess = { name ->
                 isAuthenticated = true
-                needsEmailVerification = needsVerification
             }
         )
     } else {
         // Show Main App with Navigation
         MainAppScreen(
-            needsEmailVerification = needsEmailVerification,
             userPreferences = userPreferences,
             languageViewModel = languageViewModel,
             onLogout = {
@@ -147,7 +142,6 @@ fun FiThnityApp(userPreferences: UserPreferences, languageViewModel: LanguageVie
                 userPreferences.clearAuthData()
                 // Clear authentication state
                 isAuthenticated = false
-                needsEmailVerification = false
             }
         )
     }
@@ -158,13 +152,11 @@ fun FiThnityApp(userPreferences: UserPreferences, languageViewModel: LanguageVie
  */
 @Composable
 fun MainAppScreen(
-    needsEmailVerification: Boolean,
     userPreferences: UserPreferences,
     languageViewModel: LanguageViewModel,
     onLogout: () -> Unit
 ) {
     val navController = rememberNavController()
-    var showAlert by remember { mutableStateOf(needsEmailVerification) }
     
     // Track if user has visited home screen for the first time
     var isFirstHomeVisit by remember { mutableStateOf(true) }
@@ -240,20 +232,12 @@ fun MainAppScreen(
                     languageViewModel = languageViewModel
                 )
 
-                // Email Verification Alert
-                if (showAlert) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        AlertBanner(
-                            message = "Please verify your email to access all features",
-                            type = AlertType.WARNING,
-                            isVisible = showAlert,
-                            onDismiss = { showAlert = false },
-                            autoDismissMillis = 2000L
-                        )
-                    }
-                }
+                // Toast Host - Global toast notifications
+                ToastHost(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = if (showTopBar) 0.dp else 8.dp)
+                )
             }
         }
         
