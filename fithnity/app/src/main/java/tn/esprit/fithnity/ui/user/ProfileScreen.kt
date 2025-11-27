@@ -423,6 +423,67 @@ fun ProfileScreen(
                     }
                 }
 
+                Spacer(Modifier.height(12.dp))
+
+                // Verification Status Indicators
+                val userEmail = userInfo?.email
+                val userPhone = userInfo?.phoneNumber
+                val isEmailVerified = userInfo?.emailVerified == true
+                val isPhoneVerified = userInfo?.isVerified == true
+                
+                if (!userEmail.isNullOrBlank() || !userPhone.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Email verification status
+                        if (!userEmail.isNullOrBlank()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isEmailVerified) Icons.Default.CheckCircle else Icons.Default.Email,
+                                    contentDescription = null,
+                                    tint = if (isEmailVerified) Primary else TextSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = if (isEmailVerified) "Verified" else "Not verified",
+                                    fontSize = 12.sp,
+                                    color = if (isEmailVerified) Primary else TextSecondary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        
+                        // Phone verification status
+                        if (!userPhone.isNullOrBlank()) {
+                            if (!userEmail.isNullOrBlank()) {
+                                Spacer(Modifier.width(16.dp))
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isPhoneVerified) Icons.Default.CheckCircle else Icons.Default.Phone,
+                                    contentDescription = null,
+                                    tint = if (isPhoneVerified) Primary else TextSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = if (isPhoneVerified) "Verified" else "Not verified",
+                                    fontSize = 12.sp,
+                                    color = if (isPhoneVerified) Primary else TextSecondary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Spacer(Modifier.height(24.dp))
 
                 // Edit Profile Picture Button

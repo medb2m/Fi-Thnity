@@ -25,6 +25,12 @@ interface UserApiService {
         @Header("Authorization") bearer: String,
         @Part picture: MultipartBody.Part
     ): ApiResponse<UploadPictureResponse>
+    
+    // Resend verification email
+    @POST("/api/users/resend-verification")
+    suspend fun resendVerificationEmail(
+        @Header("Authorization") bearer: String
+    ): ApiResponse<Unit>
 }
 
 data class UpdateProfileRequest(

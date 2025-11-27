@@ -42,6 +42,7 @@ fun EditProfileScreen(
     val authToken = userPreferences.getAuthToken()
     
     val profileState by profileViewModel.uiState.collectAsState()
+    val resendVerificationState by profileViewModel.resendVerificationState.collectAsState()
     
     // Form fields
     var name by remember { mutableStateOf("") }
@@ -55,6 +56,7 @@ fun EditProfileScreen(
     var hasPhone by remember { mutableStateOf(false) }
     
     var isLoading by remember { mutableStateOf(false) }
+    var isResendingVerification by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
     var isInitialLoad by remember { mutableStateOf(true) }
@@ -114,6 +116,28 @@ fun EditProfileScreen(
                 errorMessage = state.message
                 isLoading = false
                 hasUpdated = false
+            }
+            else -> {}
+        }
+    }
+    
+    // Handle resend verification result
+    LaunchedEffect(resendVerificationState) {
+        when (val state = resendVerificationState) {
+            is ProfileUiState.Success -> {
+                isResendingVerification = false
+                successMessage = "Verification email sent! Please check your inbox."
+                scope.launch {
+                    kotlinx.coroutines.delay(3000)
+                    successMessage = null
+                }
+            }
+            is ProfileUiState.Loading -> {
+                isResendingVerification = true
+            }
+            is ProfileUiState.Error -> {
+                isResendingVerification = false
+                errorMessage = state.message
             }
             else -> {}
         }
@@ -268,7 +292,7 @@ fun EditProfileScreen(
                         ) {
                             if (emailVerified) {
                                 Icon(
-                                    imageVector = Icons.Default.Verified,
+                                    imageVector = Icons.Default.CheckCircle,
                                     contentDescription = "Verified",
                                     tint = Primary,
                                     modifier = Modifier.size(20.dp)
@@ -296,13 +320,82 @@ fun EditProfileScreen(
                 }
             )
             
-            if (hasEmail && !emailVerified) {
-                Text(
-                    text = "Email verification required. Check your email for verification link.",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-                )
+            // Email Verification Status Card
+            if (hasEmail) {
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (emailVerified) {
+                            Primary.copy(alpha = 0.1f)
+                        } else {
+                            Error.copy(alpha = 0.1f)
+                        }
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (emailVerified) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = if (emailVerified) Primary else Error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = if (emailVerified) "Email Verified" else "Email Not Verified",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (emailVerified) Primary else Error
+                                )
+                                if (!emailVerified) {
+                                    Text(
+                                        text = "Check your email for verification link",
+                                        fontSize = 12.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                        if (!emailVerified) {
+                            TextButton(
+                                onClick = {
+                                    errorMessage = null
+                                    successMessage = null
+                                    isResendingVerification = true
+                                    scope.launch {
+                                        profileViewModel.resendVerificationEmail(authToken)
+                                    }
+                                },
+                                enabled = !isResendingVerification && !isLoading
+                            ) {
+                                if (isResendingVerification) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Primary
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Resend",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
             
             Spacer(Modifier.height(16.dp))
@@ -327,7 +420,7 @@ fun EditProfileScreen(
                     if (hasPhone) {
                         if (phoneVerified) {
                             Icon(
-                                imageVector = Icons.Default.Verified,
+                                imageVector = Icons.Default.CheckCircle,
                                 contentDescription = "Verified",
                                 tint = Primary,
                                 modifier = Modifier.size(20.dp)
@@ -354,13 +447,50 @@ fun EditProfileScreen(
                 }
             )
             
-            if (hasPhone && !phoneVerified) {
-                Text(
-                    text = "Phone verification required. Use OTP verification.",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-                )
+            // Phone Verification Status Card
+            if (hasPhone) {
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (phoneVerified) {
+                            Primary.copy(alpha = 0.1f)
+                        } else {
+                            Error.copy(alpha = 0.1f)
+                        }
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (phoneVerified) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = if (phoneVerified) Primary else Error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = if (phoneVerified) "Phone Verified" else "Phone Not Verified",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (phoneVerified) Primary else Error
+                            )
+                            if (!phoneVerified) {
+                                Text(
+                                    text = "Use OTP verification to verify your phone",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
             }
             
             Spacer(Modifier.height(24.dp))

@@ -155,7 +155,7 @@ export const verifyEmail = async (req, res) => {
 };
 
 /**
- * Resend verification email
+ * Resend verification email (public - requires email in body)
  * POST /api/auth/resend-verification
  */
 export const resendVerification = async (req, res) => {
@@ -183,6 +183,48 @@ export const resendVerification = async (req, res) => {
 
     // Send verification email
     await sendVerificationEmail(email, user.name, token);
+
+    res.json({
+      success: true,
+      message: 'Verification email sent successfully'
+    });
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error sending verification email',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Resend verification email (authenticated - uses current user)
+ * POST /api/users/resend-verification
+ */
+export const resendVerificationAuthenticated = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user.email) {
+      return res.status(400).json({
+        success: false,
+        message: 'No email address associated with this account'
+      });
+    }
+
+    if (user.emailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already verified'
+      });
+    }
+
+    // Generate new token
+    const token = await VerificationToken.createEmailVerificationToken(user._id);
+
+    // Send verification email
+    await sendVerificationEmail(user.email, user.name, token);
 
     res.json({
       success: true,

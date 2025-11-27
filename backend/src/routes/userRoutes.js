@@ -9,6 +9,7 @@ import {
   getUserById,
   getAllUsers,
 } from '../controllers/userController.js';
+import { resendVerificationAuthenticated } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
 import upload from '../middleware/upload.js';
@@ -53,6 +54,9 @@ router.put(
   ],
   updateLocation
 );
+
+// Resend verification email (authenticated)
+router.post('/resend-verification', authenticate, resendVerificationAuthenticated);
 
 // Get user statistics
 router.get('/stats', authenticate, getUserStats);

@@ -142,6 +142,42 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
+    private val _resendVerificationState = MutableStateFlow<ProfileUiState>(ProfileUiState.Idle)
+    val resendVerificationState: StateFlow<ProfileUiState> = _resendVerificationState.asStateFlow()
+
+    fun resendVerificationEmail(authToken: String?) = viewModelScope.launch {
+        val token = authToken
+        
+        if (token == null) {
+            _resendVerificationState.value = ProfileUiState.Error("Not authenticated")
+            return@launch
+        }
+
+        _resendVerificationState.value = ProfileUiState.Loading
+        try {
+            val resp = api.resendVerificationEmail("Bearer $token")
+            if (resp.success) {
+                _resendVerificationState.value = ProfileUiState.Success(
+                    tn.esprit.fithnity.data.UserInfo(
+                        _id = null,
+                        name = null,
+                        email = null,
+                        phoneNumber = null,
+                        photoUrl = null,
+                        isVerified = null,
+                        emailVerified = null
+                    )
+                )
+            } else {
+                val errorMsg = resp.message ?: resp.error ?: "Failed to send verification email"
+                _resendVerificationState.value = ProfileUiState.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error resending verification email", e)
+            _resendVerificationState.value = ProfileUiState.Error(e.message ?: "Unknown error")
+        }
+    }
+
     // Firebase methods removed - using JWT tokens from UserPreferences instead
 }
 
