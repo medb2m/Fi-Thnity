@@ -8,9 +8,9 @@ import {
   getUserStats,
   getUserById,
   getAllUsers,
-  firebaseRegisterOrUpdate
 } from '../controllers/userController.js';
-import { verifyFirebaseToken, authenticate } from '../middleware/auth.js';
+import { resendVerificationAuthenticated } from '../controllers/authController.js';
+import { authenticate } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
 import upload from '../middleware/upload.js';
 
@@ -35,6 +35,8 @@ router.put(
     body('name').optional().trim().isLength({ min: 2, max: 50 }),
     body('bio').optional().trim().isLength({ max: 150 }),
     body('photoUrl').optional().isURL(),
+    body('email').optional().isEmail().normalizeEmail(),
+    body('phoneNumber').optional().isMobilePhone('any', { strictMode: false }),
     handleValidationErrors
   ],
   updateProfile
@@ -53,6 +55,9 @@ router.put(
   updateLocation
 );
 
+// Resend verification email (authenticated)
+router.post('/resend-verification', authenticate, resendVerificationAuthenticated);
+
 // Get user statistics
 router.get('/stats', authenticate, getUserStats);
 
@@ -62,18 +67,6 @@ router.get('/:userId', getUserById);
 // Get all users (for admin)
 router.get('/', getAllUsers);
 
-// Add route for Firebase phone registration/sync (before export default)
-router.post(
-  '/firebase',
-  verifyFirebaseToken,
-  [
-    body('firebaseUid').notEmpty(),
-    body('phoneNumber').notEmpty(),
-    body('name').optional().trim().default('User'),
-    // email and photoUrl are optional
-    handleValidationErrors
-  ],
-  firebaseRegisterOrUpdate
-);
+// Firebase route removed - using OTP authentication instead
 
 export default router;

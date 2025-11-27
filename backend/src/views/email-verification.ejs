@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification - Fi Thnity</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #006D9C 0%, #FFD54F 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 500px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #006D9C;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin-bottom: 15px;
+            object-fit: cover;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .success .icon {
+            color: #4CAF50;
+        }
+
+        .error .icon {
+            color: #D62828;
+        }
+
+        h2 {
+            font-size: 22px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .success h2 {
+            color: #4CAF50;
+        }
+
+        .error h2 {
+            color: #D62828;
+        }
+
+        p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .message {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #006D9C;
+        }
+
+        .success .message {
+            border-left-color: #4CAF50;
+            background: #e8f5e9;
+        }
+
+        .error .message {
+            border-left-color: #D62828;
+            background: #ffebee;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #006D9C;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+
+        .button:hover {
+            background: #005a7a;
+        }
+
+        .footer {
+            background: #f9f9f9;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            border-top: 1px solid #eee;
+        }
+
+        .token-info {
+            font-size: 11px;
+            color: #999;
+            margin-top: 20px;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="/fithnity_logo.png" alt="Fi Thnity Logo" onerror="this.style.display='none'">
+            <h1>🚗 Fi Thnity</h1>
+            <p>Save Time, Save Tunisia</p>
+        </div>
+
+        <div class="content <%= status %>">
+            <% if (status === 'success') { %>
+                <div class="icon">✅</div>
+                <h2>Email Verified Successfully!</h2>
+                <p>Congratulations, <strong><%= userName %></strong>!</p>
+                <div class="message">
+                    <p>Your email address has been verified. You can now access all features of Fi Thnity.</p>
+                </div>
+                <p>You can close this page and return to the app.</p>
+                <% if (authToken) { %>
+                    <p style="margin-top: 15px; font-size: 12px; color: #999;">
+                        Your authentication token has been generated. You're now logged in!
+                    </p>
+                <% } %>
+            <% } else { %>
+                <div class="icon">❌</div>
+                <h2>Verification Failed</h2>
+                <div class="message">
+                    <p><%= errorMessage %></p>
+                </div>
+                <p>Please check your email for a new verification link or contact support if the problem persists.</p>
+            <% } %>
+
+            <div class="token-info" style="display: none;">
+                Token: <%= token || 'N/A' %>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Fi Thnity - On My Way 🇹🇳</p>
+            <p>© <%= new Date().getFullYear() %> Fi Thnity. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+

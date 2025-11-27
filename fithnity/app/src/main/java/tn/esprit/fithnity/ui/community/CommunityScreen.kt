@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import tn.esprit.fithnity.data.CommunityPostResponse
+import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.navigation.SearchState
 import tn.esprit.fithnity.ui.theme.*
@@ -37,6 +38,7 @@ import java.util.*
 fun CommunityScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    userPreferences: UserPreferences,
     viewModel: CommunityViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -57,10 +59,11 @@ fun CommunityScreen(
             SearchState.clearSearchHandler()
         }
     }
+    val authToken = userPreferences.getAuthToken()
 
     // Load posts on first composition
     LaunchedEffect(Unit) {
-        viewModel.loadPosts(sort = "score")
+        viewModel.loadPosts(authToken = authToken, sort = "score")
     }
 
     Box(
@@ -118,13 +121,17 @@ fun CommunityScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 8.dp),
+                        contentPadding = PaddingValues(
+                            top = 8.dp,
+                            bottom = UiConstants.ContentBottomPadding + 8.dp
+                        ),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredPosts) { post ->
                             PostCard(
                                 post = post,
                                 viewModel = viewModel,
+                                authToken = authToken,
                                 onCommentClick = { postId ->
                                     // TODO: Navigate to comments screen or show dialog
                                 }
@@ -199,6 +206,7 @@ private fun EmptyCommunityState() {
 private fun PostCard(
     post: CommunityPostResponse,
     viewModel: CommunityViewModel,
+    authToken: String?,
     onCommentClick: (String) -> Unit
 ) {
     var showComments by remember { mutableStateOf(false) }
@@ -326,7 +334,7 @@ private fun PostCard(
                     IconButton(
                         onClick = {
                             val newVote = if (post.userVote == "up") null else "up"
-                            viewModel.votePost(post._id, newVote)
+                            viewModel.votePost(authToken = authToken, postId = post._id, vote = newVote)
                         },
                         modifier = Modifier.size(32.dp)
                     ) {
@@ -351,7 +359,7 @@ private fun PostCard(
                     IconButton(
                         onClick = {
                             val newVote = if (post.userVote == "down") null else "down"
-                            viewModel.votePost(post._id, newVote)
+                            viewModel.votePost(authToken = authToken, postId = post._id, vote = newVote)
                         },
                         modifier = Modifier.size(32.dp)
                     ) {
@@ -416,7 +424,7 @@ private fun PostCard(
                     IconButton(
                         onClick = {
                             if (commentText.isNotBlank()) {
-                                viewModel.addComment(post._id, commentText)
+                                viewModel.addComment(authToken = authToken, postId = post._id, content = commentText)
                                 commentText = ""
                             }
                         },

@@ -9,7 +9,6 @@ export const createRide = async (req, res) => {
   try {
     console.log('🚗 createRide: Starting ride creation');
     console.log('   User ID:', req.user._id);
-    console.log('   Firebase UID:', req.firebaseUser.uid);
     console.log('   Request body:', JSON.stringify(req.body, null, 2));
 
     const {
@@ -119,7 +118,6 @@ export const createRide = async (req, res) => {
 
     const rideData = {
       user: req.user._id,
-      firebaseUid: req.firebaseUser.uid,
       rideType: rideType.trim().toUpperCase(),
       transportType: transportType.trim().toUpperCase(),
       origin: {

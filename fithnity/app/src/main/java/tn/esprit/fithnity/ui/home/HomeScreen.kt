@@ -41,6 +41,11 @@ import tn.esprit.fithnity.utils.rememberLocationState
 import android.widget.Toast
 import android.location.Geocoder
 import java.io.IOException
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 
 /**
  * Modern Home Screen with MapLibre
@@ -64,6 +69,7 @@ fun HomeScreen(
     // Location state
     val locationState = rememberLocationState()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     // Track if we should follow user location
     var isFollowingLocation by remember { mutableStateOf(false) }
     // Track last location update time
@@ -117,6 +123,8 @@ fun HomeScreen(
             SearchState.clearSearchHandler()
         }
     }
+    // Store MapView reference for lifecycle management
+    var mapView by remember { mutableStateOf<MapView?>(null) }
     
     // Initialize MapLibre lazily and defer MapView creation to prevent ANR
     LaunchedEffect(Unit) {
@@ -127,6 +135,46 @@ fun HomeScreen(
         // Small delay to allow UI to render first, then create MapView
         kotlinx.coroutines.delay(50)
         shouldCreateMapView = true
+    }
+    
+    // Manage MapView lifecycle
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            mapView?.let { view ->
+                try {
+                    when (event) {
+                        Lifecycle.Event.ON_START -> view.onStart()
+                        Lifecycle.Event.ON_RESUME -> view.onResume()
+                        Lifecycle.Event.ON_PAUSE -> view.onPause()
+                        Lifecycle.Event.ON_STOP -> view.onStop()
+                        Lifecycle.Event.ON_DESTROY -> {
+                            view.onDestroy()
+                            mapView = null
+                            mapLibreMap = null
+                        }
+                        else -> {}
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeScreen", "Error in MapView lifecycle: ${event.name}", e)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            // Clean up MapView on dispose
+            mapView?.let { view ->
+                try {
+                    view.onPause()
+                    view.onStop()
+                    view.onDestroy()
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeScreen", "Error destroying MapView", e)
+                }
+            }
+            mapView = null
+            mapLibreMap = null
+        }
     }
     
     // Auto-dismiss welcome banner after 3 seconds if it should be shown
@@ -161,15 +209,41 @@ fun HomeScreen(
             AndroidView(
                 factory = { ctx ->
                     MapView(ctx).apply {
+                        mapView = this
+                        // Call onStart immediately after creation
+                        try {
+                            onStart()
+                            onResume()
+                        } catch (e: Exception) {
+                            android.util.Log.e("HomeScreen", "Error starting MapView", e)
+                        }
                         getMapAsync { map ->
-                            mapLibreMap = map
-                            setupMapStyle(map) { success ->
-                                mapLoadError = !success
+                            try {
+                                mapLibreMap = map
+                                setupMapStyle(map) { success ->
+                                    mapLoadError = !success
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("HomeScreen", "Error in getMapAsync callback", e)
+                                mapLoadError = true
                             }
                         }
                     }
                 },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                update = { view ->
+                    // Update callback - ensure lifecycle is maintained
+                    try {
+                        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                            view.onStart()
+                        }
+                        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                            view.onResume()
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("HomeScreen", "Error updating MapView lifecycle", e)
+                    }
+                }
             )
         }
 
@@ -318,7 +392,13 @@ fun HomeScreen(
             val location = locationState.location
             val map = mapLibreMap
             
-            if (location != null && map != null) {
+            // Only proceed if map is valid and lifecycle is active
+            if (location != null && map != null && mapView != null) {
+                // Check if lifecycle is in a valid state
+                if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    return@LaunchedEffect
+                }
+                
                 try {
                     val userLocation = LatLng(location.latitude, location.longitude)
                     val currentTime = System.currentTimeMillis()
@@ -330,6 +410,11 @@ fun HomeScreen(
                     
                     if (shouldUpdate) {
                         lastLocationUpdate = currentTime
+                        
+                        // Verify map is still valid before using
+                        if (mapView == null || mapLibreMap == null) {
+                            return@LaunchedEffect
+                        }
                         
                         // Center map on user location with smooth animation
                         val cameraUpdate = org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(
@@ -344,7 +429,11 @@ fun HomeScreen(
                         
                         // Add or update user location marker
                         map.getStyle { style ->
-                            addUserLocationMarker(style, userLocation, location.accuracy)
+                            try {
+                                addUserLocationMarker(style, userLocation, location.accuracy)
+                            } catch (e: Exception) {
+                                android.util.Log.e("HomeScreen", "Error adding user location marker", e)
+                            }
                         }
                         
                         // Show success message on first location
@@ -359,22 +448,35 @@ fun HomeScreen(
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("HomeScreen", "Error centering map on location", e)
-                    Toast.makeText(
-                        context,
-                        "Error updating location on map: ${e.message}",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    // Don't show toast for native crashes, just log
+                    if (e !is UnsatisfiedLinkError && e !is NoClassDefFoundError) {
+                        Toast.makeText(
+                            context,
+                            "Error updating location on map: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
         }
         
         // Auto-request location when map is ready and permission is granted
         LaunchedEffect(mapLibreMap, locationState.hasPermission) {
-            if (mapLibreMap != null && locationState.hasPermission && locationState.location == null) {
-                // Auto-request location when map loads (optional - can be removed if not desired)
-                kotlinx.coroutines.delay(500) // Small delay to ensure map is fully loaded
-                if (!locationState.isLoading) {
-                    locationState.requestLocation()
+            // Only proceed if lifecycle is active
+            if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                return@LaunchedEffect
+            }
+            
+            if (mapLibreMap != null && mapView != null && locationState.hasPermission && locationState.location == null) {
+                try {
+                    // Auto-request location when map loads (optional - can be removed if not desired)
+                    kotlinx.coroutines.delay(500) // Small delay to ensure map is fully loaded
+                    // Verify map is still valid before proceeding
+                    if (mapLibreMap != null && mapView != null && !locationState.isLoading) {
+                        locationState.requestLocation()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeScreen", "Error requesting location", e)
                 }
             }
         }
@@ -537,6 +639,7 @@ private fun setupMapStyle(map: MapLibreMap, onResult: (Boolean) -> Unit) {
             if (!callbackCalled) {
                 callbackCalled = true
                 try {
+                    // Verify map is still valid before using
                     // Style loaded successfully
                     // Set initial camera position (Tunis, Tunisia)
                     val tunisLocation = LatLng(36.8065, 10.1815)
@@ -546,7 +649,11 @@ private fun setupMapStyle(map: MapLibreMap, onResult: (Boolean) -> Unit) {
                         .build()
                     onResult(true)
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    android.util.Log.e("HomeScreen", "Error setting map style", e)
+                    // Don't crash on native errors
+                    if (e !is UnsatisfiedLinkError && e !is NoClassDefFoundError) {
+                        e.printStackTrace()
+                    }
                     onResult(false)
                 }
             }

@@ -125,29 +125,10 @@ class UserPreferences(context: Context) {
 
     /**
      * Check if user is logged in
-     * Checks both stored token and Firebase current user
-     * 
-     * WARNING: This method calls Firebase synchronously which can block the main thread.
-     * Avoid calling this during composition or on the main thread.
-     * Prefer checking getAuthToken() first, then verify Firebase asynchronously.
+     * Checks stored JWT token (from OTP or email auth)
      */
     fun isLoggedIn(): Boolean {
-        // Check if we have a stored token (for email auth) - this is fast
-        val hasStoredToken = getAuthToken() != null
-        if (hasStoredToken) {
-            return true
-        }
-        
-        // Only check Firebase if no stored token exists
-        // WARNING: This can block if Firebase is initializing
-        val hasFirebaseUser = try {
-            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null
-        } catch (e: Exception) {
-            Log.w(TAG, "Error checking Firebase currentUser", e)
-            false
-        }
-        
-        return hasFirebaseUser
+        return getAuthToken() != null
     }
 
     /**

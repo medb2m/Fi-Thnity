@@ -29,7 +29,7 @@ interface CommunityApiService {
         @Query("sort") sort: String? = null, // "score" or "new"
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20
-    ): ApiResponse<CommunityPostsListResponse>
+    ): CommunityPostsApiResponse
 
     /**
      * Get post by ID

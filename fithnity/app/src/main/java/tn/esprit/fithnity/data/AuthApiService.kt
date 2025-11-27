@@ -12,12 +12,15 @@ interface AuthApiService {
     @POST("/api/auth/login")
     suspend fun login(@Body request: LoginRequest): ApiResponse<LoginResponse>
 
-    // POST /api/users/firebase: sync Firebase-authenticated user (Requires Firebase Bearer ID token in the header)
-    @POST("/api/users/firebase")
-    suspend fun syncFirebaseUser(
-        @Header("Authorization") bearer: String,
-        @Body request: FirebaseRegisterRequest
-    ): ApiResponse<UserInfo>
+    // OTP Phone Authentication
+    @POST("/api/auth/otp/send")
+    suspend fun sendOTP(@Body request: SendOTPRequest): ApiResponse<SendOTPResponse>
+
+    @POST("/api/auth/otp/verify")
+    suspend fun verifyOTP(@Body request: VerifyOTPRequest): ApiResponse<VerifyOTPResponse>
+
+    @POST("/api/auth/otp/resend")
+    suspend fun resendOTP(@Body request: SendOTPRequest): ApiResponse<SendOTPResponse>
 }
 
 

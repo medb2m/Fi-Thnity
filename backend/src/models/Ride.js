@@ -23,13 +23,7 @@ const rideSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  // Firebase UID for mobile app authentication (following User.js pattern)
-  firebaseUid: {
-    type: String,
-    required: true,
-    index: true,
-    sparse: true
-  },
+  // Removed firebaseUid - using phone authentication instead
   // Ride type: REQUEST (user needs a ride) or OFFER (user offers a ride)
   rideType: {
     type: String,

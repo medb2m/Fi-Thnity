@@ -21,13 +21,7 @@ const locationSchema = new mongoose.Schema({
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
-  // Firebase Authentication (for mobile app)
-  firebaseUid: {
-    type: String,
-    sparse: true,
-    unique: true,
-    index: true
-  },
+  // Phone Authentication (OTP via Twilio)
   phoneNumber: {
     type: String,
     sparse: true,
@@ -56,9 +50,9 @@ const userSchema = new mongoose.Schema({
   // Authentication type
   authType: {
     type: String,
-    enum: ['firebase', 'email'],
+    enum: ['phone', 'email'],
     required: true,
-    default: 'firebase'
+    default: 'phone'
   },
 
   // Common fields

@@ -104,13 +104,47 @@ export const uploadProfilePicture = async (req, res) => {
  */
 export const updateProfile = async (req, res) => {
   try {
-    const { name, bio, photoUrl, currentLocation } = req.body;
+    const { name, bio, photoUrl, currentLocation, email, phoneNumber } = req.body;
 
     const updates = {};
     if (name) updates.name = name;
     if (bio !== undefined) updates.bio = bio;
     if (photoUrl !== undefined) updates.photoUrl = photoUrl;
     if (currentLocation) updates.currentLocation = currentLocation;
+    
+    // Handle email update
+    if (email !== undefined) {
+      // Check if email is being changed to one that already exists
+      const existingUser = await User.findOne({ email: email.toLowerCase().trim(), _id: { $ne: req.user._id } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already in use by another user'
+        });
+      }
+      updates.email = email.toLowerCase().trim();
+      // If email is being added/changed, reset verification status
+      if (email) {
+        updates.emailVerified = false;
+      }
+    }
+    
+    // Handle phone number update
+    if (phoneNumber !== undefined) {
+      // Check if phone number is being changed to one that already exists
+      const existingUser = await User.findOne({ phoneNumber, _id: { $ne: req.user._id } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number already in use by another user'
+        });
+      }
+      updates.phoneNumber = phoneNumber;
+      // If phone number is being added/changed, reset verification status
+      if (phoneNumber) {
+        updates.isVerified = false;
+      }
+    }
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
@@ -284,64 +318,3 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-/**
- * Register or update user with Firebase phone (phone/Firebase sign in)
- * POST /api/users/firebase
- * Requires: firebaseUid, phoneNumber, name
- */
-export const firebaseRegisterOrUpdate = async (req, res) => {
-  try {
-    const { firebaseUid, phoneNumber, email, photoUrl } = req.body;
-    let { name } = req.body;
-
-    // Validate required fields
-    if (!firebaseUid || !phoneNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'firebaseUid and phoneNumber are required.'
-      });
-    }
-
-    // Provide default name if not provided or empty
-    if (!name || name.trim() === '') {
-      name = 'User';
-    }
-
-    // Find user by firebaseUid or phoneNumber
-    let user = await User.findOne({ $or: [ { firebaseUid }, { phoneNumber } ] });
-    if (user) {
-      // Update existing
-      user.name = name;
-      user.phoneNumber = phoneNumber;
-      user.authType = 'firebase';
-      if (email) user.email = email;
-      if (photoUrl !== undefined) user.photoUrl = photoUrl;
-      user.isVerified = true;
-      await user.save();
-    } else {
-      // Create new
-      user = await User.create({
-        firebaseUid,
-        phoneNumber,
-        name,
-        authType: 'firebase',
-        email,
-        photoUrl,
-        isVerified: true
-      });
-    }
-    // (Optional: generate a JWT or just return user for now)
-    res.status(200).json({
-      success: true,
-      message: user.wasNew ? 'User created' : 'User updated',
-      data: user.getPublicProfile ? user.getPublicProfile() : user // fallback if no .getPublicProfile
-    });
-  } catch (error) {
-    console.error('Firebase register error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error in firebase register/update',
-      error: error.message
-    });
-  }
-};

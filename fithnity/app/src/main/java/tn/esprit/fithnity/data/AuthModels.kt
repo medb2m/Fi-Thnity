@@ -39,7 +39,6 @@ data class UserInfo(
     val name: String?,
     val email: String?,
     val phoneNumber: String?,
-    val firebaseUid: String?,
     val photoUrl: String?,
     val isVerified: Boolean? = false,
     val emailVerified: Boolean? = false,
@@ -47,15 +46,26 @@ data class UserInfo(
     val totalRides: Int? = null
 )
 
-// Firebase phone registration/sync
-// Sent after successful Firebase sign-in
-// (token sent as Bearer token in header, not in the payload)
-data class FirebaseRegisterRequest(
-    val firebaseUid: String,
+// OTP Phone Authentication
+data class SendOTPRequest(
+    val phoneNumber: String
+)
+
+data class SendOTPResponse(
     val phoneNumber: String,
-    val name: String,
-    val email: String? = null,
-    val photoUrl: String? = null
+    val expiresIn: Int, // seconds
+    val messageSid: String? = null
+)
+
+data class VerifyOTPRequest(
+    val phoneNumber: String,
+    val code: String,
+    val name: String? = null // Optional, only for new users
+)
+
+data class VerifyOTPResponse(
+    val user: UserInfo,
+    val token: String // JWT token
 )
 
 

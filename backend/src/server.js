@@ -1,18 +1,24 @@
 // Load environment variables FIRST before any other imports
 import dotenv from 'dotenv';
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES Module dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env file from backend directory
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieSession from 'cookie-session';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
+import multer from 'multer';
 // Import configurations
 import connectDB from './config/database.js';
-import initializeFirebase from './config/firebase.js';
+import initializeTwilio from './config/twilio.js';
 import './config/email.js'; // Initialize email service
 
 // Import scheduled jobs
@@ -25,27 +31,29 @@ import rideRoutes from './routes/rideRoutes.js';
 import communityRoutes from './routes/communityRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 
-// ES Module dirname equivalent
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Increase timeout for file uploads (5 minutes)
+app.use((req, res, next) => {
+  req.setTimeout(5 * 60 * 1000); // 5 minutes
+  res.setTimeout(5 * 60 * 1000); // 5 minutes
+  next();
+});
+
 // Connect to MongoDB
 connectDB();
 
-// Initialize Firebase Admin
-const firebaseInitialized = initializeFirebase();
+// Initialize Twilio
+const twilioInitialized = initializeTwilio();
+if (!twilioInitialized) {
+  console.warn('⚠️  WARNING: Twilio not initialized!');
+  console.warn('⚠️  OTP/SMS endpoints will fail until Twilio is configured.');
+}
 
 // Initialize scheduled jobs (after DB connection)
 initializeScheduledJobs();
-if (!firebaseInitialized) {
-  console.warn('⚠️  WARNING: Firebase Admin SDK not initialized!');
-  console.warn('⚠️  Authentication endpoints will fail until Firebase is configured.');
-  console.warn('⚠️  See logs above for configuration instructions.');
-}
 
 // Middleware
 // Configure Helmet for HTTP (adjust for production with HTTPS)
@@ -75,8 +83,37 @@ app.use(cors({
   credentials: true
 }));
 app.use(morgan('dev')); // Logging
-app.use(express.json()); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+
+// Request logging middleware (before body parsing)
+app.use((req, res, next) => {
+  if (req.path.includes('/api/community/posts') && req.method === 'POST') {
+    console.log('🔍 Incoming POST to /api/community/posts');
+    console.log('   URL:', req.url);
+    console.log('   Path:', req.path);
+    console.log('   Headers:', {
+      'content-type': req.headers['content-type'],
+      'content-length': req.headers['content-length'],
+      'authorization': req.headers['authorization'] ? 'Present' : 'Missing',
+      'user-agent': req.headers['user-agent']?.substring(0, 50)
+    });
+    // Log request start time
+    req._startTime = Date.now();
+  }
+  next();
+});
+
+// Error handler for uncaught errors during request parsing
+app.use((err, req, res, next) => {
+  if (req.path.includes('/api/community/posts') && req.method === 'POST') {
+    console.error('❌ Error during request parsing:', err);
+    console.error('   Error stack:', err.stack);
+  }
+  next(err);
+});
+
+// Increase body size limits for file uploads
+app.use(express.json({ limit: '50mb' })); // Parse JSON bodies
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Parse URL-encoded bodies
 
 // Session middleware for admin panel
 app.use(cookieSession({
@@ -86,9 +123,25 @@ app.use(cookieSession({
 }));
 
 // Static files
-app.use(express.static(path.join(__dirname, 'public')));
+const publicPath = path.join(__dirname, 'public');
+console.log('📁 Static files directory:', publicPath);
+app.use(express.static(publicPath));
+
 // Serve uploaded profile pictures
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const uploadsPath = path.join(__dirname, 'uploads');
+console.log('📁 Uploads directory:', uploadsPath);
+app.use('/uploads', express.static(uploadsPath));
+
+// Explicit route for logo (fallback)
+app.get('/fithnity_logo.png', (req, res) => {
+  const logoPath = path.join(__dirname, 'public', 'fithnity_logo.png');
+  res.sendFile(logoPath, (err) => {
+    if (err) {
+      console.error('❌ Error serving logo:', err);
+      res.status(404).json({ error: 'Logo not found' });
+    }
+  });
+});
 
 // View engine setup (for admin panel)
 app.set('view engine', 'ejs');
@@ -104,11 +157,39 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Multer error handler (must be before routes to catch multer errors)
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('❌ Multer error:', err);
+    console.error('   Error code:', err.code);
+    console.error('   Error field:', err.field);
+    console.error('   Request path:', req.path);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'File too large. Maximum size is 10MB.'
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: 'File upload error: ' + err.message
+    });
+  }
+  // Pass other errors to the next error handler
+  next(err);
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rides', rideRoutes);
 app.use('/api/community', communityRoutes);
+
+// Debug: Log registered routes
+console.log('📋 Registered API routes:');
+console.log('   POST /api/auth/otp/send');
+console.log('   POST /api/auth/otp/verify');
+console.log('   POST /api/auth/otp/resend');
 
 // Admin Panel Routes
 app.use('/admin', adminRoutes);

@@ -31,8 +31,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.firebase.FirebaseException
-import com.google.firebase.auth.*
 import kotlinx.coroutines.launch
 import tn.esprit.fithnity.R
 import tn.esprit.fithnity.data.UserPreferences
@@ -129,13 +127,12 @@ fun AuthScreen(
         }
     }
 
-    // Firebase phone auth dialog state
-    var showCodeDialog by remember { mutableStateOf(false) }
-    var verificationId by remember { mutableStateOf<String?>(null) }
-    var verificationCode by remember { mutableStateOf("") }
-    var isFirebaseLoading by remember { mutableStateOf(false) }
+    // OTP phone auth dialog state
+    var showOTPDialog by remember { mutableStateOf(false) }
+    var otpCode by remember { mutableStateOf("") }
+    var otpPhoneNumber by remember { mutableStateOf("") }
+    var isOTPLoading by remember { mutableStateOf(false) }
     var phoneAuthError by remember { mutableStateOf<String?>(null) }
-    var firebaseUserForSync by remember { mutableStateOf<FirebaseUser?>(null) }
 
     LaunchedEffect(state) {
         if (state is AuthUiState.Success) {
@@ -143,7 +140,7 @@ fun AuthScreen(
             val user = successState.user
             val needsVerification = successState.needsEmailVerification
             
-            // Save auth token from viewModel (will be set by viewModel after successful login)
+            // Save auth token from viewModel
             val token = viewModel.getAuthToken()
             if (token != null) {
                 userPreferences.saveAuthData(
@@ -157,23 +154,6 @@ fun AuthScreen(
                 user.photoUrl?.let { photoUrl ->
                     userPreferences.savePhotoUrl(photoUrl)
                 }
-            } else {
-                // For Firebase phone auth, if no token in viewModel, check Firebase current user
-                // and save basic info to preferences
-                val firebaseUser = FirebaseAuth.getInstance().currentUser
-                if (firebaseUser != null) {
-                    // Save basic user info even without token (Firebase maintains session)
-                    userPreferences.saveAuthData(
-                        token = "firebase_session", // Placeholder - Firebase maintains its own session
-                        userId = user._id,
-                        userName = user.name,
-                        userEmail = user.email ?: firebaseUser.email,
-                        needsVerification = needsVerification
-                    )
-                    user.photoUrl?.let { photoUrl ->
-                        userPreferences.savePhotoUrl(photoUrl)
-                    }
-                }
             }
             
             onAuthSuccess(
@@ -184,65 +164,92 @@ fun AuthScreen(
         }
     }
 
-    // Verification code dialog
-    if (showCodeDialog) {
+    // Handle OTP sent state
+    LaunchedEffect(state) {
+        if (state is AuthUiState.OTPSent) {
+            otpPhoneNumber = (state as AuthUiState.OTPSent).phoneNumber
+            showOTPDialog = true
+        }
+    }
+
+    // OTP verification dialog
+    if (showOTPDialog) {
         AlertDialog(
-            onDismissRequest = { showCodeDialog = false },
+            onDismissRequest = { 
+                showOTPDialog = false
+                otpCode = ""
+            },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (!verificationId.isNullOrEmpty() && verificationCode.length >= 6) {
-                            isFirebaseLoading = true
-                            val credential = PhoneAuthProvider.getCredential(verificationId!!, verificationCode)
-                            FirebaseAuth.getInstance().signInWithCredential(credential)
-                                .addOnSuccessListener { result ->
-                                    firebaseUserForSync = result.user
-                                    showCodeDialog = false
-                                    isFirebaseLoading = false
-                                }.addOnFailureListener { ex ->
-                                    phoneAuthError = ex.message
-                                    isFirebaseLoading = false
-                                }
+                        if (otpCode.length == 6) {
+                            isOTPLoading = true
+                            val userName = if (isLogin) null else name.ifBlank { null }
+                            viewModel.verifyOTP(otpPhoneNumber, otpCode, userName)
                         }
                     },
-                    enabled = verificationCode.length >= 6 && !isFirebaseLoading
+                    enabled = otpCode.length == 6 && !isOTPLoading && state !is AuthUiState.Loading
                 ) {
-                    Text("Verify")
+                    if (isOTPLoading || state is AuthUiState.Loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Text("Verify")
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showCodeDialog = false }) {
+                TextButton(
+                    onClick = { 
+                        showOTPDialog = false
+                        otpCode = ""
+                        viewModel.resetState()
+                    }
+                ) {
                     Text("Cancel")
                 }
             },
             title = { Text("Enter Verification Code") },
             text = {
                 Column {
-                    OutlinedTextField(
-                        value = verificationCode,
-                        onValueChange = { verificationCode = it.filter { c -> c.isDigit() }.take(6) },
-                        label = { Text("6-digit Code") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    Text(
+                        text = "We sent a 6-digit code to $otpPhoneNumber",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
                     )
-                    if (phoneAuthError != null) {
-                        Text(phoneAuthError!!, color = Error)
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = otpCode,
+                        onValueChange = { otpCode = it.filter { c -> c.isDigit() }.take(6) },
+                        label = { Text("6-digit Code") },
+                        placeholder = { Text("123456") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(
+                        onClick = {
+                            viewModel.resendOTP(otpPhoneNumber)
+                        },
+                        enabled = !isOTPLoading && state !is AuthUiState.Loading
+                    ) {
+                        Text("Resend Code")
                     }
-                    if (isFirebaseLoading) CircularProgressIndicator()
+                    if (phoneAuthError != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = phoneAuthError!!,
+                            color = Error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
         )
-    }
-
-    // Sync user to backend if new Firebase login
-    LaunchedEffect(firebaseUserForSync) {
-        firebaseUserForSync?.let { user ->
-            // For login, use empty name (backend will preserve existing name or use default)
-            // For register, use the provided name
-            val userName = if (isLogin) "" else name.ifBlank { "User" }
-            viewModel.syncFirebaseUser(user, userName)
-            firebaseUserForSync = null
-        }
     }
 
     // Main UI with gradient background
@@ -503,73 +510,11 @@ fun AuthScreen(
                                 return@GlassButton
                             }
 
-                            isFirebaseLoading = true
-                            val activity = context as? Activity ?: return@GlassButton
-                            val options = PhoneAuthOptions.newBuilder(FirebaseAuth.getInstance())
-                                .setPhoneNumber(formattedPhone)
-                                .setTimeout(60L, java.util.concurrent.TimeUnit.SECONDS)
-                                .setActivity(activity)
-                                .setCallbacks(object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                                    override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-                                        FirebaseAuth.getInstance().signInWithCredential(credential)
-                                            .addOnSuccessListener { result ->
-                                                firebaseUserForSync = result.user
-                                                isFirebaseLoading = false
-                                            }.addOnFailureListener { ex ->
-                                                // Provide user-friendly error messages
-                                                val errorMessage = when {
-                                                    ex.message?.contains("network", ignoreCase = true) == true ||
-                                                    ex.message?.contains("unreachable", ignoreCase = true) == true ||
-                                                    ex.message?.contains("timeout", ignoreCase = true) == true -> {
-                                                        "Network error. Please check your internet connection."
-                                                    }
-                                                    else -> {
-                                                        ex.message ?: "Authentication failed. Please try again."
-                                                    }
-                                                }
-                                                phoneAuthError = errorMessage
-                                                isFirebaseLoading = false
-                                            }
-                                    }
-
-                                    override fun onVerificationFailed(e: FirebaseException) {
-                                        // Provide user-friendly error messages
-                                        val errorMessage = e.message ?: ""
-                                        val friendlyMessage = when {
-                                            errorMessage.contains("network", ignoreCase = true) ||
-                                            errorMessage.contains("unreachable", ignoreCase = true) ||
-                                            errorMessage.contains("timeout", ignoreCase = true) ||
-                                            errorMessage.contains("Unable to resolve host", ignoreCase = true) ||
-                                            errorMessage.contains("No address associated", ignoreCase = true) -> {
-                                                "Network error. Please check your internet connection and try again."
-                                            }
-                                            errorMessage.contains("invalid", ignoreCase = true) &&
-                                            errorMessage.contains("phone", ignoreCase = true) -> {
-                                                "Invalid phone number format. Please use format: +216XXXXXXXX"
-                                            }
-                                            errorMessage.contains("too many", ignoreCase = true) ||
-                                            errorMessage.contains("quota", ignoreCase = true) -> {
-                                                "Too many requests. Please wait a moment and try again."
-                                            }
-                                            else -> {
-                                                errorMessage.ifEmpty { "Phone verification failed. Please try again." }
-                                            }
-                                        }
-                                        phoneAuthError = friendlyMessage
-                                        isFirebaseLoading = false
-                                        Log.e("AuthScreen", "Phone verification failed: ${e.message}")
-                                    }
-
-                                    override fun onCodeSent(vId: String, token: PhoneAuthProvider.ForceResendingToken) {
-                                        verificationId = vId
-                                        showCodeDialog = true
-                                        isFirebaseLoading = false
-                                    }
-                                })
-                                .build()
-                            PhoneAuthProvider.verifyPhoneNumber(options)
+                            // Send OTP via Twilio
+                            phoneAuthError = null
+                            viewModel.sendOTP(formattedPhone)
                         },
-                        enabled = !isFirebaseLoading && state !is AuthUiState.Loading,
+                        enabled = state !is AuthUiState.Loading,
                         icon = if (isLogin) Icons.Default.Login else Icons.Default.Phone,
                         isPrimary = true
                     )
@@ -652,7 +597,7 @@ fun AuthScreen(
                 }
 
                 // Loading indicator
-                if (state is AuthUiState.Loading || isFirebaseLoading) {
+                if (state is AuthUiState.Loading || isOTPLoading) {
                     Spacer(Modifier.height(16.dp))
                     CircularProgressIndicator(
                         color = Primary,

@@ -85,15 +85,19 @@ export const register = async (req, res) => {
 /**
  * Verify email address
  * GET /api/auth/verify-email?token=xxx
+ * Renders an HTML page instead of JSON
  */
 export const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
 
     if (!token) {
-      return res.status(400).json({
-        success: false,
-        message: 'Verification token is required'
+      return res.status(400).render('email-verification', {
+        status: 'error',
+        errorMessage: 'Verification token is required. Please check your email for the complete verification link.',
+        userName: null,
+        authToken: null,
+        token: null
       });
     }
 
@@ -101,9 +105,12 @@ export const verifyEmail = async (req, res) => {
     const verificationToken = await VerificationToken.verifyToken(token, 'email-verification');
 
     if (!verificationToken) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired verification token'
+      return res.status(400).render('email-verification', {
+        status: 'error',
+        errorMessage: 'Invalid or expired verification token. The link may have expired (valid for 24 hours) or has already been used.',
+        userName: null,
+        authToken: null,
+        token: token.substring(0, 10) + '...' // Show partial token for debugging
       });
     }
 
@@ -127,26 +134,28 @@ export const verifyEmail = async (req, res) => {
     // Generate auth token
     const authToken = generateAuthToken(user._id);
 
-    res.json({
-      success: true,
-      message: 'Email verified successfully! Welcome to Fi Thnity!',
-      data: {
-        user: user.getPublicProfile(),
-        token: authToken
-      }
+    // Render success page
+    return res.render('email-verification', {
+      status: 'success',
+      userName: user.name || user.email,
+      authToken: authToken,
+      errorMessage: null,
+      token: null
     });
   } catch (error) {
     console.error('Email verification error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error verifying email',
-      error: error.message
+    return res.status(500).render('email-verification', {
+      status: 'error',
+      errorMessage: 'An error occurred while verifying your email. Please try again or contact support.',
+      userName: null,
+      authToken: null,
+      token: req.query.token ? req.query.token.substring(0, 10) + '...' : null
     });
   }
 };
 
 /**
- * Resend verification email
+ * Resend verification email (public - requires email in body)
  * POST /api/auth/resend-verification
  */
 export const resendVerification = async (req, res) => {
@@ -174,6 +183,48 @@ export const resendVerification = async (req, res) => {
 
     // Send verification email
     await sendVerificationEmail(email, user.name, token);
+
+    res.json({
+      success: true,
+      message: 'Verification email sent successfully'
+    });
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error sending verification email',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Resend verification email (authenticated - uses current user)
+ * POST /api/users/resend-verification
+ */
+export const resendVerificationAuthenticated = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user.email) {
+      return res.status(400).json({
+        success: false,
+        message: 'No email address associated with this account'
+      });
+    }
+
+    if (user.emailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already verified'
+      });
+    }
+
+    // Generate new token
+    const token = await VerificationToken.createEmailVerificationToken(user._id);
+
+    // Send verification email
+    await sendVerificationEmail(user.email, user.name, token);
 
     res.json({
       success: true,
@@ -324,7 +375,7 @@ export const resetPassword = async (req, res) => {
 };
 
 /**
- * Get current user (for both email and Firebase auth)
+ * Get current user (for both email and phone/OTP auth)
  * GET /api/auth/me
  */
 export const getCurrentUser = async (req, res) => {

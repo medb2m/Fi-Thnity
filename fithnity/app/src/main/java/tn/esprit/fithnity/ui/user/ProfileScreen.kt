@@ -67,15 +67,9 @@ fun ProfileScreen(
     
     // Load profile when screen is visible
     LaunchedEffect(Unit) {
-        // Try Firebase token first, then fallback to stored token
+        // Use stored JWT token
         scope.launch {
-            val firebaseToken = try {
-                profileViewModel.getFirebaseIdToken()
-            } catch (e: Exception) {
-                android.util.Log.e("ProfileScreen", "Error getting Firebase token", e)
-                null
-            }
-            val token = firebaseToken ?: authToken
+            val token = authToken
             android.util.Log.d("ProfileScreen", "Loading profile with token: ${if (token != null) "present" else "null"}")
             if (token != null) {
                 profileViewModel.loadProfile(token)
@@ -88,12 +82,7 @@ fun ProfileScreen(
     // Reload profile when authToken changes
     LaunchedEffect(authToken) {
         scope.launch {
-            val firebaseToken = try {
-                profileViewModel.getFirebaseIdToken()
-            } catch (e: Exception) {
-                null
-            }
-            val token = firebaseToken ?: authToken
+            val token = authToken
             if (token != null) {
                 profileViewModel.loadProfile(token)
             }
@@ -130,15 +119,20 @@ fun ProfileScreen(
     
     // Handle upload result
     LaunchedEffect(uploadState) {
-        when (uploadState) {
+        when (val state = uploadState) {
             is ProfileUiState.Success -> {
-                // Upload successful, reload profile
+                // Upload successful, clear selectedImageUri and reload profile
+                selectedImageUri = null
+                imageFile = null
                 if (authToken != null) {
                     profileViewModel.loadProfile(authToken)
                 }
             }
             is ProfileUiState.Error -> {
-                // Show error (could add a snackbar here)
+                // Keep showing the preview even if upload fails
+                // The selectedImageUri will remain so user can see what they selected
+                // Error is logged, could add a snackbar here to inform user
+                android.util.Log.e("ProfileScreen", "Upload error: ${state.message}")
             }
             else -> {}
         }
@@ -155,8 +149,8 @@ fun ProfileScreen(
                 val file = getFileFromUri(context, it)
                 if (file != null) {
                     imageFile = file
-                    // Try Firebase token first, then fallback to stored auth token
-                    val token = profileViewModel.getFirebaseIdToken() ?: authToken
+                    // Use stored JWT token
+                    val token = authToken
                     if (token != null) {
                         profileViewModel.uploadProfilePicture(file, token)
                     }
@@ -198,8 +192,8 @@ fun ProfileScreen(
         }
     }
     
-    // Use photoUrl from API response, fallback to saved photoUrl from preferences
-    val photoUrl = userInfo?.photoUrl ?: userPreferences.getPhotoUrl()
+    // Use selectedImageUri for instant preview, then photoUrl from API response, fallback to saved photoUrl from preferences
+    val displayPhotoUrl = selectedImageUri?.toString() ?: (userInfo?.photoUrl ?: userPreferences.getPhotoUrl())
     
     // Language selection dialog
     if (showLanguageDialog) {
@@ -341,26 +335,31 @@ fun ProfileScreen(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Profile Photo with click to upload
+                // Profile Photo (no longer clickable)
                 Box(
                     modifier = Modifier
                         .size(100.dp)
-                        .clip(CircleShape)
-                        .clickable {
-                            imagePickerLauncher.launch("image/*")
-                        },
+                        .clip(CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (photoUrl != null && photoUrl.isNotEmpty()) {
-                        // Ensure full URL for image loading
-                        val fullImageUrl = if (photoUrl.startsWith("http")) {
-                            photoUrl
+                    // Show selected image immediately for instant preview, or existing photo
+                    if (displayPhotoUrl != null && displayPhotoUrl.isNotEmpty()) {
+                        // If it's a URI (selectedImageUri), use it directly; otherwise construct full URL
+                        val imageModel = if (selectedImageUri != null) {
+                            // Use the selected URI directly for instant preview
+                            selectedImageUri
                         } else {
-                            // If relative URL, prepend base URL
-                            "http://72.61.145.239:9090$photoUrl"
+                            // Ensure full URL for image loading from server
+                            val fullImageUrl = if (displayPhotoUrl.startsWith("http")) {
+                                displayPhotoUrl
+                            } else {
+                                // If relative URL, prepend base URL
+                                "http://72.61.145.239:9090$displayPhotoUrl"
+                            }
+                            fullImageUrl
                         }
                         AsyncImage(
-                            model = fullImageUrl,
+                            model = imageModel,
                             contentDescription = "Profile picture",
                             modifier = Modifier
                                 .fillMaxSize()
@@ -397,23 +396,6 @@ fun ProfileScreen(
                                 color = Color.White
                             )
                         }
-                    } else {
-                        // Camera icon overlay
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(Primary),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CameraAlt,
-                                contentDescription = "Change profile picture",
-                                modifier = Modifier.size(18.dp),
-                                tint = Color.White
-                            )
-                        }
                     }
                 }
 
@@ -441,33 +423,89 @@ fun ProfileScreen(
                     }
                 }
 
+                Spacer(Modifier.height(12.dp))
+
+                // Verification Status Indicators
+                val userEmail = userInfo?.email
+                val userPhone = userInfo?.phoneNumber
+                val isEmailVerified = userInfo?.emailVerified == true
+                val isPhoneVerified = userInfo?.isVerified == true
+                
+                if (!userEmail.isNullOrBlank() || !userPhone.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Email verification status
+                        if (!userEmail.isNullOrBlank()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isEmailVerified) Icons.Default.CheckCircle else Icons.Default.Email,
+                                    contentDescription = null,
+                                    tint = if (isEmailVerified) Primary else TextSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = if (isEmailVerified) "Verified" else "Not verified",
+                                    fontSize = 12.sp,
+                                    color = if (isEmailVerified) Primary else TextSecondary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        
+                        // Phone verification status
+                        if (!userPhone.isNullOrBlank()) {
+                            if (!userEmail.isNullOrBlank()) {
+                                Spacer(Modifier.width(16.dp))
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isPhoneVerified) Icons.Default.CheckCircle else Icons.Default.Phone,
+                                    contentDescription = null,
+                                    tint = if (isPhoneVerified) Primary else TextSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = if (isPhoneVerified) "Verified" else "Not verified",
+                                    fontSize = 12.sp,
+                                    color = if (isPhoneVerified) Primary else TextSecondary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Spacer(Modifier.height(24.dp))
 
-                // Stats Row
-                Row(
+                // Edit Profile Picture Button
+                Button(
+                    onClick = { imagePickerLauncher.launch("image/*") },
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Primary,
+                        contentColor = Color.White
+                    )
                 ) {
-                    // Rating
-                    StatItem(
-                        value = userInfo?.rating?.toString() ?: "5.0",
-                        label = stringResource(R.string.rating),
-                        color = Primary
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = "Edit profile picture",
+                        modifier = Modifier.size(20.dp)
                     )
-
-                    // Divider
-                    VerticalDivider(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(50.dp),
-                        color = Divider
-                    )
-
-                    // Total Rides
-                    StatItem(
-                        value = userInfo?.totalRides?.toString() ?: "0",
-                        label = stringResource(R.string.total_rides),
-                        color = Accent
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.edit_profile_picture),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -542,6 +580,9 @@ fun ProfileScreen(
         }
 
         Spacer(Modifier.height(32.dp))
+        
+        // Add extra space at bottom to prevent content from being hidden under bottom navigation
+        Spacer(Modifier.height(UiConstants.ContentBottomPadding))
         }
     }
 }

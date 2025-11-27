@@ -51,6 +51,7 @@
     
     <!-- Profile -->
     <string name="edit_profile">Edit Profile</string>
+    <string name="edit_profile_picture">Edit Profile Picture</string>
     <string name="my_rides">My Rides</string>
     <string name="help_support">Help &amp; Support</string>
     <string name="rating">Rating</string>

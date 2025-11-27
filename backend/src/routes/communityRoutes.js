@@ -1,5 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
+import multer from 'multer';
 import {
   createPost,
   getPosts,
@@ -10,17 +11,67 @@ import {
   deletePost,
   getMyPosts
 } from '../controllers/communityController.js';
-import { verifyFirebaseToken, optionalAuth } from '../middleware/auth.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
 import { uploadCommunityPost } from '../middleware/upload.js';
 
 const router = express.Router();
 
+// Test endpoint to verify server is receiving requests
+router.post('/posts/test', (req, res) => {
+  console.log('✅ Test endpoint hit');
+  res.json({ success: true, message: 'Server is receiving POST requests' });
+});
+
 // Create a new post (with optional image upload)
 router.post(
   '/posts',
-  verifyFirebaseToken,
-  uploadCommunityPost.single('image'), // Handle single image upload
+  // Log incoming request
+  (req, res, next) => {
+    console.log('📥 POST /api/community/posts - Request received');
+    console.log('   Content-Type:', req.headers['content-type']);
+    console.log('   Content-Length:', req.headers['content-length']);
+    console.log('   User-Agent:', req.headers['user-agent']);
+    next();
+  },
+  authenticate,
+  // Multer must run first to parse multipart/form-data
+  // Wrap in try-catch to handle errors gracefully
+  (req, res, next) => {
+    console.log('📤 Starting multer upload processing...');
+    uploadCommunityPost.single('image')(req, res, (err) => {
+      if (err) {
+        console.error('❌ Multer upload error:', err);
+        console.error('   Error type:', err.constructor.name);
+        console.error('   Error code:', err.code);
+        console.error('   Error message:', err.message);
+        // Handle multer-specific errors
+        if (err instanceof multer.MulterError) {
+          if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+              success: false,
+              message: 'File too large. Maximum size is 10MB.'
+            });
+          }
+          return res.status(400).json({
+            success: false,
+            message: 'File upload error: ' + err.message
+          });
+        }
+        // Handle other errors (like fileFilter errors)
+        return res.status(400).json({
+          success: false,
+          message: err.message || 'Error uploading file'
+        });
+      }
+      console.log('✅ Multer upload successful');
+      console.log('   File:', req.file ? req.file.filename : 'No file');
+      console.log('   Body content length:', req.body.content?.length);
+      // No error, continue to next middleware
+      next();
+    });
+  },
+  // Validation runs after multer has parsed the form data
   [
     body('content').notEmpty().trim().isLength({ min: 1, max: 500 }),
     body('postType').optional().isIn(['ACCIDENT', 'DELAY', 'ROAD_CLOSURE', 'GENERAL']),
@@ -36,7 +87,7 @@ router.post(
 router.get('/posts', optionalAuth, getPosts);
 
 // Get user's posts
-router.get('/my-posts', verifyFirebaseToken, getMyPosts);
+router.get('/my-posts', authenticate, getMyPosts);
 
 // Get post by ID
 router.get('/posts/:postId', optionalAuth, getPostById);
@@ -44,7 +95,7 @@ router.get('/posts/:postId', optionalAuth, getPostById);
 // Vote on a post (Reddit-style upvote/downvote)
 router.post(
   '/posts/:postId/vote',
-  verifyFirebaseToken,
+  authenticate,
   [
     body('vote').optional().isIn(['up', 'down', null]),
     handleValidationErrors
@@ -53,12 +104,12 @@ router.post(
 );
 
 // Toggle like on a post (deprecated - use vote instead)
-router.post('/posts/:postId/like', verifyFirebaseToken, toggleLike);
+router.post('/posts/:postId/like', authenticate, toggleLike);
 
 // Add a comment to a post
 router.post(
   '/posts/:postId/comments',
-  verifyFirebaseToken,
+  authenticate,
   [
     body('content').notEmpty().trim().isLength({ min: 1, max: 200 }),
     handleValidationErrors
@@ -67,6 +118,6 @@ router.post(
 );
 
 // Delete a post
-router.delete('/posts/:postId', verifyFirebaseToken, deletePost);
+router.delete('/posts/:postId', authenticate, deletePost);
 
 export default router;
