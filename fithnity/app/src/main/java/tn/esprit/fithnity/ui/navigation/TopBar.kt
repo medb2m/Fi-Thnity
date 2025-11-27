@@ -266,8 +266,8 @@ fun FiThnityTopBar(
             Box(modifier = Modifier.size(40.dp)) {
                 IconButton(
                     onClick = {
-                        // TODO: Navigate to notifications screen
-                        // For now, just refresh unread count
+                        navController.navigate(Screen.Notifications.route)
+                        // Refresh unread count when opening notifications
                         notificationViewModel.refreshUnreadCount(authToken)
                     },
                     modifier = Modifier.size(40.dp)

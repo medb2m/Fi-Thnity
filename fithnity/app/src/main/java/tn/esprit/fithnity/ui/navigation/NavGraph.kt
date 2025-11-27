@@ -25,6 +25,7 @@ import tn.esprit.fithnity.ui.user.EditProfileScreen
 import tn.esprit.fithnity.ui.community.CommunityScreen
 import tn.esprit.fithnity.ui.chat.ChatListScreen
 import tn.esprit.fithnity.ui.chat.ChatScreen
+import tn.esprit.fithnity.ui.notifications.NotificationScreen
 import tn.esprit.fithnity.ui.theme.*
 import tn.esprit.fithnity.ui.LanguageViewModel
 
@@ -187,6 +188,13 @@ fun FiThnityNavGraph(
                 navController = navController,
                 userPreferences = userPreferences,
                 languageViewModel = languageViewModel
+            )
+        }
+
+        composable(Screen.Notifications.route) {
+            NotificationScreen(
+                navController = navController,
+                userPreferences = userPreferences
             )
         }
 

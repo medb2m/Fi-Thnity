@@ -54,6 +54,11 @@ sealed class Screen(
         title = "Settings"
     )
 
+    object Notifications : Screen(
+        route = "notifications",
+        title = "Notifications"
+    )
+
     // Rides Detail Screens
     object OfferRide : Screen(
         route = "offer_ride",
