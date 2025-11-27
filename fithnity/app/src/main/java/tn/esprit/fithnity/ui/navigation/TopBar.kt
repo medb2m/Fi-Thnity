@@ -287,6 +287,7 @@ fun FiThnityTopBar(
                             .align(Alignment.TopEnd)
                             .offset(x = 4.dp, y = (-4).dp)
                             .size(20.dp)
+                            .zIndex(1f)
                             .clip(CircleShape)
                             .background(Color(0xFFEF4444)),
                         contentAlignment = Alignment.Center
@@ -295,8 +296,7 @@ fun FiThnityTopBar(
                             text = if (unreadCount > 99) "99+" else unreadCount.toString(),
                             color = Color.White,
                             fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 2.dp)
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }

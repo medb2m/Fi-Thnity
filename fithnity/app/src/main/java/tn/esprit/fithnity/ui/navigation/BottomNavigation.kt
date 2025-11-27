@@ -115,8 +115,10 @@ fun FiThnityBottomNavigation(
                 items.takeLast(2).forEachIndexed { index, screen ->
                     val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                     val badgeCount = if (screen.route == Screen.Chat.route && unreadConversationCount > 0) {
+                        android.util.Log.d("BottomNav", "Chat route matched! Badge count: $unreadConversationCount")
                         unreadConversationCount
                     } else {
+                        android.util.Log.d("BottomNav", "Screen: ${screen.route}, Chat route: ${Screen.Chat.route}, unreadCount: $unreadConversationCount")
                         null
                     }
                     BottomNavItem(
@@ -196,11 +198,13 @@ private fun BottomNavItem(
         
         // Badge for unread conversation count
         badgeCount?.let { count ->
+            android.util.Log.d("BottomNav", "Rendering badge with count: $count")
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 8.dp, y = (-8).dp)
+                    .offset(x = 6.dp, y = (-6).dp)
                     .size(20.dp)
+                    .zIndex(1f)
                     .clip(CircleShape)
                     .background(Color(0xFFEF4444)),
                 contentAlignment = Alignment.Center
@@ -209,8 +213,7 @@ private fun BottomNavItem(
                     text = if (count > 99) "99+" else count.toString(),
                     color = Color.White,
                     fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 2.dp)
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

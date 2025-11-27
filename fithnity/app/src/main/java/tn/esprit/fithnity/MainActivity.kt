@@ -208,11 +208,14 @@ fun MainAppScreen(
         if (authToken != null && showBottomNavigation) {
             coroutineScope.launch {
                 try {
+                    Log.d("MainActivity", "Fetching unread conversation count...")
                     val response = withContext(Dispatchers.IO) {
                         NetworkModule.chatApi.getUnreadConversationCount("Bearer $authToken")
                     }
+                    Log.d("MainActivity", "Response: success=${response.success}, data=${response.data}")
                     if (response.success && response.data != null) {
                         unreadConversationCount = response.data.unreadConversationCount
+                        Log.d("MainActivity", "Unread conversation count set to: $unreadConversationCount")
                     }
                 } catch (e: Exception) {
                     Log.e("MainActivity", "Error fetching unread conversation count", e)
@@ -241,6 +244,7 @@ fun MainAppScreen(
             },
             bottomBar = {
                 if (showBottomNavigation) {
+                    Log.d("MainActivity", "Showing bottom navigation with unreadConversationCount: $unreadConversationCount")
                     FiThnityBottomNavigation(
                         navController = navController,
                         onQuickActionsClick = { showQuickActionsSheet = true },

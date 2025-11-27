@@ -462,7 +462,7 @@ export const getUnreadConversationCount = async (req, res) => {
     // Find all conversations where the user has unread messages
     const conversations = await Conversation.find({
       participants: userId
-    }).lean();
+    });
 
     // Count conversations where unreadCount > 0 for this user
     let unreadConversationCount = 0;
