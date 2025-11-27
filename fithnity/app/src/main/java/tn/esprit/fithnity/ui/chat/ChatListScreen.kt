@@ -122,7 +122,7 @@ fun ChatListScreen(
                                 ConversationItem(
                                     conversation = conversation,
                                     onClick = {
-                                        navController.navigate("${Screen.ChatDetail.route}/${conversation._id}/${conversation.otherUser._id}")
+                                        navController.navigate("chat_detail/${conversation._id}/${conversation.otherUser._id}")
                                     }
                                 )
                             }
@@ -168,8 +168,8 @@ fun ChatListScreen(
             onClick = { showNewChatDialog = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(24.dp)
-                .padding(bottom = UiConstants.BottomNavigationHeight),
+                .padding(end = 24.dp)
+                .padding(bottom = UiConstants.BottomNavigationHeight + 16.dp),
             containerColor = Primary,
             contentColor = Color.White
         ) {
@@ -188,7 +188,7 @@ fun ChatListScreen(
                 onUserSelected = { user ->
                     showNewChatDialog = false
                     viewModel.getOrCreateConversation(authToken, user._id) { conversation ->
-                        navController.navigate("${Screen.ChatDetail.route}/${conversation._id}/${user._id}")
+                        navController.navigate("chat_detail/${conversation._id}/${user._id}")
                     }
                 }
             )

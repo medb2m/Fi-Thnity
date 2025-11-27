@@ -188,11 +188,18 @@ fun MainAppScreen(
         Screen.EditProfile.route
     )
     
-    val showTopBar = currentRoute !in routesWithoutTopBar
-    var showQuickActionsSheet by remember { mutableStateOf(false) }
+    // Routes that should NOT show the bottom navigation (full-screen views)
+    val routesWithoutBottomNav = listOf(
+        Screen.EditProfile.route,
+        Screen.Settings.route
+    )
     
-    // Testing flag: Set to false to hide bottom navigation
-    val showBottomNavigation = remember { true }
+    // Check if current route is a chat detail screen (dynamic route)
+    val isChatDetailScreen = currentRoute?.startsWith("chat_detail/") == true
+    
+    val showTopBar = currentRoute !in routesWithoutTopBar
+    val showBottomNavigation = currentRoute !in routesWithoutBottomNav && !isChatDetailScreen
+    var showQuickActionsSheet by remember { mutableStateOf(false) }
 
     if (showQuickActionsSheet) {
         QuickActionsSheet(
