@@ -40,6 +40,7 @@ import tn.esprit.fithnity.ui.theme.*
 fun FiThnityBottomNavigation(
     navController: NavHostController,
     onQuickActionsClick: () -> Unit,
+    unreadConversationCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -111,12 +112,18 @@ fun FiThnityBottomNavigation(
                 Spacer(modifier = Modifier.weight(1f))
                 
                 // Last two items - independent, aligned to bottom
-                items.takeLast(2).forEach { screen ->
+                items.takeLast(2).forEachIndexed { index, screen ->
                     val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                    val badgeCount = if (screen.route == Screen.Chat.route && unreadConversationCount > 0) {
+                        unreadConversationCount
+                    } else {
+                        null
+                    }
                     BottomNavItem(
                         icon = screen.icon!!,
                         label = screen.title,
                         selected = isSelected,
+                        badgeCount = badgeCount,
                         onClick = {
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
@@ -169,6 +176,7 @@ private fun BottomNavItem(
     icon: ImageVector,
     label: String,
     selected: Boolean,
+    badgeCount: Int? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -185,6 +193,27 @@ private fun BottomNavItem(
                 .size(45.dp),
             tint = if (selected) Primary else TextSecondary
         )
+        
+        // Badge for unread conversation count
+        badgeCount?.let { count ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 8.dp, y = (-8).dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFEF4444)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (count > 99) "99+" else count.toString(),
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 2.dp)
+                )
+            }
+        }
     }
 }
 

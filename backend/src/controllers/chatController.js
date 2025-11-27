@@ -451,3 +451,41 @@ export const deleteConversation = async (req, res) => {
   }
 };
 
+/**
+ * Get unread conversation count (number of conversations with unread messages)
+ * GET /api/chat/conversations/unread-count
+ */
+export const getUnreadConversationCount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Find all conversations where the user has unread messages
+    const conversations = await Conversation.find({
+      participants: userId
+    }).lean();
+
+    // Count conversations where unreadCount > 0 for this user
+    let unreadConversationCount = 0;
+    for (const conv of conversations) {
+      const unreadCount = conv.unreadCount?.get(userId.toString()) || 0;
+      if (unreadCount > 0) {
+        unreadConversationCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        unreadConversationCount
+      }
+    });
+  } catch (error) {
+    console.error('Get unread conversation count error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching unread conversation count',
+      error: error.message
+    });
+  }
+};
+

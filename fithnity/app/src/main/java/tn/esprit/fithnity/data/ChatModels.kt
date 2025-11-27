@@ -109,3 +109,10 @@ data class UsersListResponse(
     val pagination: PaginationInfo? = null
 )
 
+/**
+ * Unread conversation count response
+ */
+data class UnreadConversationCountResponse(
+    val unreadConversationCount: Int
+)
+

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import tn.esprit.fithnity.data.*
+import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -103,6 +104,7 @@ fun NotificationScreen(
                             notifications = state.notifications,
                             authToken = authToken,
                             viewModel = viewModel,
+                            navController = navController,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -128,6 +130,7 @@ private fun NotificationsList(
     notifications: List<NotificationResponse>,
     authToken: String?,
     viewModel: NotificationViewModel,
+    navController: NavHostController,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -138,12 +141,14 @@ private fun NotificationsList(
         items(notifications) { notification ->
             NotificationItem(
                 notification = notification,
+                authToken = authToken,
+                viewModel = viewModel,
+                navController = navController,
                 onClick = {
                     // Mark as read if unread
                     if (!notification.read && authToken != null) {
                         viewModel.markAsRead(authToken, notification._id)
                     }
-                    // TODO: Navigate based on notification type
                 }
             )
         }
@@ -167,6 +172,9 @@ private fun NotificationsList(
 @Composable
 private fun NotificationItem(
     notification: NotificationResponse,
+    authToken: String?,
+    viewModel: NotificationViewModel,
+    navController: NavHostController,
     onClick: () -> Unit
 ) {
     val isUnread = !notification.read
@@ -174,7 +182,36 @@ private fun NotificationItem(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable {
+                onClick()
+                
+                // Handle navigation based on notification type
+                when (notification.type) {
+                    "MESSAGE" -> {
+                        // Extract conversation data from notification.data
+                        val conversationId = notification.data?.get("conversationId") as? String
+                        val senderId = notification.data?.get("senderId") as? String
+                        val senderName = notification.data?.get("senderName") as? String ?: "User"
+                        
+                        if (conversationId != null && senderId != null) {
+                            // Navigate to chat detail screen
+                            // Use "none" for photo since we don't have it in notification data
+                            navController.navigate(
+                                Screen.ChatDetail.createRoute(
+                                    conversationId = conversationId,
+                                    otherUserId = senderId,
+                                    otherUserName = senderName,
+                                    otherUserPhoto = null // Will be encoded as "none" in createRoute
+                                )
+                            )
+                        }
+                    }
+                    // TODO: Handle other notification types (RIDE_REQUEST, COMMENT, etc.)
+                    else -> {
+                        // No navigation for other types yet
+                    }
+                }
+            },
         shape = RoundedCornerShape(8.dp),
         color = if (isUnread) {
             Primary.copy(alpha = 0.05f) // Light background for unread

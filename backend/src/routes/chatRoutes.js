@@ -7,7 +7,8 @@ import {
   sendMessage,
   markAsRead,
   getUsers,
-  deleteConversation
+  deleteConversation,
+  getUnreadConversationCount
 } from '../controllers/chatController.js';
 import { authenticate } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
@@ -19,6 +20,9 @@ router.use(authenticate);
 
 // Get all conversations for current user
 router.get('/conversations', getConversations);
+
+// Get unread conversation count
+router.get('/conversations/unread-count', getUnreadConversationCount);
 
 // Get or create conversation with another user
 router.post(

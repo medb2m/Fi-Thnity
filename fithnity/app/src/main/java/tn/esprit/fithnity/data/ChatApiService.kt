@@ -78,5 +78,14 @@ interface ChatApiService {
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20
     ): UsersListResponse
+
+    /**
+     * Get unread conversation count
+     * GET /api/chat/conversations/unread-count
+     */
+    @GET("/api/chat/conversations/unread-count")
+    suspend fun getUnreadConversationCount(
+        @Header("Authorization") bearer: String
+    ): ApiResponse<UnreadConversationCountResponse>
 }
 
