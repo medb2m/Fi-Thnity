@@ -15,14 +15,15 @@ export const createPost = async (req, res) => {
     console.log('Create post request received:', {
       hasFile: !!req.file,
       fileName: req.file?.filename,
+      fileSize: req.file?.size,
       contentLength: req.body.content?.length,
       postType: req.body.postType,
-      userId: req.user._id
+      userId: req.user?._id
     });
 
     const { content, postType, location } = req.body;
     
-    if (!content || content.trim().length === 0) {
+    if (!content || (typeof content === 'string' && content.trim().length === 0)) {
       return res.status(400).json({
         success: false,
         message: 'Post content is required'
@@ -32,6 +33,15 @@ export const createPost = async (req, res) => {
     // Get image URL from uploaded file or from body
     let imageUrl = null;
     if (req.file) {
+      // Verify file was saved successfully
+      const filePath = path.join(__dirname, '../uploads/community-posts', req.file.filename);
+      if (!fs.existsSync(filePath)) {
+        console.error('File was not saved:', req.file.filename);
+        return res.status(500).json({
+          success: false,
+          message: 'Error saving uploaded file'
+        });
+      }
       // Image was uploaded via multer
       imageUrl = `/uploads/community-posts/${req.file.filename}`;
       console.log('Image uploaded successfully:', imageUrl);
@@ -42,7 +52,7 @@ export const createPost = async (req, res) => {
 
     const post = await CommunityPost.create({
       user: req.user._id,
-      content: content.trim(),
+      content: typeof content === 'string' ? content.trim() : content,
       postType: postType || 'GENERAL',
       location,
       imageUrl: imageUrl || null
@@ -59,6 +69,7 @@ export const createPost = async (req, res) => {
     });
   } catch (error) {
     console.error('Create post error:', error);
+    console.error('Error stack:', error.stack);
     // If file was uploaded but post creation failed, clean up the file
     if (req.file) {
       try {

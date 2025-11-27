@@ -15,6 +15,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieSession from 'cookie-session';
+import multer from 'multer';
 // Import configurations
 import connectDB from './config/database.js';
 import initializeTwilio from './config/twilio.js';
@@ -33,6 +34,13 @@ import adminRoutes from './routes/adminRoutes.js';
 // Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Increase timeout for file uploads (5 minutes)
+app.use((req, res, next) => {
+  req.setTimeout(5 * 60 * 1000); // 5 minutes
+  res.setTimeout(5 * 60 * 1000); // 5 minutes
+  next();
+});
 
 // Connect to MongoDB
 connectDB();
@@ -119,6 +127,25 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     environment: process.env.NODE_ENV
   });
+});
+
+// Multer error handler (must be before routes to catch multer errors)
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('Multer error:', err);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'File too large. Maximum size is 10MB.'
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: 'File upload error: ' + err.message
+    });
+  }
+  // Pass other errors to the next error handler
+  next(err);
 });
 
 // API Routes

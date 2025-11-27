@@ -1,5 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
+import multer from 'multer';
 import {
   createPost,
   getPosts,
@@ -20,31 +21,36 @@ const router = express.Router();
 router.post(
   '/posts',
   authenticate,
-  // Handle multer errors before validation
+  // Multer must run first to parse multipart/form-data
+  // Wrap in try-catch to handle errors gracefully
   (req, res, next) => {
     uploadCommunityPost.single('image')(req, res, (err) => {
       if (err) {
-        console.error('Multer error:', err);
-        if (err.code === 'LIMIT_FILE_SIZE') {
+        console.error('Multer upload error:', err);
+        // Handle multer-specific errors
+        if (err instanceof multer.MulterError) {
+          if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+              success: false,
+              message: 'File too large. Maximum size is 10MB.'
+            });
+          }
           return res.status(400).json({
             success: false,
-            message: 'File too large. Maximum size is 10MB.'
+            message: 'File upload error: ' + err.message
           });
         }
-        if (err.message && err.message.includes('Invalid file type')) {
-          return res.status(400).json({
-            success: false,
-            message: err.message
-          });
-        }
+        // Handle other errors (like fileFilter errors)
         return res.status(400).json({
           success: false,
-          message: 'Error uploading file: ' + err.message
+          message: err.message || 'Error uploading file'
         });
       }
+      // No error, continue to next middleware
       next();
     });
   },
+  // Validation runs after multer has parsed the form data
   [
     body('content').notEmpty().trim().isLength({ min: 1, max: 500 }),
     body('postType').optional().isIn(['ACCIDENT', 'DELAY', 'ROAD_CLOSURE', 'GENERAL']),

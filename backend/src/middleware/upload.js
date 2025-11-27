@@ -34,15 +34,35 @@ const profileStorage = multer.diskStorage({
 // Configure storage for community posts
 const communityPostStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, communityPostsDir);
+    try {
+      // Ensure directory exists
+      if (!fs.existsSync(communityPostsDir)) {
+        fs.mkdirSync(communityPostsDir, { recursive: true });
+        console.log('Created community posts directory:', communityPostsDir);
+      }
+      cb(null, communityPostsDir);
+    } catch (error) {
+      console.error('Error setting destination:', error);
+      cb(error);
+    }
   },
   filename: (req, file, cb) => {
-    // Generate unique filename: userId-timestamp.extension
-    const userId = req.user?._id?.toString() || 'unknown';
-    const timestamp = Date.now();
-    const ext = path.extname(file.originalname);
-    const filename = `${userId}-${timestamp}${ext}`;
-    cb(null, filename);
+    try {
+      // Generate unique filename: userId-timestamp-random.extension
+      const userId = req.user?._id?.toString() || 'unknown';
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 8);
+      const ext = path.extname(file.originalname) || '.jpg'; // Default to .jpg if no extension
+      const filename = `${userId}-${timestamp}-${random}${ext}`;
+      console.log('Saving community post image as:', filename);
+      cb(null, filename);
+    } catch (error) {
+      console.error('Error generating filename:', error);
+      // Don't fail the upload if filename generation fails, use a fallback
+      const fallbackFilename = `post-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.jpg`;
+      console.log('Using fallback filename:', fallbackFilename);
+      cb(null, fallbackFilename);
+    }
   }
 });
 
