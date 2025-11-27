@@ -19,6 +19,7 @@ import tn.esprit.fithnity.ui.home.HomeScreen
 import tn.esprit.fithnity.ui.rides.RidesScreen
 import tn.esprit.fithnity.ui.user.ProfileScreen
 import tn.esprit.fithnity.ui.user.SettingsScreen
+import tn.esprit.fithnity.ui.user.EditProfileScreen
 import tn.esprit.fithnity.ui.community.CommunityScreen
 import tn.esprit.fithnity.ui.community.NewPostScreen
 import tn.esprit.fithnity.ui.theme.*
@@ -113,13 +114,11 @@ fun FiThnityNavGraph(
             )
         }
 
-        // Edit Profile Screen (placeholder for now)
+        // Edit Profile Screen
         composable(Screen.EditProfile.route) {
-            // TODO: Implement EditProfileScreen
-            PlaceholderScreen(
-                title = "Edit Profile",
-                message = "Edit profile feature coming soon!",
-                navController = navController
+            EditProfileScreen(
+                navController = navController,
+                userPreferences = userPreferences
             )
         }
 

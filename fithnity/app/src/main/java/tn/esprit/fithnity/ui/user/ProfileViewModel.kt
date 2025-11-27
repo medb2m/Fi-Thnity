@@ -107,6 +107,41 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
+    fun updateProfile(
+        authToken: String?,
+        name: String? = null,
+        email: String? = null,
+        phoneNumber: String? = null,
+        bio: String? = null
+    ) = viewModelScope.launch {
+        val token = authToken
+        
+        if (token == null) {
+            _uiState.value = ProfileUiState.Error("Not authenticated")
+            return@launch
+        }
+
+        _uiState.value = ProfileUiState.Loading
+        try {
+            val request = UpdateProfileRequest(
+                name = name,
+                email = email,
+                phoneNumber = phoneNumber,
+                bio = bio
+            )
+            val resp = api.updateProfile("Bearer $token", request)
+            if (resp.success && resp.data != null) {
+                _uiState.value = ProfileUiState.Success(resp.data)
+            } else {
+                val errorMsg = resp.message ?: resp.error ?: "Failed to update profile"
+                _uiState.value = ProfileUiState.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating profile", e)
+            _uiState.value = ProfileUiState.Error(e.message ?: "Unknown error")
+        }
+    }
+
     // Firebase methods removed - using JWT tokens from UserPreferences instead
 }
 

@@ -104,13 +104,47 @@ export const uploadProfilePicture = async (req, res) => {
  */
 export const updateProfile = async (req, res) => {
   try {
-    const { name, bio, photoUrl, currentLocation } = req.body;
+    const { name, bio, photoUrl, currentLocation, email, phoneNumber } = req.body;
 
     const updates = {};
     if (name) updates.name = name;
     if (bio !== undefined) updates.bio = bio;
     if (photoUrl !== undefined) updates.photoUrl = photoUrl;
     if (currentLocation) updates.currentLocation = currentLocation;
+    
+    // Handle email update
+    if (email !== undefined) {
+      // Check if email is being changed to one that already exists
+      const existingUser = await User.findOne({ email: email.toLowerCase().trim(), _id: { $ne: req.user._id } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already in use by another user'
+        });
+      }
+      updates.email = email.toLowerCase().trim();
+      // If email is being added/changed, reset verification status
+      if (email) {
+        updates.emailVerified = false;
+      }
+    }
+    
+    // Handle phone number update
+    if (phoneNumber !== undefined) {
+      // Check if phone number is being changed to one that already exists
+      const existingUser = await User.findOne({ phoneNumber, _id: { $ne: req.user._id } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number already in use by another user'
+        });
+      }
+      updates.phoneNumber = phoneNumber;
+      // If phone number is being added/changed, reset verification status
+      if (phoneNumber) {
+        updates.isVerified = false;
+      }
+    }
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
@@ -284,4 +318,3 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-// Firebase registration removed - using OTP authentication instead

@@ -34,6 +34,8 @@ router.put(
     body('name').optional().trim().isLength({ min: 2, max: 50 }),
     body('bio').optional().trim().isLength({ max: 150 }),
     body('photoUrl').optional().isURL(),
+    body('email').optional().isEmail().normalizeEmail(),
+    body('phoneNumber').optional().isMobilePhone('any', { strictMode: false }),
     handleValidationErrors
   ],
   updateProfile

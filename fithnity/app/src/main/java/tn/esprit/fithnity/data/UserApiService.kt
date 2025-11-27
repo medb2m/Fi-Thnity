@@ -30,7 +30,9 @@ interface UserApiService {
 data class UpdateProfileRequest(
     val name: String? = null,
     val bio: String? = null,
-    val photoUrl: String? = null
+    val photoUrl: String? = null,
+    val email: String? = null,
+    val phoneNumber: String? = null
 )
 
 data class UploadPictureResponse(
