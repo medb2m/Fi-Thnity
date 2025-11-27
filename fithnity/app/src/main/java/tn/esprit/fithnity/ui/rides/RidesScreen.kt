@@ -1,5 +1,7 @@
-package tn.esprit.fithnity.ui.rides
+﻿package tn.esprit.fithnity.ui.rides
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,18 +10,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDefaults
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -46,11 +48,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import android.location.Geocoder
-import androidx.compose.runtime.DisposableEffect
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -77,6 +75,7 @@ fun RidesScreen(
     var selectedVehicleType by remember { mutableStateOf(VehicleType.ALL) }
     var showRideTypeSelection by remember { mutableStateOf(false) }
     var selectedRideType by remember { mutableStateOf<RideType?>(null) }
+    var selectedRide by remember { mutableStateOf<RideItem?>(null) }
     
     // Search query from global state
     var searchQuery by remember { mutableStateOf(SearchState.searchQuery) }
@@ -145,131 +144,79 @@ fun RidesScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
 
-        // Vehicle Type Filter (Personal Car vs Taxi)
-        Row(
+        // Compact Filters - Two Rows Design
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            FilterChip(
-                selected = selectedVehicleType == VehicleType.ALL,
-                onClick = { selectedVehicleType = VehicleType.ALL },
-                label = { Text("All Vehicles") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.DirectionsCar,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Primary,
-                    selectedLabelColor = Color.White,
-                    selectedLeadingIconColor = Color.White
+            // Vehicle Type Filters - First Row
+            val vehicleScrollState = rememberScrollState()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(vehicleScrollState),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CompactFilterChip(
+                    selected = selectedVehicleType == VehicleType.ALL,
+                    onClick = { selectedVehicleType = VehicleType.ALL },
+                    label = "All",
+                    icon = Icons.Default.DirectionsCar,
+                    color = Primary
                 )
-            )
+                CompactFilterChip(
+                    selected = selectedVehicleType == VehicleType.PERSONAL_CAR,
+                    onClick = { selectedVehicleType = VehicleType.PERSONAL_CAR },
+                    label = "Car",
+                    icon = Icons.Default.DirectionsCar,
+                    color = Secondary
+                )
+                CompactFilterChip(
+                    selected = selectedVehicleType == VehicleType.TAXI,
+                    onClick = { selectedVehicleType = VehicleType.TAXI },
+                    label = "Taxi",
+                    icon = Icons.Default.LocalTaxi,
+                    color = Accent
+                )
+            }
 
-            FilterChip(
-                selected = selectedVehicleType == VehicleType.PERSONAL_CAR,
-                onClick = { selectedVehicleType = VehicleType.PERSONAL_CAR },
-                label = { Text("Personal Car") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.DirectionsCar,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Secondary,
-                    selectedLabelColor = Color.White,
-                    selectedLeadingIconColor = Color.White
+            // Ride Type Filters - Second Row
+            val rideScrollState = rememberScrollState()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rideScrollState),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CompactFilterChip(
+                    selected = selectedFilter == RideFilter.ALL,
+                    onClick = { selectedFilter = RideFilter.ALL },
+                    label = stringResource(R.string.all),
+                    icon = Icons.Default.List,
+                    color = Primary
                 )
-            )
-
-            FilterChip(
-                selected = selectedVehicleType == VehicleType.TAXI,
-                onClick = { selectedVehicleType = VehicleType.TAXI },
-                label = { Text("Taxi") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.LocalTaxi,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Accent,
-                    selectedLabelColor = Color.White,
-                    selectedLeadingIconColor = Color.White
+                CompactFilterChip(
+                    selected = selectedFilter == RideFilter.REQUESTS,
+                    onClick = { selectedFilter = RideFilter.REQUESTS },
+                    label = stringResource(R.string.requests),
+                    icon = Icons.Default.Search,
+                    color = Primary
                 )
-            )
+                CompactFilterChip(
+                    selected = selectedFilter == RideFilter.OFFERS,
+                    onClick = { selectedFilter = RideFilter.OFFERS },
+                    label = "Offers",
+                    icon = Icons.Default.Share,
+                    color = Accent
+                )
+            }
         }
 
-        Spacer(Modifier.height(12.dp))
-
-        // Ride Type Filter (All, Requests, Offers)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            FilterChip(
-                selected = selectedFilter == RideFilter.ALL,
-                onClick = { selectedFilter = RideFilter.ALL },
-                label = { Text(stringResource(R.string.all)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.List,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Primary,
-                    selectedLabelColor = Color.White,
-                    selectedLeadingIconColor = Color.White
-                )
-            )
-
-            FilterChip(
-                selected = selectedFilter == RideFilter.REQUESTS,
-                onClick = { selectedFilter = RideFilter.REQUESTS },
-                label = { Text(stringResource(R.string.requests)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Primary,
-                    selectedLabelColor = Color.White,
-                    selectedLeadingIconColor = Color.White
-                )
-            )
-
-            FilterChip(
-                selected = selectedFilter == RideFilter.OFFERS,
-                onClick = { selectedFilter = RideFilter.OFFERS },
-                label = { Text(stringResource(R.string.offers)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Accent,
-                    selectedLabelColor = Color.White,
-                    selectedLeadingIconColor = Color.White
-                )
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
 
         // Rides List
         val ridesState by viewModel.uiState.collectAsState()
@@ -345,7 +292,7 @@ fun RidesScreen(
             ) {
                 items(filteredRides) { ride ->
                     RideCard(ride = ride) {
-                        // TODO: Navigate to ride detail
+                        selectedRide = ride
                     }
                 }
             }
@@ -394,132 +341,24 @@ fun RidesScreen(
             authToken = authToken
         )
     }
+    
+    // Ride Details Dialog
+    selectedRide?.let { ride ->
+        RideDetailsDialog(
+            ride = ride,
+            onDismiss = { selectedRide = null },
+            onApplyToOffer = {
+                // TODO: Implement apply to offer logic
+                selectedRide = null
+            },
+            onReplyToRequest = {
+                // TODO: Implement reply to request logic
+                selectedRide = null
+            }
+        )
+    }
 }
 
-/**
- * Ride Type Selection Dialog
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun RideTypeSelectionDialog(
-    onDismiss: () -> Unit,
-    onRideTypeSelected: (RideType) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Choose Ride Type",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = "What would you like to do?",
-                    fontSize = 14.sp,
-                    color = TextSecondary
-                )
-                
-                // Offer Option
-                Card(
-                    onClick = { onRideTypeSelected(RideType.OFFER) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Accent.copy(alpha = 0.1f)
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp),
-                            tint = Accent
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.offer_ride),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Share your ride with others",
-                                fontSize = 13.sp,
-                                color = TextSecondary
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = TextSecondary
-                        )
-                    }
-                }
-                
-                // Request Option
-                Card(
-                    onClick = { onRideTypeSelected(RideType.REQUEST) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Primary.copy(alpha = 0.1f)
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp),
-                            tint = Primary
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.need_ride),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Find a ride for your trip",
-                                fontSize = 13.sp,
-                                color = TextSecondary
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = TextSecondary
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
 
 /**
  * Add Ride Form Dialog
@@ -1457,393 +1296,45 @@ private fun addDestinationMarker(mapStyle: Style, location: LatLng) {
 }
 
 /**
- * Empty state when no rides available
+ * Compact Filter Chip - Optimized for space efficiency
  */
 @Composable
-private fun EmptyRidesState() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.DirectionsCar,
-            contentDescription = null,
-            modifier = Modifier.size(100.dp),
-            tint = TextHint
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        Text(
-            text = stringResource(R.string.no_active_rides),
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextSecondary
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        Text(
-            text = stringResource(R.string.be_first_to_ride),
-            fontSize = 15.sp,
-            color = TextHint
-        )
-    }
-}
-
-/**
- * Ride Card Component with enhanced features
- */
-@Composable
-private fun RideCard(
-    ride: RideItem,
-    onClick: () -> Unit
+private fun CompactFilterChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    icon: ImageVector,
+    color: Color
 ) {
-    Card(
+    Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Surface
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 4.dp
-        )
+        modifier = Modifier.height(36.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = if (selected) color else Surface.copy(alpha = 0.7f),
+        border = if (!selected) {
+            BorderStroke(1.dp, TextHint.copy(alpha = 0.3f))
+        } else null
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Header: Type Badges + Time
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Badges Row
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Ride Type Badge (Offer/Request)
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (ride.isOffer) Accent.copy(alpha = 0.2f) else Primary.copy(alpha = 0.2f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (ride.isOffer) Icons.Default.Share else Icons.Default.Search,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = if (ride.isOffer) Accent else Primary
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = if (ride.isOffer) stringResource(R.string.offer_ride) else stringResource(R.string.need_ride),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (ride.isOffer) Accent else Primary
-                            )
-                        }
-                    }
-                    
-                    // Vehicle Type Badge
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (ride.vehicleType == VehicleType.TAXI) Accent.copy(alpha = 0.15f) else Secondary.copy(alpha = 0.15f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (ride.vehicleType == VehicleType.TAXI) Icons.Default.LocalTaxi else Icons.Default.DirectionsCar,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = if (ride.vehicleType == VehicleType.TAXI) Accent else Secondary
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = if (ride.vehicleType == VehicleType.TAXI) "Taxi" else "Car",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = if (ride.vehicleType == VehicleType.TAXI) Accent else Secondary
-                            )
-                        }
-                    }
-                }
-
-                // Time
-                Text(
-                    text = ride.time,
-                    fontSize = 13.sp,
-                    color = TextSecondary
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Origin
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.LocationOn,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = Primary
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = ride.origin,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextPrimary
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // Destination
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Place,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = Accent
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = ride.destination,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextPrimary
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Matching Info (if available) - Only show savings for taxis, not personal cars
-            if (ride.matchingInfo != null) {
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = Success.copy(alpha = 0.1f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.People,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = Success
-                        )
-                        Text(
-                            text = "${ride.matchingInfo!!.matchedRiders} people going same direction",
-                            fontSize = 12.sp,
-                            color = Success,
-                            fontWeight = FontWeight.Medium
-                        )
-                        // Only show savings for taxis, not for personal cars
-                        if (ride.vehicleType == VehicleType.TAXI && ride.matchingInfo!!.savings != null) {
-                            Spacer(Modifier.weight(1f))
-                            Text(
-                                text = "Save ${ride.matchingInfo!!.savings} TND",
-                                fontSize = 12.sp,
-                                color = Success,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Footer: User + Seats + Price
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // User
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = TextSecondary
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = ride.userName,
-                        fontSize = 14.sp,
-                        color = TextSecondary
-                    )
-                }
-
-                // Seats Available (if offer)
-                if (ride.isOffer && ride.seatsAvailable != null) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = Secondary
-                        )
-                        Text(
-                            text = "${ride.seatsAvailable} seats",
-                            fontSize = 13.sp,
-                            color = Secondary,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-
-                // Price (only for taxis, not for personal cars)
-                if (ride.vehicleType == VehicleType.TAXI && ride.price != null) {
-                    Text(
-                        text = "${ride.price} TND",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Primary
-                    )
-                }
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = if (selected) Color.White else TextSecondary
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = if (selected) Color.White else TextSecondary,
+                maxLines = 1
+            )
         }
     }
-}
-
-// Helper functions for time conversion
-private fun convertTo24Hour(timeStr: String): String {
-    // If already in 24-hour format (e.g., "14:30"), return as is
-    if (timeStr.matches(Regex("^([01]?[0-9]|2[0-3]):[0-5][0-9]$"))) {
-        return timeStr
-    }
-    
-    // Parse 12-hour format (e.g., "8:30 AM" or "2:45 PM")
-    val pattern = Regex("^(\\d{1,2}):([0-5][0-9])\\s*(AM|PM|am|pm)$")
-    val match = pattern.find(timeStr) ?: return "00:00"
-    
-    var hour = match.groupValues[1].toInt()
-    val minute = match.groupValues[2]
-    val amPm = match.groupValues[3].uppercase()
-    
-    if (amPm == "PM" && hour != 12) {
-        hour += 12
-    } else if (amPm == "AM" && hour == 12) {
-        hour = 0
-    }
-    
-    return String.format("%02d:%s", hour, minute)
-}
-
-private fun parseTime(timeStr: String): Pair<Int, Int> {
-    val parts = timeStr.split(":")
-    val hour = parts[0].toIntOrNull() ?: 0
-    val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
-    return Pair(hour, minute)
-}
-
-// Data Models
-private enum class RideFilter {
-    ALL, REQUESTS, OFFERS
-}
-
-private enum class VehicleType {
-    ALL, PERSONAL_CAR, TAXI
-}
-
-private enum class RideType {
-    REQUEST, OFFER
-}
-
-private data class MatchingInfo(
-    val matchedRiders: Int,
-    val savings: String? = null // Savings in TND
-)
-
-private data class RideItem(
-    val id: String,
-    val isOffer: Boolean,
-    val vehicleType: VehicleType,
-    val origin: String,
-    val destination: String,
-    val userName: String,
-    val time: String,
-    val price: String? = null,
-    val seatsAvailable: Int? = null, // For offers
-    val matchingInfo: MatchingInfo? = null // Matching information
-)
-
-/**
- * Sample rides data for development
- */
-private fun getSampleRides(): List<RideItem> {
-    return listOf(
-        RideItem(
-            id = "1",
-            isOffer = true,
-            vehicleType = VehicleType.PERSONAL_CAR,
-            origin = "Lac 1, Tunis",
-            destination = "Ariana",
-            userName = "Ahmed B.",
-            time = "Today, 8:30 AM",
-            price = null, // No price for personal cars
-            seatsAvailable = 3,
-            matchingInfo = MatchingInfo(matchedRiders = 2, savings = "3")
-        ),
-        RideItem(
-            id = "2",
-            isOffer = false,
-            vehicleType = VehicleType.TAXI,
-            origin = "Centre-ville, Tunis",
-            destination = "La Marsa",
-            userName = "Sara M.",
-            time = "Today, 9:15 AM",
-            price = "8", // Price for taxi
-            matchingInfo = MatchingInfo(matchedRiders = 1, savings = "4")
-        ),
-        RideItem(
-            id = "3",
-            isOffer = true,
-            vehicleType = VehicleType.TAXI,
-            origin = "Ben Arous",
-            destination = "Tunis Centre",
-            userName = "Mohamed K.",
-            time = "Today, 10:00 AM",
-            price = "6", // Price for taxi
-            seatsAvailable = 2,
-            matchingInfo = MatchingInfo(matchedRiders = 1, savings = "2")
-        ),
-        RideItem(
-            id = "4",
-            isOffer = true,
-            vehicleType = VehicleType.PERSONAL_CAR,
-            origin = "Sidi Bou Said",
-            destination = "Carthage",
-            userName = "Fatma L.",
-            time = "Today, 11:30 AM",
-            price = null, // No price for personal cars
-            seatsAvailable = 4
-        ),
-        RideItem(
-            id = "5",
-            isOffer = false,
-            vehicleType = VehicleType.PERSONAL_CAR,
-            origin = "Manouba",
-            destination = "Tunis",
-            userName = "Youssef A.",
-            time = "Today, 2:00 PM",
-            price = null // No price for personal cars
-        )
-    )
 }
