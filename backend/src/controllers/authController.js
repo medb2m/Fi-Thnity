@@ -333,7 +333,7 @@ export const resetPassword = async (req, res) => {
 };
 
 /**
- * Get current user (for both email and Firebase auth)
+ * Get current user (for both email and phone/OTP auth)
  * GET /api/auth/me
  */
 export const getCurrentUser = async (req, res) => {

@@ -36,7 +36,7 @@ router.post(
 router.get('/posts', optionalAuth, getPosts);
 
 // Get user's posts
-router.get('/my-posts', verifyFirebaseToken, getMyPosts);
+router.get('/my-posts', authenticate, getMyPosts);
 
 // Get post by ID
 router.get('/posts/:postId', optionalAuth, getPostById);
@@ -53,7 +53,7 @@ router.post(
 );
 
 // Toggle like on a post (deprecated - use vote instead)
-router.post('/posts/:postId/like', verifyFirebaseToken, toggleLike);
+router.post('/posts/:postId/like', authenticate, toggleLike);
 
 // Add a comment to a post
 router.post(
@@ -67,6 +67,6 @@ router.post(
 );
 
 // Delete a post
-router.delete('/posts/:postId', verifyFirebaseToken, deletePost);
+router.delete('/posts/:postId', authenticate, deletePost);
 
 export default router;

@@ -40,7 +40,7 @@ router.post(
 router.get('/', getRides);
 
 // Get user's rides
-router.get('/my-rides', verifyFirebaseToken, getMyRides);
+router.get('/my-rides', authenticate, getMyRides);
 
 // Find matching rides
 router.post(
@@ -73,6 +73,6 @@ router.put(
 );
 
 // Delete/Cancel a ride
-router.delete('/:rideId', verifyFirebaseToken, deleteRide);
+router.delete('/:rideId', authenticate, deleteRide);
 
 export default router;
