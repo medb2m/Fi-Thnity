@@ -119,15 +119,20 @@ fun ProfileScreen(
     
     // Handle upload result
     LaunchedEffect(uploadState) {
-        when (uploadState) {
+        when (val state = uploadState) {
             is ProfileUiState.Success -> {
-                // Upload successful, reload profile
+                // Upload successful, clear selectedImageUri and reload profile
+                selectedImageUri = null
+                imageFile = null
                 if (authToken != null) {
                     profileViewModel.loadProfile(authToken)
                 }
             }
             is ProfileUiState.Error -> {
-                // Show error (could add a snackbar here)
+                // Keep showing the preview even if upload fails
+                // The selectedImageUri will remain so user can see what they selected
+                // Error is logged, could add a snackbar here to inform user
+                android.util.Log.e("ProfileScreen", "Upload error: ${state.message}")
             }
             else -> {}
         }
@@ -187,8 +192,8 @@ fun ProfileScreen(
         }
     }
     
-    // Use photoUrl from API response, fallback to saved photoUrl from preferences
-    val photoUrl = userInfo?.photoUrl ?: userPreferences.getPhotoUrl()
+    // Use selectedImageUri for instant preview, then photoUrl from API response, fallback to saved photoUrl from preferences
+    val displayPhotoUrl = selectedImageUri?.toString() ?: (userInfo?.photoUrl ?: userPreferences.getPhotoUrl())
     
     // Language selection dialog
     if (showLanguageDialog) {
@@ -330,26 +335,31 @@ fun ProfileScreen(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Profile Photo with click to upload
+                // Profile Photo (no longer clickable)
                 Box(
                     modifier = Modifier
                         .size(100.dp)
-                        .clip(CircleShape)
-                        .clickable {
-                            imagePickerLauncher.launch("image/*")
-                        },
+                        .clip(CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (photoUrl != null && photoUrl.isNotEmpty()) {
-                        // Ensure full URL for image loading
-                        val fullImageUrl = if (photoUrl.startsWith("http")) {
-                            photoUrl
+                    // Show selected image immediately for instant preview, or existing photo
+                    if (displayPhotoUrl != null && displayPhotoUrl.isNotEmpty()) {
+                        // If it's a URI (selectedImageUri), use it directly; otherwise construct full URL
+                        val imageModel = if (selectedImageUri != null) {
+                            // Use the selected URI directly for instant preview
+                            selectedImageUri
                         } else {
-                            // If relative URL, prepend base URL
-                            "http://72.61.145.239:9090$photoUrl"
+                            // Ensure full URL for image loading from server
+                            val fullImageUrl = if (displayPhotoUrl.startsWith("http")) {
+                                displayPhotoUrl
+                            } else {
+                                // If relative URL, prepend base URL
+                                "http://72.61.145.239:9090$displayPhotoUrl"
+                            }
+                            fullImageUrl
                         }
                         AsyncImage(
-                            model = fullImageUrl,
+                            model = imageModel,
                             contentDescription = "Profile picture",
                             modifier = Modifier
                                 .fillMaxSize()
@@ -386,23 +396,6 @@ fun ProfileScreen(
                                 color = Color.White
                             )
                         }
-                    } else {
-                        // Camera icon overlay
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(Primary),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CameraAlt,
-                                contentDescription = "Change profile picture",
-                                modifier = Modifier.size(18.dp),
-                                tint = Color.White
-                            )
-                        }
                     }
                 }
 
@@ -432,31 +425,26 @@ fun ProfileScreen(
 
                 Spacer(Modifier.height(24.dp))
 
-                // Stats Row
-                Row(
+                // Edit Profile Picture Button
+                Button(
+                    onClick = { imagePickerLauncher.launch("image/*") },
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Primary,
+                        contentColor = Color.White
+                    )
                 ) {
-                    // Rating
-                    StatItem(
-                        value = userInfo?.rating?.toString() ?: "5.0",
-                        label = stringResource(R.string.rating),
-                        color = Primary
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = "Edit profile picture",
+                        modifier = Modifier.size(20.dp)
                     )
-
-                    // Divider
-                    VerticalDivider(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(50.dp),
-                        color = Divider
-                    )
-
-                    // Total Rides
-                    StatItem(
-                        value = userInfo?.totalRides?.toString() ?: "0",
-                        label = stringResource(R.string.total_rides),
-                        color = Accent
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.edit_profile_picture),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
