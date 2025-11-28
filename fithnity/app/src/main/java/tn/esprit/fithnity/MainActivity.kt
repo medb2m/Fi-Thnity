@@ -195,7 +195,8 @@ fun MainAppScreen(
         Screen.Notifications.route,
         Screen.MyPosts.route,
         Screen.MyOffers.route,
-        Screen.MyRequests.route
+        Screen.MyRequests.route,
+        Screen.MyFriends.route
     )
     
     // Routes that should NOT show the bottom navigation (full-screen views)

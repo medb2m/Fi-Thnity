@@ -494,7 +494,7 @@ fun BoxScope.MenuDropdown(
         MenuItem("Profile", Icons.Default.Person, Screen.Profile.route),
         MenuItem("My offers", Icons.Default.DirectionsCar, Screen.MyOffers.route),
         MenuItem("My requests", Icons.Default.Assignment, Screen.MyRequests.route),
-        MenuItem("My friends", Icons.Default.People, null), // TODO: Add route
+        MenuItem("My friends", Icons.Default.People, Screen.MyFriends.route),
         MenuItem("My posts", Icons.Default.Article, Screen.MyPosts.route)
     )
 

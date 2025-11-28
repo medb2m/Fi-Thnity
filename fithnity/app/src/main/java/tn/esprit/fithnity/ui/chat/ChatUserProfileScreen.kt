@@ -33,7 +33,10 @@ import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.data.RideResponse
 import tn.esprit.fithnity.ui.rides.RideViewModel
 import tn.esprit.fithnity.ui.rides.RideUiState
+import tn.esprit.fithnity.ui.friends.FriendViewModel
 import tn.esprit.fithnity.ui.theme.*
+import tn.esprit.fithnity.ui.components.ToastManager
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -57,6 +60,13 @@ fun ChatUserProfileScreen(
     val authToken = remember { userPreferences.getAuthToken() }
     val currentUserId = remember { userPreferences.getUserId() }
     val ridesState by rideViewModel.uiState.collectAsState()
+    val friendViewModel: FriendViewModel = viewModel()
+    val friendStatusState by friendViewModel.friendStatusState.collectAsState()
+    
+    // Load friend status
+    LaunchedEffect(userId) {
+        friendViewModel.getFriendStatus(authToken, userId)
+    }
     
     // Load user's offers when dialog opens
     LaunchedEffect(showRideSelectionDialog) {
@@ -184,10 +194,53 @@ fun ChatUserProfileScreen(
                     .padding(horizontal = 32.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
+                val friendStatus = friendStatusState
+                val friendButtonLabel = when (friendStatus?.status) {
+                    "ACCEPTED" -> "Friends"
+                    "PENDING" -> if (friendStatus.isRequester == true) "Request Sent" else "Accept Request"
+                    else -> "Add Friend"
+                }
+                
                 ActionCircleButton(
                     icon = Icons.Default.PersonAdd,
-                    label = "Add Friend",
-                    onClick = { /* TODO: Implement add friend */ }
+                    label = friendButtonLabel,
+                    onClick = {
+                        when (friendStatus?.status) {
+                            "ACCEPTED" -> {
+                                ToastManager.showToast(
+                                    type = tn.esprit.fithnity.ui.components.ToastType.INFO,
+                                    message = "You are already friends with $userName"
+                                )
+                            }
+                            "PENDING" -> {
+                                if (friendStatus.isRequester == false && friendStatus.requestId != null) {
+                                    // Accept the request
+                                    friendViewModel.acceptFriendRequest(authToken, friendStatus.requestId)
+                                    ToastManager.showToast(
+                                        type = tn.esprit.fithnity.ui.components.ToastType.SUCCESS,
+                                        message = "Friend request accepted"
+                                    )
+                                    // Reload friend status
+                                    friendViewModel.getFriendStatus(authToken, userId)
+                                } else {
+                                    ToastManager.showToast(
+                                        type = tn.esprit.fithnity.ui.components.ToastType.INFO,
+                                        message = "Friend request already sent"
+                                    )
+                                }
+                            }
+                            else -> {
+                                // Send friend request
+                                friendViewModel.sendFriendRequest(authToken, userId)
+                                ToastManager.showToast(
+                                    type = tn.esprit.fithnity.ui.components.ToastType.SUCCESS,
+                                    message = "Friend request sent to $userName"
+                                )
+                                // Reload friend status
+                                friendViewModel.getFriendStatus(authToken, userId)
+                            }
+                        }
+                    }
                 )
                 
                 ActionCircleButton(

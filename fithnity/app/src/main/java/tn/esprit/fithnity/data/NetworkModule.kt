@@ -46,6 +46,7 @@ object NetworkModule {
     val communityApi: CommunityApiService get() = retrofit.create(CommunityApiService::class.java)
     val chatApi: ChatApiService get() = retrofit.create(ChatApiService::class.java)
     val notificationApi: NotificationApiService get() = retrofit.create(NotificationApiService::class.java)
+    val friendApi: FriendApiService get() = retrofit.create(FriendApiService::class.java)
 }
 
 
