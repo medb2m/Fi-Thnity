@@ -82,6 +82,11 @@ const rideSchema = new mongoose.Schema({
     ref: 'User',
     default: null
   },
+  // Array of passengers added to the ride
+  passengers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   distance: {
     type: Number, // in kilometers
     default: null

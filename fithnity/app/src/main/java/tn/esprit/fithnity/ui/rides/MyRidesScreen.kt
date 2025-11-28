@@ -47,8 +47,10 @@ fun MyRidesScreen(
     viewModel: RideViewModel = viewModel()
 ) {
     val authToken = remember { userPreferences.getAuthToken() }
+    val currentUserId = remember { userPreferences.getUserId() }
     val ridesState by viewModel.uiState.collectAsState()
     var selectedRideForEdit by remember { mutableStateOf<RideResponse?>(null) }
+    var selectedRideForDetails by remember { mutableStateOf<RideItem?>(null) }
     
     // Load user's rides on first composition
     LaunchedEffect(Unit) {
@@ -164,9 +166,37 @@ fun MyRidesScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(filteredRides) { ride ->
+                            val rideItem = RideItem(
+                                id = ride._id,
+                                isOffer = ride.rideType == "OFFER",
+                                vehicleType = when (ride.transportType) {
+                                    "PRIVATE_CAR" -> VehicleType.PERSONAL_CAR
+                                    "TAXI", "TAXI_COLLECTIF" -> VehicleType.TAXI
+                                    else -> VehicleType.PERSONAL_CAR
+                                },
+                                origin = ride.origin.address,
+                                destination = ride.destination.address,
+                                userName = ride.user?.name ?: "You",
+                                userId = ride.user?._id,
+                                userPhoto = ride.user?.photoUrl,
+                                time = ride.departureDate,
+                                price = ride.price?.toString(),
+                                seatsAvailable = ride.availableSeats,
+                                matchedWithUserId = ride.matchedWith?._id,
+                                matchedWithUserName = ride.matchedWith?.name,
+                                matchedWithUserPhoto = ride.matchedWith?.photoUrl,
+                                passengers = ride.passengers?.map { passenger ->
+                                    PassengerInfo(
+                                        userId = passenger._id ?: "",
+                                        userName = passenger.name ?: "Unknown",
+                                        userPhoto = passenger.photoUrl
+                                    )
+                                }
+                            )
                             EditableRideCard(
                                 ride = ride,
-                                onEditClick = { selectedRideForEdit = ride }
+                                onEditClick = { selectedRideForEdit = ride },
+                                onClick = { selectedRideForDetails = rideItem }
                             )
                         }
                     }
@@ -185,6 +215,17 @@ fun MyRidesScreen(
             authToken = authToken
         )
     }
+    
+    // Ride Details Dialog
+    selectedRideForDetails?.let { ride ->
+        RideDetailsDialog(
+            ride = ride,
+            onDismiss = { selectedRideForDetails = null },
+            onApplyToOffer = { /* Not applicable for own rides */ },
+            onReplyToRequest = { /* Not applicable for own rides */ },
+            currentUserId = currentUserId
+        )
+    }
 }
 
 /**
@@ -193,7 +234,8 @@ fun MyRidesScreen(
 @Composable
 private fun EditableRideCard(
     ride: RideResponse,
-    onEditClick: () -> Unit
+    onEditClick: () -> Unit,
+    onClick: () -> Unit
 ) {
     val rideItem = RideItem(
         id = ride._id,
@@ -214,7 +256,9 @@ private fun EditableRideCard(
     )
     
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = Surface

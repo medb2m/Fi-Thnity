@@ -251,7 +251,17 @@ fun RidesScreen(
                         userPhoto = ride.user?.photoUrl,
                         time = ride.departureDate, // ISO format, will be formatted in UI if needed
                         price = ride.price?.toString(),
-                        seatsAvailable = ride.availableSeats
+                        seatsAvailable = ride.availableSeats,
+                        matchedWithUserId = ride.matchedWith?._id,
+                        matchedWithUserName = ride.matchedWith?.name,
+                        matchedWithUserPhoto = ride.matchedWith?.photoUrl,
+                        passengers = ride.passengers?.map { passenger ->
+                            PassengerInfo(
+                                userId = passenger._id ?: "",
+                                userName = passenger.name ?: "Unknown",
+                                userPhoto = passenger.photoUrl
+                            )
+                        }
                     )
                 }
             }

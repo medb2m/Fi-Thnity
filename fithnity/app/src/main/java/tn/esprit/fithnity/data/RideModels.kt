@@ -56,6 +56,8 @@ data class RideResponse(
     val status: String,
     val expiresAt: String,
     val matchedWith: UserInfo?,
+    @SerializedName("passengers")
+    val passengers: List<UserInfo>? = null, // List of passengers added to the ride
     val distance: Double?,
     val notes: String?,
     val createdAt: String?,
