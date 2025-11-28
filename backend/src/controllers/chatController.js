@@ -198,6 +198,85 @@ export const getMessages = async (req, res) => {
 };
 
 /**
+ * Get shared media (images) from a conversation
+ * GET /api/chat/conversations/:conversationId/media
+ */
+export const getSharedMedia = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+    const userId = req.user._id;
+
+    // Verify conversation exists and user is a participant
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation not found'
+      });
+    }
+
+    const isParticipant = conversation.participants.some(
+      p => p.toString() === userId.toString()
+    );
+
+    if (!isParticipant) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not a participant in this conversation'
+      });
+    }
+
+    // Get only image messages
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const messages = await Message.find({
+      conversation: conversationId,
+      messageType: 'IMAGE',
+      imageUrl: { $exists: true, $ne: null }
+    })
+      .populate('sender', 'name photoUrl')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(skip)
+      .lean();
+
+    // Format response with image data
+    const media = messages.map(msg => ({
+      _id: msg._id,
+      imageUrl: msg.imageUrl,
+      sender: {
+        _id: msg.sender._id,
+        name: msg.sender.name,
+        photoUrl: msg.sender.photoUrl
+      },
+      createdAt: msg.createdAt,
+      content: msg.content || ''
+    }));
+
+    res.json({
+      success: true,
+      data: media,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: await Message.countDocuments({
+          conversation: conversationId,
+          messageType: 'IMAGE',
+          imageUrl: { $exists: true, $ne: null }
+        })
+      }
+    });
+  } catch (error) {
+    console.error('Get shared media error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching shared media',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Send a message
  * POST /api/chat/conversations/:conversationId/messages
  */

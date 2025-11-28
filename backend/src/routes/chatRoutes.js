@@ -4,6 +4,7 @@ import {
   getConversations,
   getOrCreateConversation,
   getMessages,
+  getSharedMedia,
   sendMessage,
   markAsRead,
   getUsers,
@@ -39,6 +40,9 @@ router.post(
 
 // Get messages in a conversation
 router.get('/conversations/:conversationId/messages', getMessages);
+
+// Get shared media (images) from a conversation
+router.get('/conversations/:conversationId/media', getSharedMedia);
 
 // Send a message
 router.post(

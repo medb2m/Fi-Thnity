@@ -30,6 +30,7 @@ import tn.esprit.fithnity.ui.friends.MyFriendsScreen
 import tn.esprit.fithnity.ui.chat.ChatListScreen
 import tn.esprit.fithnity.ui.chat.ChatScreen
 import tn.esprit.fithnity.ui.chat.ChatUserProfileScreen
+import tn.esprit.fithnity.ui.chat.SharedMediaScreen
 import tn.esprit.fithnity.ui.notifications.NotificationScreen
 import tn.esprit.fithnity.ui.theme.*
 import tn.esprit.fithnity.ui.LanguageViewModel
@@ -200,6 +201,23 @@ fun FiThnityNavGraph(
                 userId = userId,
                 userName = java.net.URLDecoder.decode(userName, "UTF-8"),
                 userPhoto = userPhoto,
+                userPreferences = userPreferences
+            )
+        }
+
+        // Shared Media Screen
+        composable(
+            route = Screen.SharedMedia.route,
+            arguments = listOf(
+                navArgument("conversationId") {
+                    type = NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val conversationId = backStackEntry.arguments?.getString("conversationId") ?: return@composable
+            SharedMediaScreen(
+                navController = navController,
+                conversationId = conversationId,
                 userPreferences = userPreferences
             )
         }

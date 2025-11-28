@@ -29,6 +29,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.data.RideResponse
 import tn.esprit.fithnity.ui.rides.RideViewModel
@@ -56,16 +60,54 @@ fun ChatUserProfileScreen(
 ) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var showRideSelectionDialog by remember { mutableStateOf(false) }
     val authToken = remember { userPreferences.getAuthToken() }
     val currentUserId = remember { userPreferences.getUserId() }
     val ridesState by rideViewModel.uiState.collectAsState()
     val friendViewModel: FriendViewModel = viewModel()
     val friendStatusState by friendViewModel.friendStatusState.collectAsState()
+    val chatViewModel: ChatViewModel = viewModel()
+    var conversationId by remember { mutableStateOf<String?>(null) }
     
-    // Load friend status
+    // Load friend status (with delay to avoid blocking initial render)
     LaunchedEffect(userId) {
-        friendViewModel.getFriendStatus(authToken, userId)
+        if (authToken != null) {
+            kotlinx.coroutines.delay(200)
+            friendViewModel.getFriendStatus(authToken, userId)
+        }
+    }
+    
+    // Get or create conversation when needed
+    fun getOrCreateConversation(onSuccess: (String) -> Unit) {
+        if (conversationId != null) {
+            onSuccess(conversationId!!)
+            return
+        }
+        
+        if (authToken == null) return
+        
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val response = tn.esprit.fithnity.data.NetworkModule.chatApi.getOrCreateConversation(
+                    bearer = "Bearer $authToken",
+                    request = tn.esprit.fithnity.data.CreateConversationRequest(otherUserId = userId)
+                )
+                if (response.success && response.data != null) {
+                    conversationId = response.data._id
+                    withContext(Dispatchers.Main) {
+                        onSuccess(response.data._id)
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    ToastManager.showToast(
+                        type = tn.esprit.fithnity.ui.components.ToastType.ERROR,
+                        message = "Failed to load conversation"
+                    )
+                }
+            }
+        }
     }
     
     // Load user's offers when dialog opens
@@ -236,8 +278,7 @@ fun ChatUserProfileScreen(
                                     type = tn.esprit.fithnity.ui.components.ToastType.SUCCESS,
                                     message = "Friend request sent to $userName"
                                 )
-                                // Reload friend status
-                                friendViewModel.getFriendStatus(authToken, userId)
+                                // Note: ViewModel automatically updates state and refreshes friend status
                             }
                         }
                     }
@@ -274,7 +315,11 @@ fun ChatUserProfileScreen(
                         icon = Icons.Default.Image,
                         title = "Media, Links & Docs",
                         subtitle = "View shared media",
-                        onClick = { /* TODO: Implement shared media */ }
+                        onClick = {
+                            getOrCreateConversation { convId ->
+                                navController.navigate(tn.esprit.fithnity.ui.navigation.Screen.SharedMedia.createRoute(convId))
+                            }
+                        }
                     )
                     
                     HorizontalDivider(

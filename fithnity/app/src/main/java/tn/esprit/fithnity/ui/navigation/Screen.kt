@@ -134,6 +134,13 @@ sealed class Screen(
             "chat_user_profile/$userId/${java.net.URLEncoder.encode(userName, "UTF-8")}/${java.net.URLEncoder.encode(userPhoto ?: "none", "UTF-8")}"
     }
 
+    object SharedMedia : Screen(
+        route = "shared_media/{conversationId}",
+        title = "Media, Links & Docs"
+    ) {
+        fun createRoute(conversationId: String) = "shared_media/$conversationId"
+    }
+
     companion object {
         /**
          * List of screens to show in bottom navigation

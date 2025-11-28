@@ -221,23 +221,43 @@ fun MainAppScreen(
     var unreadConversationCount by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     
-    // Fetch unread conversation count
-    LaunchedEffect(authToken, currentRoute) {
-        if (authToken != null && showBottomNavigation) {
-            coroutineScope.launch {
-                try {
-                    Log.d("MainActivity", "Fetching unread conversation count...")
-                    val response = withContext(Dispatchers.IO) {
-                        NetworkModule.chatApi.getUnreadConversationCount("Bearer $authToken")
-                    }
-                    Log.d("MainActivity", "Response: success=${response.success}, data=${response.data}")
-                    if (response.success && response.data != null) {
-                        unreadConversationCount = response.data.unreadConversationCount
-                        Log.d("MainActivity", "Unread conversation count set to: $unreadConversationCount")
-                    }
-                } catch (e: Exception) {
-                    Log.e("MainActivity", "Error fetching unread conversation count", e)
+    // Fetch unread conversation count (debounced to avoid excessive calls)
+    LaunchedEffect(authToken) {
+        if (authToken != null) {
+            // Delay to avoid blocking initial render
+            kotlinx.coroutines.delay(300)
+            try {
+                Log.d("MainActivity", "Fetching unread conversation count...")
+                val response = withContext(Dispatchers.IO) {
+                    NetworkModule.chatApi.getUnreadConversationCount("Bearer $authToken")
                 }
+                Log.d("MainActivity", "Response: success=${response.success}, data=${response.data}")
+                if (response.success && response.data != null) {
+                    unreadConversationCount = response.data.unreadConversationCount
+                    Log.d("MainActivity", "Unread conversation count set to: $unreadConversationCount")
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error fetching unread conversation count", e)
+            }
+        }
+    }
+    
+    // Refresh unread count when navigating to chat screen (only if different from current route)
+    var lastRefreshedRoute by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentRoute) {
+        if (currentRoute == Screen.Chat.route && authToken != null && lastRefreshedRoute != currentRoute) {
+            lastRefreshedRoute = currentRoute
+            // Small delay to avoid blocking navigation
+            kotlinx.coroutines.delay(200)
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    NetworkModule.chatApi.getUnreadConversationCount("Bearer $authToken")
+                }
+                if (response.success && response.data != null) {
+                    unreadConversationCount = response.data.unreadConversationCount
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error refreshing unread conversation count", e)
             }
         }
     }

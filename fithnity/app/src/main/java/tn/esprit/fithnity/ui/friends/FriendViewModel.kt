@@ -106,6 +106,13 @@ class FriendViewModel : ViewModel() {
                 return@launch
             }
 
+            // Optimistically update UI state immediately
+            _friendStatusState.value = FriendStatus(
+                status = "PENDING",
+                isRequester = true,
+                requestId = null // Will be updated after API call
+            )
+
             val response = api.sendFriendRequest(
                 bearer = "Bearer $token",
                 request = tn.esprit.fithnity.data.SendFriendRequestRequest(recipientId = recipientId)
@@ -113,11 +120,19 @@ class FriendViewModel : ViewModel() {
 
             if (response.success) {
                 Log.d(TAG, "sendFriendRequest: Friend request sent successfully")
+                // Refresh friend status to get the actual requestId
+                getFriendStatus(token, recipientId)
             } else {
                 Log.e(TAG, "sendFriendRequest: Failed - ${response.message}")
+                // Revert to previous state on failure
+                getFriendStatus(token, recipientId)
             }
         } catch (e: Exception) {
             Log.e(TAG, "sendFriendRequest: Exception occurred", e)
+            // Revert to previous state on error
+            if (authToken != null) {
+                getFriendStatus(authToken, recipientId)
+            }
         }
     }
 

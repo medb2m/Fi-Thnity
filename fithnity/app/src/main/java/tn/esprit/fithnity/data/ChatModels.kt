@@ -97,6 +97,26 @@ data class SendMessageRequest(
 )
 
 /**
+ * Shared media item (image)
+ */
+data class SharedMediaItem(
+    val _id: String,
+    val imageUrl: String,
+    val sender: ChatUserInfo,
+    val createdAt: String? = null,
+    val content: String? = null
+)
+
+/**
+ * Shared media list response
+ */
+data class SharedMediaListResponse(
+    val success: Boolean,
+    val data: List<SharedMediaItem>? = null,
+    val pagination: PaginationInfo? = null
+)
+
+/**
  * User search result for starting new chats
  */
 data class UserSearchResponse(

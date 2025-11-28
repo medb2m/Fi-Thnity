@@ -40,6 +40,13 @@ sealed class UsersUiState {
     data class Error(val message: String) : UsersUiState()
 }
 
+sealed class SharedMediaUiState {
+    object Idle : SharedMediaUiState()
+    object Loading : SharedMediaUiState()
+    data class Success(val media: List<SharedMediaItem>) : SharedMediaUiState()
+    data class Error(val message: String) : SharedMediaUiState()
+}
+
 class ChatViewModel : ViewModel() {
     companion object {
         private const val TAG = "ChatViewModel"
@@ -62,6 +69,10 @@ class ChatViewModel : ViewModel() {
     // State for users search
     private val _usersState = MutableStateFlow<UsersUiState>(UsersUiState.Idle)
     val usersState: StateFlow<UsersUiState> = _usersState
+
+    // State for shared media
+    private val _sharedMediaState = MutableStateFlow<SharedMediaUiState>(SharedMediaUiState.Idle)
+    val sharedMediaState: StateFlow<SharedMediaUiState> = _sharedMediaState
 
     // Current conversation ID
     private var currentConversationId: String? = null
@@ -367,6 +378,41 @@ class ChatViewModel : ViewModel() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "deleteConversation: Exception occurred", e)
+        }
+    }
+
+    /**
+     * Load shared media (images) from a conversation
+     */
+    fun loadSharedMedia(authToken: String?, conversationId: String, page: Int = 1) = viewModelScope.launch {
+        Log.d(TAG, "loadSharedMedia: Loading shared media from conversation $conversationId")
+
+        try {
+            val token = authToken
+            if (token == null) {
+                Log.e(TAG, "loadSharedMedia: Not authenticated")
+                _sharedMediaState.value = SharedMediaUiState.Error("Not authenticated")
+                return@launch
+            }
+
+            _sharedMediaState.value = SharedMediaUiState.Loading
+
+            val response = api.getSharedMedia(
+                bearer = "Bearer $token",
+                conversationId = conversationId,
+                page = page,
+                limit = 50
+            )
+
+            if (response.success && response.data != null) {
+                Log.d(TAG, "loadSharedMedia: Loaded ${response.data.size} media items")
+                _sharedMediaState.value = SharedMediaUiState.Success(response.data)
+            } else {
+                _sharedMediaState.value = SharedMediaUiState.Error("Failed to load shared media")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "loadSharedMedia: Exception occurred", e)
+            _sharedMediaState.value = SharedMediaUiState.Error(e.message ?: "Unknown error")
         }
     }
 

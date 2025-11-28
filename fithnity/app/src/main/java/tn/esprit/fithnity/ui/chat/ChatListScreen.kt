@@ -65,6 +65,8 @@ fun ChatListScreen(
     }
 
     LaunchedEffect(Unit) {
+        // Small delay to avoid blocking initial render
+        kotlinx.coroutines.delay(100)
         viewModel.loadConversations(authToken)
     }
 

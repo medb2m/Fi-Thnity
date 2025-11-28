@@ -44,7 +44,11 @@ fun MyFriendsScreen(
     var selectedFilter by remember { mutableStateOf("All Friends") } // "All Friends" or "Invitations"
     
     LaunchedEffect(Unit) {
+        // Small delay to avoid blocking initial render
+        kotlinx.coroutines.delay(100)
         viewModel.loadFriends(authToken)
+        // Load invitations after a small delay to stagger API calls
+        kotlinx.coroutines.delay(200)
         viewModel.loadInvitations(authToken)
     }
     

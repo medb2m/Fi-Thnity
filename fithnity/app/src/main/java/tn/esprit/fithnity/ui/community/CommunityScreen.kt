@@ -67,8 +67,9 @@ fun CommunityScreen(
     // Track if posts need to be refreshed after creating a new post
     var shouldRefresh by remember { mutableStateOf(false) }
     
-    // Load posts on first composition
+    // Load posts on first composition (with delay to avoid blocking initial render)
     LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(100)
         viewModel.loadPosts(authToken = authToken, sort = "score")
     }
     

@@ -60,8 +60,9 @@ fun FiThnityTopBar(
     val authToken = remember { userPreferences.getAuthToken() }
     val unreadCount by notificationViewModel.unreadCount.collectAsState()
     
-    // Refresh unread count on mount
+    // Refresh unread count on mount (with delay to avoid blocking)
     LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(150)
         notificationViewModel.refreshUnreadCount(authToken)
     }
     

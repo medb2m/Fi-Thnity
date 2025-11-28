@@ -38,6 +38,18 @@ interface ChatApiService {
     ): MessagesListResponse
 
     /**
+     * Get shared media (images) from a conversation
+     * GET /api/chat/conversations/:conversationId/media?page=1&limit=50
+     */
+    @GET("/api/chat/conversations/{conversationId}/media")
+    suspend fun getSharedMedia(
+        @Header("Authorization") bearer: String,
+        @Path("conversationId") conversationId: String,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 50
+    ): SharedMediaListResponse
+
+    /**
      * Send a message
      * POST /api/chat/conversations/:conversationId/messages
      */
