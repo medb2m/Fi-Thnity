@@ -253,6 +253,115 @@ class CommunityViewModel : ViewModel() {
     }
 
     /**
+     * Update a post
+     */
+    fun updatePost(
+        authToken: String?,
+        postId: String,
+        content: String,
+        imageFile: File? = null,
+        removeImage: Boolean = false
+    ) = viewModelScope.launch {
+        Log.d(TAG, "updatePost: Updating post $postId")
+
+        try {
+            val token = authToken
+            if (token == null) {
+                Log.e(TAG, "updatePost: Not authenticated")
+                return@launch
+            }
+
+            val imagePart = imageFile?.let { file ->
+                val mimeType = when (file.extension.lowercase()) {
+                    "jpg", "jpeg" -> "image/jpeg"
+                    "png" -> "image/png"
+                    "gif" -> "image/gif"
+                    "webp" -> "image/webp"
+                    else -> "image/jpeg"
+                }
+                val requestFile = file.asRequestBody(mimeType.toMediaTypeOrNull())
+                MultipartBody.Part.createFormData("image", file.name, requestFile)
+            }
+
+            val contentBody = content.toRequestBody("text/plain".toMediaTypeOrNull())
+            val removeImageBody = if (removeImage) {
+                "true".toRequestBody("text/plain".toMediaTypeOrNull())
+            } else {
+                null
+            }
+
+            val response = api.updatePost(
+                bearer = "Bearer $token",
+                postId = postId,
+                content = contentBody,
+                removeImage = removeImageBody,
+                image = imagePart
+            )
+
+            if (response.success && response.data != null) {
+                Log.d(TAG, "updatePost: Post updated successfully")
+                
+                // Update the post in the current state
+                val currentState = _uiState.value
+                if (currentState is CommunityUiState.Success) {
+                    val updatedPosts = currentState.posts.map { post ->
+                        if (post._id == postId) {
+                            response.data
+                        } else {
+                            post
+                        }
+                    }
+                    _uiState.value = CommunityUiState.Success(updatedPosts)
+                }
+            } else {
+                Log.e(TAG, "updatePost: Failed - ${response.message}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updatePost: Exception occurred", e)
+        }
+    }
+
+    /**
+     * Delete a post
+     */
+    fun deletePost(
+        authToken: String?,
+        postId: String
+    ) = viewModelScope.launch {
+        Log.d(TAG, "deletePost: Deleting post $postId")
+
+        try {
+            val token = authToken
+            if (token == null) {
+                Log.e(TAG, "deletePost: Not authenticated")
+                return@launch
+            }
+
+            val response = api.deletePost(
+                bearer = "Bearer $token",
+                postId = postId
+            )
+
+            if (response.success) {
+                Log.d(TAG, "deletePost: Post deleted successfully")
+                
+                // Remove the post from the current state
+                val currentState = _uiState.value
+                if (currentState is CommunityUiState.Success) {
+                    val updatedPosts = currentState.posts.filter { post ->
+                        post._id != postId
+                    }
+                    _uiState.value = CommunityUiState.Success(updatedPosts)
+                }
+            } else {
+                Log.e(TAG, "deletePost: Failed - ${response.message}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "deletePost: Exception occurred", e)
+        }
+    }
+
+    /**
      * Reset create post state
      */
     fun resetCreatePostState() {

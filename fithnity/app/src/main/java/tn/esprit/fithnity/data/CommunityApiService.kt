@@ -64,6 +64,20 @@ interface CommunityApiService {
     ): ApiResponse<CommentResponse>
 
     /**
+     * Update a post
+     * PUT /api/community/posts/:postId
+     */
+    @Multipart
+    @PUT("/api/community/posts/{postId}")
+    suspend fun updatePost(
+        @Header("Authorization") bearer: String,
+        @Path("postId") postId: String,
+        @Part("content") content: RequestBody,
+        @Part("removeImage") removeImage: RequestBody? = null,
+        @Part image: MultipartBody.Part? = null
+    ): ApiResponse<CommunityPostResponse>
+
+    /**
      * Delete a post
      * DELETE /api/community/posts/:postId
      */
