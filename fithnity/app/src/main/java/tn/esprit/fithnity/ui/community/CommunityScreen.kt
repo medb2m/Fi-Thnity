@@ -225,7 +225,7 @@ private fun EmptyCommunityState() {
  * Facebook-style Post Card Component
  */
 @Composable
-private fun PostCard(
+internal fun PostCard(
     post: CommunityPostResponse,
     viewModel: CommunityViewModel,
     authToken: String?,

@@ -6,7 +6,11 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import tn.esprit.fithnity.data.*
+import java.io.File
 
 sealed class ConversationsUiState {
     object Idle : ConversationsUiState()
@@ -156,7 +160,7 @@ class ChatViewModel : ViewModel() {
     /**
      * Send a message
      */
-    fun sendMessage(authToken: String?, conversationId: String, content: String) = viewModelScope.launch {
+    fun sendMessage(authToken: String?, conversationId: String, content: String, imageUrl: String? = null) = viewModelScope.launch {
         Log.d(TAG, "sendMessage: Sending message to conversation $conversationId")
         _sendMessageState.value = SendMessageUiState.Sending
 
@@ -167,10 +171,17 @@ class ChatViewModel : ViewModel() {
                 return@launch
             }
 
+            val messageType = if (imageUrl != null) "IMAGE" else "TEXT"
+            val messageContent = if (imageUrl != null && content.isBlank()) "" else content
+
             val response = api.sendMessage(
                 bearer = "Bearer $token",
                 conversationId = conversationId,
-                request = SendMessageRequest(content = content)
+                request = SendMessageRequest(
+                    content = messageContent,
+                    messageType = messageType,
+                    imageUrl = imageUrl
+                )
             )
 
             if (response.success && response.data != null) {
@@ -193,6 +204,45 @@ class ChatViewModel : ViewModel() {
         } catch (e: Exception) {
             Log.e(TAG, "sendMessage: Exception occurred", e)
             _sendMessageState.value = SendMessageUiState.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    /**
+     * Upload chat image
+     */
+    suspend fun uploadChatImage(authToken: String?, imageFile: File): String? {
+        if (authToken == null) {
+            Log.e(TAG, "uploadChatImage: Not authenticated")
+            return null
+        }
+
+        return try {
+            val mimeType = when (imageFile.extension.lowercase()) {
+                "jpg", "jpeg" -> "image/jpeg"
+                "png" -> "image/png"
+                "gif" -> "image/gif"
+                "webp" -> "image/webp"
+                else -> "image/jpeg"
+            }
+
+            val requestFile = imageFile.asRequestBody(mimeType.toMediaTypeOrNull())
+            val imagePart = MultipartBody.Part.createFormData("image", imageFile.name, requestFile)
+
+            val response = api.uploadChatImage(
+                bearer = "Bearer $authToken",
+                image = imagePart
+            )
+
+            if (response.success && response.data != null) {
+                Log.d(TAG, "uploadChatImage: Image uploaded successfully - ${response.data.imageUrl}")
+                response.data.imageUrl
+            } else {
+                Log.e(TAG, "uploadChatImage: Failed - ${response.message}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "uploadChatImage: Exception occurred", e)
+            null
         }
     }
 

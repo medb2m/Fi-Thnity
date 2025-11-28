@@ -1,4 +1,5 @@
 import CommunityPost from '../models/CommunityPost.js';
+import { createNotification } from './notificationController.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -193,7 +194,7 @@ export const getPostById = async (req, res) => {
 export const votePost = async (req, res) => {
   try {
     const { vote } = req.body; // 'up', 'down', or null to remove vote
-    const post = await CommunityPost.findById(req.params.postId);
+    const post = await CommunityPost.findById(req.params.postId).populate('user', 'name');
 
     if (!post) {
       return res.status(404).json({
@@ -203,6 +204,12 @@ export const votePost = async (req, res) => {
     }
 
     const userId = req.user._id;
+    const postOwnerId = post.user._id.toString();
+    const voterId = userId.toString();
+    
+    // Check if user is voting on their own post
+    const isOwnPost = postOwnerId === voterId;
+
     const upvoteIndex = post.upvotes.indexOf(userId);
     const downvoteIndex = post.downvotes.indexOf(userId);
 
@@ -223,6 +230,25 @@ export const votePost = async (req, res) => {
     // If vote is null, we've already removed votes above
 
     await post.save();
+
+    // Create notification for post owner (only if not voting on own post and vote was added)
+    if (!isOwnPost && vote !== null) {
+      const voterName = req.user.name || 'Someone';
+      const voteType = vote === 'up' ? 'upvoted' : 'downvoted';
+      
+      await createNotification(
+        postOwnerId,
+        'LIKE',
+        'New reaction',
+        `${voterName} ${voteType} your post`,
+        {
+          postId: post._id.toString(),
+          voterId: voterId,
+          voterName: voterName,
+          voteType: vote
+        }
+      );
+    }
 
     res.json({
       success: true,
@@ -297,7 +323,7 @@ export const addComment = async (req, res) => {
   try {
     const { content } = req.body;
 
-    const post = await CommunityPost.findById(req.params.postId);
+    const post = await CommunityPost.findById(req.params.postId).populate('user', 'name');
 
     if (!post) {
       return res.status(404).json({
@@ -305,6 +331,12 @@ export const addComment = async (req, res) => {
         message: 'Post not found'
       });
     }
+
+    const commenterId = req.user._id.toString();
+    const postOwnerId = post.user._id.toString();
+    
+    // Check if user is commenting on their own post
+    const isOwnPost = postOwnerId === commenterId;
 
     post.comments.push({
       user: req.user._id,
@@ -314,6 +346,25 @@ export const addComment = async (req, res) => {
 
     await post.save();
     await post.populate('comments.user', 'name photoUrl');
+
+    // Create notification for post owner (only if not commenting on own post)
+    if (!isOwnPost) {
+      const commenterName = req.user.name || 'Someone';
+      const commentPreview = content.length > 50 ? content.substring(0, 50) + '...' : content;
+      
+      await createNotification(
+        postOwnerId,
+        'COMMENT',
+        'New comment',
+        `${commenterName} commented: ${commentPreview}`,
+        {
+          postId: post._id.toString(),
+          commenterId: commenterId,
+          commenterName: commenterName,
+          commentContent: content
+        }
+      );
+    }
 
     res.status(201).json({
       success: true,

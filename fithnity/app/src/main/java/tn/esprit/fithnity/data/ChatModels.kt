@@ -109,3 +109,17 @@ data class UsersListResponse(
     val pagination: PaginationInfo? = null
 )
 
+/**
+ * Unread conversation count response
+ */
+data class UnreadConversationCountResponse(
+    val unreadConversationCount: Int
+)
+
+/**
+ * Chat image upload response
+ */
+data class ChatImageUploadResponse(
+    val imageUrl: String
+)
+

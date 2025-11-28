@@ -266,8 +266,8 @@ fun FiThnityTopBar(
             Box(modifier = Modifier.size(40.dp)) {
                 IconButton(
                     onClick = {
-                        // TODO: Navigate to notifications screen
-                        // For now, just refresh unread count
+                        navController.navigate(Screen.Notifications.route)
+                        // Refresh unread count when opening notifications
                         notificationViewModel.refreshUnreadCount(authToken)
                     },
                     modifier = Modifier.size(40.dp)
@@ -285,16 +285,19 @@ fun FiThnityTopBar(
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .size(18.dp)
+                            .offset(x = 4.dp, y = (-4).dp)
+                            .size(22.dp) // Increased size
+                            .zIndex(1f)
                             .clip(CircleShape)
                             .background(Color(0xFFEF4444)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                            text = if (unreadCount > 9) "9+" else unreadCount.toString(),
                             color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                 }
@@ -487,7 +490,7 @@ fun BoxScope.MenuDropdown(
         MenuItem("My offers", Icons.Default.DirectionsCar, Screen.MyOffers.route),
         MenuItem("My requests", Icons.Default.Assignment, Screen.MyRequests.route),
         MenuItem("My friends", Icons.Default.People, null), // TODO: Add route
-        MenuItem("My posts", Icons.Default.Article, null) // TODO: Add route
+        MenuItem("My posts", Icons.Default.Article, Screen.MyPosts.route)
     )
 
     DropdownMenu(

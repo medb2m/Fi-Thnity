@@ -38,6 +38,10 @@ import tn.esprit.fithnity.ui.navigation.QuickActionsSheet
 import tn.esprit.fithnity.ui.navigation.PlaceSuggestionsDropdown
 import tn.esprit.fithnity.ui.navigation.SearchState
 import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import tn.esprit.fithnity.data.NetworkModule
 import androidx.compose.runtime.getValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.ui.unit.dp
@@ -180,7 +184,9 @@ fun MainAppScreen(
     val routesWithoutTopBar = listOf(
         Screen.Profile.route,
         Screen.Settings.route,
-        Screen.EditProfile.route
+        Screen.EditProfile.route,
+        Screen.Notifications.route,
+        Screen.MyPosts.route
     )
     
     // Routes that should NOT show the bottom navigation (full-screen views)
@@ -192,6 +198,32 @@ fun MainAppScreen(
     val showTopBar = currentRoute !in routesWithoutTopBar && !isChatDetailScreen
     val showBottomNavigation = currentRoute !in routesWithoutBottomNav && !isChatDetailScreen
     var showQuickActionsSheet by remember { mutableStateOf(false) }
+    
+    // Unread conversation count
+    val authToken = remember { userPreferences.getAuthToken() }
+    var unreadConversationCount by remember { mutableStateOf(0) }
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Fetch unread conversation count
+    LaunchedEffect(authToken, currentRoute) {
+        if (authToken != null && showBottomNavigation) {
+            coroutineScope.launch {
+                try {
+                    Log.d("MainActivity", "Fetching unread conversation count...")
+                    val response = withContext(Dispatchers.IO) {
+                        NetworkModule.chatApi.getUnreadConversationCount("Bearer $authToken")
+                    }
+                    Log.d("MainActivity", "Response: success=${response.success}, data=${response.data}")
+                    if (response.success && response.data != null) {
+                        unreadConversationCount = response.data.unreadConversationCount
+                        Log.d("MainActivity", "Unread conversation count set to: $unreadConversationCount")
+                    }
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error fetching unread conversation count", e)
+                }
+            }
+        }
+    }
 
     if (showQuickActionsSheet) {
         QuickActionsSheet(
@@ -213,9 +245,11 @@ fun MainAppScreen(
             },
             bottomBar = {
                 if (showBottomNavigation) {
+                    Log.d("MainActivity", "Showing bottom navigation with unreadConversationCount: $unreadConversationCount")
                     FiThnityBottomNavigation(
                         navController = navController,
-                        onQuickActionsClick = { showQuickActionsSheet = true }
+                        onQuickActionsClick = { showQuickActionsSheet = true },
+                        unreadConversationCount = unreadConversationCount
                     )
                 }
             }
