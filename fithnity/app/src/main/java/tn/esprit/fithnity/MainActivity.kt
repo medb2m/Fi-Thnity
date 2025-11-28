@@ -316,6 +316,8 @@ fun MainAppScreen(
                         val addressLine = address.getAddressLine(0) ?: SearchState.searchQuery
                         SearchState.updateQuery(addressLine)
                         SearchState.updateSuggestions(emptyList(), false, false)
+                        // Notify HomeScreen to center map on selected address
+                        SearchState.onAddressSelected?.invoke(address)
                     }
                 )
             }
