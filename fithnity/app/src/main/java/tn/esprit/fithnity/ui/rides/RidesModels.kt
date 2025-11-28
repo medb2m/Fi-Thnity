@@ -44,6 +44,19 @@ data class RideItem(
     val time: String,
     val price: String? = null,
     val seatsAvailable: Int? = null, // For offers
-    val matchingInfo: MatchingInfo? = null // Matching information
+    val matchingInfo: MatchingInfo? = null, // Matching information
+    val matchedWithUserId: String? = null, // User ID who was added to the ride (backward compatibility)
+    val matchedWithUserName: String? = null, // Name of user who was added to the ride (backward compatibility)
+    val matchedWithUserPhoto: String? = null, // Photo of user who was added to the ride (backward compatibility)
+    val passengers: List<PassengerInfo>? = null // List of all passengers added to the ride
+)
+
+/**
+ * Passenger information for UI display
+ */
+data class PassengerInfo(
+    val userId: String,
+    val userName: String,
+    val userPhoto: String? = null
 )
 

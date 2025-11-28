@@ -204,7 +204,7 @@ fun RideDetailsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Date and Time Section
                 Surface(
@@ -244,7 +244,7 @@ fun RideDetailsDialog(
                 // Route Section
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // Origin
                     Row(
@@ -277,7 +277,7 @@ fun RideDetailsDialog(
                     Box(
                         modifier = Modifier
                             .width(2.dp)
-                            .height(20.dp)
+                            .height(18.dp)
                             .offset(x = 5.dp)
                             .background(TextHint.copy(alpha = 0.3f))
                     )
@@ -310,39 +310,123 @@ fun RideDetailsDialog(
                     }
                 }
                 
-                Divider()
-                
-                // Driver/Requester Info
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                // Users Section - Driver/Requester and Passenger (if added)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Surface.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = TextSecondary
-                    )
-                    Column {
-                        Text(
-                            text = if (ride.isOffer) "Driver" else "Requester",
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-                        Text(
-                            text = ride.userName,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextPrimary
-                        )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Driver/Requester Info
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = TextSecondary
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (ride.isOffer) "Driver" else "Requester",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                                Text(
+                                    text = ride.userName,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextPrimary
+                                )
+                            }
+                        }
+                        
+                        // Passengers Info (if any passengers were added to the ride)
+                        if (!ride.passengers.isNullOrEmpty()) {
+                            HorizontalDivider(
+                                color = DividerColor.copy(alpha = 0.5f),
+                                thickness = 1.dp
+                            )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (ride.isOffer) "Passengers (${ride.passengers.size})" else "Matched Users (${ride.passengers.size})",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                ride.passengers.forEach { passenger ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PersonAdd,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = Accent
+                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = passenger.userName,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = TextPrimary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (ride.matchedWithUserName != null) {
+                            // Fallback to matchedWith for backward compatibility
+                            HorizontalDivider(
+                                color = DividerColor.copy(alpha = 0.5f),
+                                thickness = 1.dp
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PersonAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = Accent
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (ride.isOffer) "Passenger Added" else "Matched With",
+                                        fontSize = 12.sp,
+                                        color = TextSecondary
+                                    )
+                                    Text(
+                                        text = ride.matchedWithUserName,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextPrimary
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 
                 // Additional Info
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // First row: Vehicle Type and Seats
                     Row(

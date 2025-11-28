@@ -217,6 +217,7 @@ export const getRides = async (req, res) => {
 
     const rides = await Ride.find(query)
       .populate('user', 'name photoUrl rating')
+      .populate('passengers', 'name photoUrl rating')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -253,7 +254,8 @@ export const getRideById = async (req, res) => {
   try {
     const ride = await Ride.findById(req.params.rideId)
       .populate('user', 'name photoUrl rating phoneNumber')
-      .populate('matchedWith', 'name photoUrl rating phoneNumber');
+      .populate('matchedWith', 'name photoUrl rating phoneNumber')
+      .populate('passengers', 'name photoUrl rating');
 
     if (!ride) {
       return res.status(404).json({
@@ -290,6 +292,7 @@ export const getMyRides = async (req, res) => {
     const rides = await Ride.find(query)
       .populate('user', 'name photoUrl rating')
       .populate('matchedWith', 'name photoUrl rating')
+      .populate('passengers', 'name photoUrl rating')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -529,7 +532,9 @@ export const findMatchingRides = async (req, res) => {
       expiresAt: { $gt: now },
       departureDate: { $gt: now }, // Also filter by departure date
       user: { $ne: req.user._id } // Exclude own rides
-    }).populate('user', 'name photoUrl rating');
+    })
+      .populate('user', 'name photoUrl rating')
+      .populate('passengers', 'name photoUrl rating');
 
     // Filter by proximity (simple distance calculation)
     const matchingRides = rides.filter(ride => {
@@ -632,7 +637,23 @@ export const addUserToRide = async (req, res) => {
       });
     }
 
-    // Set matchedWith if not already set, or keep existing
+    // Initialize passengers array if it doesn't exist
+    if (!ride.passengers) {
+      ride.passengers = [];
+    }
+
+    // Check if user is already a passenger
+    if (ride.passengers.some(p => p.toString() === userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'User is already added to this ride'
+      });
+    }
+
+    // Add user to passengers array
+    ride.passengers.push(userId);
+
+    // Set matchedWith to first passenger for backward compatibility
     if (!ride.matchedWith) {
       ride.matchedWith = userId;
     }
@@ -650,6 +671,7 @@ export const addUserToRide = async (req, res) => {
     // Populate user info
     await ride.populate('user', 'name photoUrl rating');
     await ride.populate('matchedWith', 'name photoUrl rating');
+    await ride.populate('passengers', 'name photoUrl rating');
 
     res.json({
       success: true,
