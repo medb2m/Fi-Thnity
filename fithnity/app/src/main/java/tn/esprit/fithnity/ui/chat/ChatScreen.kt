@@ -1,5 +1,7 @@
 package tn.esprit.fithnity.ui.chat
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -33,6 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tn.esprit.fithnity.data.MessageResponse
 import tn.esprit.fithnity.data.UserPreferences
+import tn.esprit.fithnity.ui.components.ToastManager
 import tn.esprit.fithnity.ui.theme.*
 import java.io.File
 import java.io.FileOutputStream
@@ -64,10 +68,56 @@ fun ChatScreen(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var selectedImageFile by remember { mutableStateOf<File?>(null) }
     var isUploadingImage by remember { mutableStateOf(false) }
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
     
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    
+    // Function to create camera file URI
+    val createCameraFile: () -> Uri? = remember {
+        {
+            try {
+                val imageFile = File(context.cacheDir, "chat_image_${System.currentTimeMillis()}.jpg")
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    imageFile
+                ).also {
+                    cameraUri = it
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+    
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && cameraUri != null) {
+            selectedImageUri = cameraUri
+            cameraUri?.let { uri ->
+                coroutineScope.launch(Dispatchers.IO) {
+                    selectedImageFile = uriToFile(context, uri)
+                }
+            }
+        }
+    }
+    
+    // Camera permission launcher
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            createCameraFile()?.let { uri ->
+                cameraLauncher.launch(uri)
+            }
+        } else {
+            ToastManager.showError("Camera permission is required to take photos")
+        }
+    }
     
     // Image picker for gallery
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -82,34 +132,24 @@ fun ChatScreen(
         }
     }
     
-    // Camera launcher
-    var cameraUri by remember { mutableStateOf<Uri?>(null) }
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success && cameraUri != null) {
-            selectedImageUri = cameraUri
-            cameraUri?.let { uri ->
-                coroutineScope.launch(Dispatchers.IO) {
-                    selectedImageFile = uriToFile(context, uri)
+    // Function to check and request camera permission
+    val requestCameraPermission: () -> Unit = remember {
+        {
+            when (PackageManager.PERMISSION_GRANTED) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.CAMERA
+                ) -> {
+                    // Permission already granted
+                    createCameraFile()?.let { uri ->
+                        cameraLauncher.launch(uri)
+                    }
+                }
+                else -> {
+                    // Request permission
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                 }
             }
-        }
-    }
-    
-    // Function to create camera file URI
-    fun createCameraFile(): Uri? {
-        return try {
-            val imageFile = File(context.cacheDir, "chat_image_${System.currentTimeMillis()}.jpg")
-            FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                imageFile
-            ).also {
-                cameraUri = it
-            }
-        } catch (e: Exception) {
-            null
         }
     }
 
@@ -274,11 +314,7 @@ fun ChatScreen(
                             
                             // Camera button
                             IconButton(
-                                onClick = {
-                                    createCameraFile()?.let { uri ->
-                                        cameraLauncher.launch(uri)
-                                    }
-                                },
+                                onClick = { requestCameraPermission() },
                                 modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(

@@ -45,7 +45,7 @@ router.post(
   [
     body('content').optional().trim().isLength({ max: 5000 }),
     body('messageType').optional().isIn(['TEXT', 'IMAGE', 'LOCATION']),
-    body('imageUrl').optional().isURL(),
+    body('imageUrl').optional().isString(), // Changed from isURL() to isString() to allow relative paths
     body('location.latitude').optional().isFloat({ min: -90, max: 90 }),
     body('location.longitude').optional().isFloat({ min: -180, max: 180 }),
     handleValidationErrors
