@@ -64,6 +64,29 @@ interface CommunityApiService {
     ): ApiResponse<CommentResponse>
 
     /**
+     * Update a comment
+     * PUT /api/community/posts/:postId/comments/:commentId
+     */
+    @PUT("/api/community/posts/{postId}/comments/{commentId}")
+    suspend fun updateComment(
+        @Header("Authorization") bearer: String,
+        @Path("postId") postId: String,
+        @Path("commentId") commentId: String,
+        @Body request: CommentRequest
+    ): ApiResponse<CommentResponse>
+
+    /**
+     * Delete a comment
+     * DELETE /api/community/posts/:postId/comments/:commentId
+     */
+    @DELETE("/api/community/posts/{postId}/comments/{commentId}")
+    suspend fun deleteComment(
+        @Header("Authorization") bearer: String,
+        @Path("postId") postId: String,
+        @Path("commentId") commentId: String
+    ): ApiResponse<Unit>
+
+    /**
      * Update a post
      * PUT /api/community/posts/:postId
      */

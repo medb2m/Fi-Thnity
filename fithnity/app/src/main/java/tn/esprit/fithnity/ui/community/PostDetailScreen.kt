@@ -248,7 +248,13 @@ fun PostDetailScreen(
                             }
                         } else {
                             items(successPost.comments ?: emptyList()) { comment ->
-                                CommentItem(comment = comment)
+                                CommentItem(
+                                    comment = comment,
+                                    currentUserId = userId,
+                                    authToken = authToken,
+                                    postId = postId,
+                                    viewModel = viewModel
+                                )
                             }
                         }
                         
@@ -530,7 +536,20 @@ private fun PostDetailCard(
 }
 
 @Composable
-private fun CommentItem(comment: tn.esprit.fithnity.data.CommentResponse) {
+private fun CommentItem(
+    comment: tn.esprit.fithnity.data.CommentResponse,
+    currentUserId: String?,
+    authToken: String?,
+    postId: String,
+    viewModel: CommunityViewModel
+) {
+    var showOptionsMenu by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var editContent by remember { mutableStateOf(comment.content) }
+    
+    val isOwnComment = comment.user._id == currentUserId
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -576,12 +595,55 @@ private fun CommentItem(comment: tn.esprit.fithnity.data.CommentResponse) {
                 Column(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    Text(
-                        text = comment.user.name ?: "User",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = comment.user.name ?: "User",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        )
+                        
+                        if (isOwnComment) {
+                            Box {
+                                IconButton(
+                                    onClick = { showOptionsMenu = true },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Options",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = TextHint
+                                    )
+                                }
+                                
+                                DropdownMenu(
+                                    expanded = showOptionsMenu,
+                                    onDismissRequest = { showOptionsMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit") },
+                                        onClick = {
+                                            showOptionsMenu = false
+                                            editContent = comment.content
+                                            showEditDialog = true
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete", color = Error) },
+                                        onClick = {
+                                            showOptionsMenu = false
+                                            showDeleteDialog = true
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = comment.content,
@@ -598,6 +660,72 @@ private fun CommentItem(comment: tn.esprit.fithnity.data.CommentResponse) {
                 color = TextHint
             )
         }
+    }
+    
+    // Edit Comment Dialog
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Edit Comment") },
+            text = {
+                OutlinedTextField(
+                    value = editContent,
+                    onValueChange = { editContent = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Edit your comment...", color = TextHint) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedBorderColor = Primary,
+                        unfocusedBorderColor = TextHint.copy(alpha = 0.3f)
+                    ),
+                    maxLines = 3
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editContent.isNotBlank() && authToken != null) {
+                            viewModel.updateComment(authToken, postId, comment._id ?: "", editContent)
+                            showEditDialog = false
+                        }
+                    }
+                ) {
+                    Text("Save", color = Primary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) {
+                    Text("Cancel", color = TextHint)
+                }
+            }
+        )
+    }
+    
+    // Delete Comment Dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Comment") },
+            text = { Text("Are you sure you want to delete this comment?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (authToken != null) {
+                            viewModel.deleteComment(authToken, postId, comment._id ?: "")
+                            showDeleteDialog = false
+                        }
+                    }
+                ) {
+                    Text("Delete", color = Error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel", color = TextHint)
+                }
+            }
+        )
     }
 }
 
