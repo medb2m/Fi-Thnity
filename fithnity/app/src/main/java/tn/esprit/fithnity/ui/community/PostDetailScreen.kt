@@ -51,7 +51,7 @@ fun PostDetailScreen(
 ) {
     val authToken = remember { userPreferences.getAuthToken() }
     val userId = remember { userPreferences.getUserId() }
-    val uiState by viewModel.uiState.collectAsState()
+    val postDetailState by viewModel.postDetailState.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     
@@ -77,16 +77,14 @@ fun PostDetailScreen(
         }
     }
     
-    // Load posts to get the specific post
+    // Load the specific post by ID
     LaunchedEffect(postId) {
-        if (authToken != null) {
-            viewModel.loadPosts(authToken)
-        }
+        viewModel.loadPostById(authToken, postId)
     }
     
-    // Find the post
-    val post = when (val state = uiState) {
-        is CommunityUiState.Success -> state.posts.find { it._id == postId }
+    // Get the post from state
+    val post = when (val state = postDetailState) {
+        is PostDetailState.Success -> state.post
         else -> null
     }
     
@@ -170,8 +168,8 @@ fun PostDetailScreen(
                 .padding(paddingValues)
                 .background(Surface)
         ) {
-            when {
-                post == null && uiState is CommunityUiState.Loading -> {
+            when (postDetailState) {
+                is PostDetailState.Loading -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -179,7 +177,7 @@ fun PostDetailScreen(
                         CircularProgressIndicator(color = Primary)
                     }
                 }
-                post == null -> {
+                is PostDetailState.Error -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -195,7 +193,7 @@ fun PostDetailScreen(
                                 tint = Error
                             )
                             Text(
-                                text = "Post not found",
+                                text = (postDetailState as PostDetailState.Error).message,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = TextSecondary
@@ -203,7 +201,8 @@ fun PostDetailScreen(
                         }
                     }
                 }
-                else -> {
+                is PostDetailState.Success -> {
+                    val successPost = (postDetailState as PostDetailState.Success).post
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
@@ -212,7 +211,7 @@ fun PostDetailScreen(
                         // Post Card
                         item {
                             PostDetailCard(
-                                post = post,
+                                post = successPost,
                                 viewModel = viewModel,
                                 authToken = authToken
                             )
@@ -231,7 +230,7 @@ fun PostDetailScreen(
                         }
                         
                         // Comments List
-                        if (post.comments.isNullOrEmpty()) {
+                        if (successPost.comments.isNullOrEmpty()) {
                             item {
                                 Box(
                                     modifier = Modifier
@@ -248,7 +247,7 @@ fun PostDetailScreen(
                                 }
                             }
                         } else {
-                            items(post.comments ?: emptyList()) { comment ->
+                            items(successPost.comments ?: emptyList()) { comment ->
                                 CommentItem(comment = comment)
                             }
                         }
@@ -594,7 +593,7 @@ private fun CommentItem(comment: tn.esprit.fithnity.data.CommentResponse) {
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = comment.timeAgo ?: formatTimeAgo(comment.createdAt),
+                text = formatTimeAgo(comment.createdAt),
                 fontSize = 11.sp,
                 color = TextHint
             )
@@ -749,29 +748,6 @@ private fun DeletePostDialog(
             }
         }
     )
-}
-
-/**
- * Helper function to convert URI to File
- */
-suspend fun uriToFile(context: android.content.Context, uri: Uri): File? {
-    return withContext(Dispatchers.IO) {
-        try {
-            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-            val file = File(context.cacheDir, "post_image_${System.currentTimeMillis()}.jpg")
-            val outputStream = FileOutputStream(file)
-            
-            inputStream?.use { input ->
-                outputStream.use { output ->
-                    input.copyTo(output)
-                }
-            }
-            
-            file
-        } catch (e: Exception) {
-            null
-        }
-    }
 }
 
 /**

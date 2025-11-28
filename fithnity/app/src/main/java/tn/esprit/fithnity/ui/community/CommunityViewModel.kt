@@ -33,6 +33,12 @@ sealed class CreatePostUiState {
     data class Error(val message: String) : CreatePostUiState()
 }
 
+sealed class PostDetailState {
+    object Loading : PostDetailState()
+    data class Success(val post: CommunityPostResponse) : PostDetailState()
+    data class Error(val message: String) : PostDetailState()
+}
+
 class CommunityViewModel : ViewModel() {
     private val api = NetworkModule.communityApi
 
@@ -41,7 +47,38 @@ class CommunityViewModel : ViewModel() {
 
     private val _createPostState = MutableStateFlow<CreatePostUiState>(CreatePostUiState.Idle)
     val createPostState: StateFlow<CreatePostUiState> = _createPostState.asStateFlow()
+    
+    private val _postDetailState = MutableStateFlow<PostDetailState>(PostDetailState.Loading)
+    val postDetailState: StateFlow<PostDetailState> = _postDetailState.asStateFlow()
 
+    /**
+     * Load a single post by ID
+     */
+    fun loadPostById(
+        authToken: String?,
+        postId: String
+    ) = viewModelScope.launch {
+        Log.d(TAG, "loadPostById: Loading post $postId")
+        _postDetailState.value = PostDetailState.Loading
+        
+        try {
+            val bearer = if (authToken != null) "Bearer $authToken" else null
+            val response = api.getPostById(bearer = bearer, postId = postId)
+            
+            if (response.success && response.data != null) {
+                Log.d(TAG, "loadPostById: Post loaded successfully")
+                _postDetailState.value = PostDetailState.Success(response.data)
+            } else {
+                val errorMsg = response.message ?: response.error ?: "Failed to load post"
+                Log.e(TAG, "loadPostById: Failed - $errorMsg")
+                _postDetailState.value = PostDetailState.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "loadPostById: Exception occurred", e)
+            _postDetailState.value = PostDetailState.Error(e.message ?: "Unknown error occurred")
+        }
+    }
+    
     /**
      * Load all community posts
      */

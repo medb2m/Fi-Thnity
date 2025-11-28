@@ -114,6 +114,7 @@ fun MyPostsScreen(
                             posts = myPosts,
                             authToken = authToken,
                             userId = userId,
+                            navController = navController,
                             viewModel = viewModel,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -140,6 +141,7 @@ private fun MyPostsList(
     posts: List<CommunityPostResponse>,
     authToken: String?,
     userId: String?,
+    navController: NavHostController,
     viewModel: CommunityViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -695,29 +697,6 @@ private fun DeletePostDialog(
             }
         }
     )
-}
-
-/**
- * Helper function to convert URI to File
- */
-suspend fun uriToFile(context: android.content.Context, uri: Uri): File? {
-    return withContext(Dispatchers.IO) {
-        try {
-            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-            val file = File(context.cacheDir, "post_image_${System.currentTimeMillis()}.jpg")
-            val outputStream = FileOutputStream(file)
-            
-            inputStream?.use { input ->
-                outputStream.use { output ->
-                    input.copyTo(output)
-                }
-            }
-            
-            file
-        } catch (e: Exception) {
-            null
-        }
-    }
 }
 
 /**

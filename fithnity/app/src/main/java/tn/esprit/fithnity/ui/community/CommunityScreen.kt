@@ -64,15 +64,19 @@ fun CommunityScreen(
     // State for showing new post dialog
     var showNewPostDialog by remember { mutableStateOf(false) }
 
+    // Track if posts need to be refreshed after creating a new post
+    var shouldRefresh by remember { mutableStateOf(false) }
+    
     // Load posts on first composition
     LaunchedEffect(Unit) {
         viewModel.loadPosts(authToken = authToken, sort = "score")
     }
     
-    // Reload posts when dialog closes (in case a post was created)
+    // Reload posts only when dialog closes after creating a post
     LaunchedEffect(showNewPostDialog) {
-        if (!showNewPostDialog) {
+        if (!showNewPostDialog && shouldRefresh) {
             viewModel.loadPosts(authToken = authToken, sort = "score")
+            shouldRefresh = false
         }
     }
 
@@ -175,7 +179,8 @@ fun CommunityScreen(
             NewPostDialog(
                 onDismiss = { showNewPostDialog = false },
                 onPostCreated = {
-                    // Post was created, dialog will close automatically
+                    // Post was created, mark for refresh when dialog closes
+                    shouldRefresh = true
                 },
                 userPreferences = userPreferences,
                 viewModel = viewModel
