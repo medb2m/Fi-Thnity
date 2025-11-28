@@ -144,7 +144,7 @@ fun FiThnityTopBar(
     
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = Surface,
+        color = Color.White,
         tonalElevation = 3.dp
     ) {
         Column(
@@ -192,7 +192,7 @@ fun FiThnityTopBar(
                     .weight(1f)
                     .height(44.dp),
                 shape = RoundedCornerShape(22.dp),
-                color = Surface,
+                color = Color.White,
                 shadowElevation = 1.dp
             ) {
                 Box(
