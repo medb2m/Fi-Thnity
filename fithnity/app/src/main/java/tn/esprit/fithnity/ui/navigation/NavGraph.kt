@@ -79,12 +79,54 @@ fun FiThnityNavGraph(
             ) + fadeOut(animationSpec = tween(300))
         }
     ) {
-        // Home Screen
+        // Home Screen (base route without parameters)
         composable(Screen.Home.route) {
             HomeScreen(
                 navController = navController,
                 showWelcomeBanner = isFirstHomeVisit,
                 onWelcomeBannerDismissed = onFirstHomeVisitComplete
+            )
+        }
+        
+        // Home Screen with shared location parameters
+        composable(
+            route = Screen.Home.route + "?lat={lat}&lng={lng}&userName={userName}&userPhoto={userPhoto}",
+            arguments = listOf(
+                navArgument("lat") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("lng") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("userName") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("userPhoto") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            val lat = backStackEntry.arguments?.getString("lat")?.toDoubleOrNull()
+            val lng = backStackEntry.arguments?.getString("lng")?.toDoubleOrNull()
+            val userName = backStackEntry.arguments?.getString("userName")
+            val userPhoto = backStackEntry.arguments?.getString("userPhoto")
+            
+            HomeScreen(
+                navController = navController,
+                showWelcomeBanner = isFirstHomeVisit,
+                onWelcomeBannerDismissed = onFirstHomeVisitComplete,
+                sharedLocationLat = lat,
+                sharedLocationLng = lng,
+                sharedLocationUserName = userName,
+                sharedLocationUserPhoto = userPhoto
             )
         }
 
