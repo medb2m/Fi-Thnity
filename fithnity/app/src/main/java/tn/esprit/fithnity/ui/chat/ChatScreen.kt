@@ -46,6 +46,9 @@ import tn.esprit.fithnity.ui.theme.*
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import android.util.Log
 
 /**
  * Helper function to convert URI to File
@@ -65,6 +68,64 @@ suspend fun uriToFile(context: android.content.Context, uri: Uri): File? {
             
             file
         } catch (e: Exception) {
+            null
+        }
+    }
+}
+
+/**
+ * Helper function to download audio from URL to local file
+ */
+suspend fun downloadAudioFile(context: android.content.Context, audioUrl: String): File? {
+    return withContext(Dispatchers.IO) {
+        try {
+            Log.d("ChatScreen", "Downloading audio from: $audioUrl")
+            val client = OkHttpClient()
+            val request = Request.Builder()
+                .url(audioUrl)
+                .build()
+            
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                Log.e("ChatScreen", "Failed to download audio: HTTP ${response.code} - ${response.message}")
+                return@withContext null
+            }
+            
+            val body = response.body ?: run {
+                Log.e("ChatScreen", "Response body is null")
+                return@withContext null
+            }
+            
+            // Determine file extension from URL or use .3gp as default
+            val extension = when {
+                audioUrl.contains(".m4a") -> ".m4a"
+                audioUrl.contains(".3gp") -> ".3gp"
+                audioUrl.contains(".mp3") -> ".mp3"
+                audioUrl.contains(".wav") -> ".wav"
+                audioUrl.contains(".aac") -> ".aac"
+                else -> ".3gp" // Default to 3gp for maximum compatibility
+            }
+            
+            val file = File(context.cacheDir, "chat_audio_${System.currentTimeMillis()}$extension")
+            val outputStream = FileOutputStream(file)
+            
+            var bytesCopied = 0L
+            body.byteStream().use { input ->
+                outputStream.use { output ->
+                    bytesCopied = input.copyTo(output)
+                }
+            }
+            
+            if (file.exists() && file.length() > 0) {
+                Log.d("ChatScreen", "Audio downloaded successfully: ${file.absolutePath}, size: ${file.length()} bytes")
+                file
+            } else {
+                Log.e("ChatScreen", "Downloaded file is empty or doesn't exist")
+                file.delete()
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("ChatScreen", "Error downloading audio: ${e.message}", e)
             null
         }
     }
@@ -212,8 +273,11 @@ fun ChatScreen(
     val startRecording: () -> Unit = remember {
         {
             try {
-                val outputFile = File(context.cacheDir, "voice_message_${System.currentTimeMillis()}.m4a")
+                // Use 3GP format with AMR encoder for maximum Android compatibility
+                val outputFile = File(context.cacheDir, "voice_message_${System.currentTimeMillis()}.3gp")
                 audioFile = outputFile
+                
+                Log.d("ChatScreen", "Starting recording to: ${outputFile.absolutePath}")
                 
                 mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     MediaRecorder(context)
@@ -222,13 +286,15 @@ fun ChatScreen(
                     MediaRecorder()
                 }.apply {
                     setAudioSource(MediaRecorder.AudioSource.MIC)
-                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                    // Use 3GP format with AMR encoder - most compatible on Android
+                    setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
                     setOutputFile(outputFile.absolutePath)
                     prepare()
                     start()
                 }
                 
+                Log.d("ChatScreen", "Recording started successfully")
                 isRecording = true
                 recordingDuration = 0
                 
@@ -239,8 +305,11 @@ fun ChatScreen(
                     }
                 }
             } catch (e: Exception) {
+                Log.e("ChatScreen", "Failed to start recording: ${e.message}", e)
                 ToastManager.showError("Failed to start recording: ${e.message}")
                 isRecording = false
+                mediaRecorder?.release()
+                mediaRecorder = null
             }
         }
     }
@@ -528,6 +597,15 @@ fun ChatScreen(
                                     onClick = {
                                         coroutineScope.launch {
                                             audioFile?.let { file ->
+                                                // Verify file exists and has content
+                                                if (!file.exists() || file.length() == 0L) {
+                                                    ToastManager.showError("Audio file is invalid")
+                                                    Log.e("ChatScreen", "Audio file invalid: exists=${file.exists()}, size=${file.length()}")
+                                                    return@launch
+                                                }
+                                                
+                                                Log.d("ChatScreen", "Uploading audio file: ${file.absolutePath}, size: ${file.length()} bytes")
+                                                
                                                 if (authToken != null) {
                                                     isUploadingImage = true
                                                     val audioUrl = withContext(Dispatchers.IO) {
@@ -536,6 +614,7 @@ fun ChatScreen(
                                                     isUploadingImage = false
                                                     
                                                     if (audioUrl != null) {
+                                                        Log.d("ChatScreen", "Audio uploaded successfully, sending message")
                                                         viewModel.sendMessage(
                                                             authToken,
                                                             conversationId,
@@ -549,6 +628,7 @@ fun ChatScreen(
                                                         recordingDuration = 0
                                                     } else {
                                                         ToastManager.showError("Failed to upload audio")
+                                                        Log.e("ChatScreen", "Audio upload failed")
                                                     }
                                                 }
                                             }
@@ -850,13 +930,62 @@ fun MessageBubble(
     var playbackProgress by remember { mutableStateOf(0f) }
     var currentPosition by remember { mutableStateOf(0) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    var localAudioFile by remember { mutableStateOf<File?>(null) }
+    var isDownloadingAudio by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     
-    // Cleanup MediaPlayer when composable is disposed
+    // Download audio file when message is first displayed
+    LaunchedEffect(message._id, message.audioUrl) {
+        if (message.audioUrl != null && localAudioFile == null && !isDownloadingAudio) {
+            val fullAudioUrl = if (message.audioUrl!!.startsWith("http")) {
+                message.audioUrl
+            } else {
+                "http://72.61.145.239:9090${message.audioUrl}"
+            }
+            isDownloadingAudio = true
+            Log.d("ChatScreen", "Starting audio download for message ${message._id}")
+            val downloadedFile = downloadAudioFile(context, fullAudioUrl)
+            if (downloadedFile != null) {
+                localAudioFile = downloadedFile
+                Log.d("ChatScreen", "Audio downloaded and ready for playback")
+            } else {
+                Log.e("ChatScreen", "Failed to download audio from: $fullAudioUrl")
+                ToastManager.showError("Failed to download audio message")
+            }
+            isDownloadingAudio = false
+        }
+    }
+    
+    // Cleanup MediaPlayer and local file when composable is disposed
     DisposableEffect(message._id) {
         onDispose {
-            mediaPlayer?.release()
-            mediaPlayer = null
+            try {
+                mediaPlayer?.apply {
+                    if (isPlaying) {
+                        stop()
+                    }
+                    release()
+                }
+                mediaPlayer = null
+            } catch (e: Exception) {
+                Log.e("ChatScreen", "Error releasing MediaPlayer: ${e.message}")
+            }
+            
+            // Clean up local audio file after a delay to allow playback
+            val fileToDelete = localAudioFile
+            if (fileToDelete != null) {
+                coroutineScope.launch {
+                    delay(10000) // Keep file for 10 seconds after disposal to allow playback
+                    try {
+                        if (fileToDelete.exists()) {
+                            fileToDelete.delete()
+                            Log.d("ChatScreen", "Cleaned up audio file: ${fileToDelete.name}")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("ChatScreen", "Error deleting audio file: ${e.message}")
+                    }
+                }
+            }
         }
     }
     
@@ -906,66 +1035,100 @@ fun MessageBubble(
                 
                 // Audio if message type is AUDIO
                 if (message.messageType == "AUDIO" && message.audioUrl != null) {
-                    val fullAudioUrl = if (message.audioUrl!!.startsWith("http")) {
-                        message.audioUrl
-                    } else {
-                        "http://72.61.145.239:9090${message.audioUrl}"
-                    }
-                    
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable {
+                            .clickable(enabled = !isDownloadingAudio && localAudioFile != null) {
                                 if (isPlaying) {
                                     // Stop playback
                                     mediaPlayer?.pause()
                                     isPlaying = false
                                 } else {
                                     // Start playback
-                                    if (mediaPlayer == null) {
+                                    if (mediaPlayer == null && localAudioFile != null) {
+                                        val audioFile = localAudioFile!!
+                                        if (!audioFile.exists() || audioFile.length() == 0L) {
+                                            Log.e("ChatScreen", "Audio file doesn't exist or is empty: ${audioFile.absolutePath}")
+                                            ToastManager.showError("Audio file not found")
+                                            return@clickable
+                                        }
+                                        
                                         try {
+                                            Log.d("ChatScreen", "Starting playback from: ${audioFile.absolutePath}, size: ${audioFile.length()} bytes")
                                             mediaPlayer = MediaPlayer().apply {
-                                                setDataSource(fullAudioUrl)
-                                                prepareAsync()
+                                                setDataSource(audioFile.absolutePath)
+                                                
                                                 setOnPreparedListener {
-                                                    start()
-                                                    isPlaying = true
-                                                    // Update progress
-                                                    coroutineScope.launch {
-                                                        while (isPlaying && mediaPlayer != null) {
-                                                            try {
-                                                                val mp = mediaPlayer
-                                                                if (mp != null && mp.isPlaying) {
-                                                                    currentPosition = mp.currentPosition / 1000
-                                                                    playbackProgress = mp.currentPosition.toFloat() / mp.duration.toFloat()
+                                                    Log.d("ChatScreen", "MediaPlayer prepared, starting playback")
+                                                    try {
+                                                        start()
+                                                        isPlaying = true
+                                                        Log.d("ChatScreen", "Playback started, duration: ${duration}ms")
+                                                        
+                                                        // Update progress
+                                                        coroutineScope.launch {
+                                                            while (isPlaying && mediaPlayer != null) {
+                                                                try {
+                                                                    val mp = mediaPlayer
+                                                                    if (mp != null && mp.isPlaying) {
+                                                                        currentPosition = mp.currentPosition / 1000
+                                                                        val duration = mp.duration
+                                                                        if (duration > 0) {
+                                                                            playbackProgress = mp.currentPosition.toFloat() / duration.toFloat()
+                                                                        }
+                                                                    }
+                                                                } catch (e: Exception) {
+                                                                    Log.e("ChatScreen", "Error updating progress: ${e.message}")
                                                                 }
-                                                            } catch (e: Exception) {
-                                                                // Ignore
+                                                                delay(100)
                                                             }
-                                                            delay(100)
                                                         }
+                                                    } catch (e: Exception) {
+                                                        Log.e("ChatScreen", "Error starting playback: ${e.message}", e)
+                                                        ToastManager.showError("Failed to start playback")
+                                                        isPlaying = false
                                                     }
                                                 }
+                                                
                                                 setOnCompletionListener {
+                                                    Log.d("ChatScreen", "Playback completed")
                                                     isPlaying = false
                                                     playbackProgress = 0f
                                                     currentPosition = 0
                                                     mediaPlayer?.release()
                                                     mediaPlayer = null
                                                 }
-                                                setOnErrorListener { _, _, _ ->
+                                                
+                                                setOnErrorListener { _, what, extra ->
+                                                    Log.e("ChatScreen", "MediaPlayer error: what=$what, extra=$extra")
                                                     isPlaying = false
-                                                    ToastManager.showError("Failed to play audio")
+                                                    ToastManager.showError("Failed to play audio (error: $what)")
+                                                    try {
+                                                        mediaPlayer?.release()
+                                                    } catch (e: Exception) {
+                                                        Log.e("ChatScreen", "Error releasing MediaPlayer: ${e.message}")
+                                                    }
+                                                    mediaPlayer = null
                                                     true
                                                 }
+                                                
+                                                prepareAsync()
                                             }
                                         } catch (e: Exception) {
+                                            Log.e("ChatScreen", "Error creating MediaPlayer: ${e.message}", e)
                                             ToastManager.showError("Failed to play audio: ${e.message}")
+                                            isPlaying = false
+                                            try {
+                                                mediaPlayer?.release()
+                                            } catch (ex: Exception) {
+                                                Log.e("ChatScreen", "Error releasing MediaPlayer: ${ex.message}")
+                                            }
+                                            mediaPlayer = null
                                         }
-                                    } else {
+                                    } else if (mediaPlayer != null) {
                                         mediaPlayer?.start()
                                         isPlaying = true
                                         coroutineScope.launch {
@@ -998,12 +1161,20 @@ fun MessageBubble(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (isPlaying) "Pause" else "Play",
-                                tint = if (isOwnMessage) Color.White else Primary,
-                                modifier = Modifier.size(24.dp)
-                            )
+                            if (isDownloadingAudio) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = if (isOwnMessage) Color.White else Primary
+                                )
+                            } else {
+                                Icon(
+                                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPlaying) "Pause" else "Play",
+                                    tint = if (isOwnMessage) Color.White else Primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                         
                         Column(

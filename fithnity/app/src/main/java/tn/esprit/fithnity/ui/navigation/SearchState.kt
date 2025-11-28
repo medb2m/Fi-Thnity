@@ -27,6 +27,8 @@ object SearchState {
     var isHomeScreen by mutableStateOf(false)
         private set
     
+    var onAddressSelected: ((Address) -> Unit)? = null
+    
     fun updateQuery(query: String) {
         searchQuery = query
         onSearchQueryChange?.invoke(query)
@@ -38,6 +40,14 @@ object SearchState {
     
     fun clearSearchHandler() {
         onSearchQueryChange = null
+    }
+    
+    fun setAddressSelectedHandler(handler: (Address) -> Unit) {
+        onAddressSelected = handler
+    }
+    
+    fun clearAddressSelectedHandler() {
+        onAddressSelected = null
     }
     
     fun updateSuggestions(suggestions: List<Address>, isLoading: Boolean, show: Boolean) {

@@ -40,6 +40,7 @@ import tn.esprit.fithnity.R
 import tn.esprit.fithnity.utils.rememberLocationState
 import android.widget.Toast
 import android.location.Geocoder
+import android.location.Address
 import java.io.IOException
 import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.LifecycleOwner
@@ -82,6 +83,9 @@ fun HomeScreen(
     // Search query from global state
     var searchQuery by remember { mutableStateOf(SearchState.searchQuery) }
     
+    // Store MapView reference for lifecycle management
+    var mapView by remember { mutableStateOf<MapView?>(null) }
+    
     // Listen to search state changes for map location search
     LaunchedEffect(Unit) {
         SearchState.setSearchHandler { query ->
@@ -115,16 +119,49 @@ fun HomeScreen(
                 }
             }
         }
+        
+        // Listen to address selection from suggestions dropdown
+        SearchState.setAddressSelectedHandler { address ->
+            if (mapLibreMap != null && mapView != null) {
+                try {
+                    // Check if lifecycle is in a valid state
+                    if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                        return@setAddressSelectedHandler
+                    }
+                    
+                    val location = LatLng(address.latitude, address.longitude)
+                    
+                    // Center map on selected address location
+                    val cameraUpdate = org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(
+                        CameraPosition.Builder()
+                            .target(location)
+                            .zoom(15.0)
+                            .build()
+                    )
+                    mapLibreMap?.animateCamera(cameraUpdate, 1000)
+                    
+                    // Add a marker for the selected location
+                    mapLibreMap?.getStyle { style ->
+                        try {
+                            addSelectedLocationMarker(style, location)
+                        } catch (e: Exception) {
+                            android.util.Log.e("HomeScreen", "Error adding selected location marker", e)
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeScreen", "Error centering map on selected address", e)
+                }
+            }
+        }
     }
     
     // Cleanup on dispose
     DisposableEffect(Unit) {
         onDispose {
             SearchState.clearSearchHandler()
+            SearchState.clearAddressSelectedHandler()
         }
     }
-    // Store MapView reference for lifecycle management
-    var mapView by remember { mutableStateOf<MapView?>(null) }
     
     // Initialize MapLibre lazily and defer MapView creation to prevent ANR
     LaunchedEffect(Unit) {
@@ -612,6 +649,81 @@ private fun addUserLocationMarker(mapStyle: Style, location: LatLng, accuracy: F
         
     } catch (e: Exception) {
         android.util.Log.e("HomeScreen", "Error adding user location marker", e)
+    }
+}
+
+/**
+ * Add or update selected location marker on the map (from search suggestions)
+ */
+private fun addSelectedLocationMarker(mapStyle: Style, location: LatLng) {
+    try {
+        // Create GeoJSON point for selected location
+        val pointJson = JSONObject().apply {
+            put("type", "Point")
+            put("coordinates", JSONArray().apply {
+                put(location.longitude)
+                put(location.latitude)
+            })
+        }
+        
+        val featureJson = JSONObject().apply {
+            put("type", "Feature")
+            put("geometry", pointJson)
+        }
+        
+        // Remove existing selected location layer and source
+        mapStyle.getLayer("selected-location-layer")?.let {
+            mapStyle.removeLayer(it)
+        }
+        mapStyle.getSourceAs<GeoJsonSource>("selected-location-source")?.let {
+            mapStyle.removeSource(it)
+        }
+        
+        // Add source for selected location
+        val source = GeoJsonSource("selected-location-source", featureJson.toString())
+        mapStyle.addSource(source)
+        
+        // Add symbol layer for selected location icon
+        val symbolLayer = SymbolLayer("selected-location-layer", "selected-location-source")
+            .withProperties(
+                org.maplibre.android.style.layers.PropertyFactory.iconImage("selected-location-icon"),
+                org.maplibre.android.style.layers.PropertyFactory.iconSize(1.5f),
+                org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap(true),
+                org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement(true),
+                org.maplibre.android.style.layers.PropertyFactory.iconAnchor(org.maplibre.android.style.layers.Property.ICON_ANCHOR_BOTTOM)
+            )
+        
+        // Add a custom icon for selected location (red/orange color to distinguish from user location)
+        val bitmap = android.graphics.Bitmap.createBitmap(56, 56, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val paint = android.graphics.Paint().apply {
+            isAntiAlias = true
+            color = android.graphics.Color.parseColor("#FF6B6B") // Red color for selected location
+            this.style = android.graphics.Paint.Style.FILL
+        }
+        val strokePaint = android.graphics.Paint().apply {
+            isAntiAlias = true
+            color = android.graphics.Color.WHITE
+            this.style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 5f
+        }
+        // Draw a pin-like shape (circle with a point at bottom)
+        canvas.drawCircle(28f, 20f, 16f, paint)
+        canvas.drawCircle(28f, 20f, 16f, strokePaint)
+        // Draw a small triangle at the bottom to make it look like a pin
+        val path = android.graphics.Path()
+        path.moveTo(28f, 36f)
+        path.lineTo(20f, 50f)
+        path.lineTo(36f, 50f)
+        path.close()
+        canvas.drawPath(path, paint)
+        canvas.drawPath(path, strokePaint)
+        
+        mapStyle.addImage("selected-location-icon", bitmap)
+        mapStyle.addLayer(symbolLayer)
+        
+    } catch (e: Exception) {
+        android.util.Log.e("HomeScreen", "Error adding selected location marker", e)
     }
 }
 
