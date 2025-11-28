@@ -1,7 +1,6 @@
 package tn.esprit.fithnity.ui.community
 
 import android.net.Uri
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -20,10 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -43,8 +42,9 @@ import java.io.InputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MyPostsScreen(
+fun PostDetailScreen(
     navController: NavHostController,
+    postId: String,
     userPreferences: UserPreferences,
     viewModel: CommunityViewModel = viewModel(),
     modifier: Modifier = Modifier
@@ -52,31 +52,108 @@ fun MyPostsScreen(
     val authToken = remember { userPreferences.getAuthToken() }
     val userId = remember { userPreferences.getUserId() }
     val uiState by viewModel.uiState.collectAsState()
-
-    // Load all posts and filter by current user
-    LaunchedEffect(Unit) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    var showOptionsMenu by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    
+    var editContent by remember { mutableStateOf("") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedImageFile by remember { mutableStateOf<File?>(null) }
+    var removeImage by remember { mutableStateOf(false) }
+    var commentText by remember { mutableStateOf("") }
+    
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            selectedImageUri = it
+            removeImage = false
+            coroutineScope.launch {
+                selectedImageFile = uriToFile(context, it)
+            }
+        }
+    }
+    
+    // Load posts to get the specific post
+    LaunchedEffect(postId) {
         if (authToken != null) {
             viewModel.loadPosts(authToken)
         }
     }
-
+    
+    // Find the post
+    val post = when (val state = uiState) {
+        is CommunityUiState.Success -> state.posts.find { it._id == postId }
+        else -> null
+    }
+    
+    val isOwnPost = post?.user?._id == userId
+    
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "My Posts",
+                        text = "Post",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 20.sp
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
                             tint = Primary
                         )
+                    }
+                },
+                actions = {
+                    if (isOwnPost && post != null) {
+                        Box {
+                            IconButton(onClick = { showOptionsMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "More",
+                                    tint = TextPrimary
+                                )
+                            }
+                            
+                            DropdownMenu(
+                                expanded = showOptionsMenu,
+                                onDismissRequest = { showOptionsMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit") },
+                                    onClick = {
+                                        showOptionsMenu = false
+                                        editContent = post.content
+                                        selectedImageUri = post.imageUrl?.let { 
+                                            Uri.parse(if (it.startsWith("http")) it else "http://72.61.145.239:9090$it")
+                                        }
+                                        selectedImageFile = null
+                                        removeImage = false
+                                        showEditDialog = true
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Edit, contentDescription = null)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete", color = Error) },
+                                    onClick = {
+                                        showOptionsMenu = false
+                                        showDeleteDialog = true
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Delete, contentDescription = null, tint = Error)
+                                    }
+                                )
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -91,9 +168,10 @@ fun MyPostsScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .background(Surface)
         ) {
-            when (val state = uiState) {
-                is CommunityUiState.Loading -> {
+            when {
+                post == null && uiState is CommunityUiState.Loading -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -101,193 +179,195 @@ fun MyPostsScreen(
                         CircularProgressIndicator(color = Primary)
                     }
                 }
-                is CommunityUiState.Success -> {
-                    // Filter posts to show only current user's posts
-                    val myPosts = state.posts.filter { post ->
-                        post.user._id == userId
-                    }
-
-                    if (myPosts.isEmpty()) {
-                        EmptyMyPostsView()
-                    } else {
-                        MyPostsList(
-                            posts = myPosts,
-                            authToken = authToken,
-                            userId = userId,
-                            viewModel = viewModel,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                post == null -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = Error
+                            )
+                            Text(
+                                text = "Post not found",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TextSecondary
+                            )
+                        }
                     }
                 }
-                is CommunityUiState.Error -> {
-                    ErrorView(
-                        message = state.message,
-                        onRetry = {
-                            if (authToken != null) {
-                                viewModel.loadPosts(authToken)
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Post Card
+                        item {
+                            PostDetailCard(
+                                post = post,
+                                viewModel = viewModel,
+                                authToken = authToken
+                            )
+                        }
+                        
+                        // Comments Section
+                        item {
+                            Divider()
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Comments",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+                        
+                        // Comments List
+                        if (post.comments.isNullOrEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No comments yet. Be the first to comment!",
+                                        fontSize = 14.sp,
+                                        color = TextHint,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
                             }
-                        },
-                        modifier = Modifier.fillMaxSize()
+                        } else {
+                            items(post.comments ?: emptyList()) { comment ->
+                                CommentItem(comment = comment)
+                            }
+                        }
+                        
+                        // Comment Input
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = commentText,
+                                    onValueChange = { commentText = it },
+                                    modifier = Modifier.weight(1f),
+                                    placeholder = { Text("Write a comment...", color = TextHint) },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary,
+                                        focusedBorderColor = Primary,
+                                        unfocusedBorderColor = TextHint.copy(alpha = 0.3f)
+                                    ),
+                                    shape = RoundedCornerShape(24.dp),
+                                    singleLine = true
+                                )
+                                IconButton(
+                                    onClick = {
+                                        if (commentText.isNotBlank() && authToken != null) {
+                                            viewModel.addComment(authToken, postId, commentText)
+                                            commentText = ""
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (commentText.isNotBlank()) Primary else Primary.copy(alpha = 0.3f)
+                                        )
+                                ) {
+                                    Icon(
+                                        Icons.Default.Send,
+                                        contentDescription = "Send",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // Extra space at bottom
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Edit Post Dialog
+    if (showEditDialog && post != null) {
+        EditPostDialog(
+            post = post,
+            content = editContent,
+            onContentChange = { editContent = it },
+            imageUri = selectedImageUri,
+            onImageChange = { uri ->
+                selectedImageUri = uri
+                removeImage = false
+                coroutineScope.launch {
+                    uri?.let { selectedImageFile = uriToFile(context, it) }
+                }
+            },
+            onRemoveImage = {
+                selectedImageUri = null
+                selectedImageFile = null
+                removeImage = true
+            },
+            onDismiss = { showEditDialog = false },
+            onSave = {
+                coroutineScope.launch {
+                    viewModel.updatePost(
+                        authToken = authToken,
+                        postId = postId,
+                        content = editContent,
+                        imageFile = selectedImageFile,
+                        removeImage = removeImage
                     )
+                    showEditDialog = false
+                    ToastManager.showSuccess("Post updated successfully")
                 }
+            },
+            onSelectImage = { galleryLauncher.launch("image/*") }
+        )
+    }
+    
+    // Delete Confirmation Dialog
+    if (showDeleteDialog) {
+        DeletePostDialog(
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = {
+                viewModel.deletePost(authToken = authToken, postId = postId)
+                showDeleteDialog = false
+                ToastManager.showSuccess("Post deleted successfully")
+                navController.popBackStack()
             }
-        }
+        )
     }
 }
 
 @Composable
-private fun MyPostsList(
-    posts: List<CommunityPostResponse>,
-    authToken: String?,
-    userId: String?,
-    viewModel: CommunityViewModel,
-    modifier: Modifier = Modifier
-) {
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        items(posts) { post ->
-            MyPostCard(
-                post = post,
-                viewModel = viewModel,
-                authToken = authToken,
-                userId = userId,
-                navController = navController,
-                onCommentClick = { postId ->
-                    navController.navigate(Screen.PostDetail.createRoute(postId))
-                }
-            )
-        }
-
-        // Extra space at bottom
-        item {
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun EmptyMyPostsView() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.padding(32.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.PostAdd,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = TextHint
-            )
-            Text(
-                text = "No posts yet",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextSecondary
-            )
-            Text(
-                text = "Share your thoughts with the community!",
-                fontSize = 14.sp,
-                color = TextHint,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-        }
-    }
-}
-
-@Composable
-private fun ErrorView(
-    message: String,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.padding(32.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.ErrorOutline,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = Color(0xFFEF4444)
-            )
-            Text(
-                text = "Error loading posts",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextSecondary
-            )
-            Text(
-                text = message,
-                fontSize = 14.sp,
-                color = TextHint,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            Button(
-                onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Primary
-                )
-            ) {
-                Text("Retry")
-            }
-        }
-    }
-}
-
-@Composable
-private fun MyPostCard(
+private fun PostDetailCard(
     post: CommunityPostResponse,
     viewModel: CommunityViewModel,
-    authToken: String?,
-    userId: String?,
-    navController: NavHostController,
-    onCommentClick: (String) -> Unit
+    authToken: String?
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    
-    var showOptionsMenu by remember { mutableStateOf(false) }
-    var showEditDialog by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    
-    var editContent by remember { mutableStateOf(post.content) }
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedImageFile by remember { mutableStateOf<File?>(null) }
-    var removeImage by remember { mutableStateOf(false) }
-    
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            selectedImageUri = it
-            removeImage = false
-            // Convert URI to File
-            coroutineScope.launch {
-                selectedImageFile = uriToFile(context, it)
-            }
-        }
-    }
-    
-    // Use the existing PostCard but with custom header
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp)
-            .clickable {
-                navController.navigate(Screen.PostDetail.createRoute(post._id))
-            },
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(0.dp),
         colors = CardDefaults.cardColors(
             containerColor = Surface
@@ -299,12 +379,11 @@ private fun MyPostCard(
         Column(
             modifier = Modifier.padding(12.dp)
         ) {
-            // Header: User Info with dropdown menu
+            // Header: User Info
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // User Avatar
                 val profileImageUrl = post.user.photoUrl?.let { url ->
                     if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
                 }
@@ -349,51 +428,6 @@ private fun MyPostCard(
                         color = TextSecondary
                     )
                 }
-
-                // More Options Dropdown
-                Box {
-                    IconButton(onClick = { showOptionsMenu = true }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "More",
-                            modifier = Modifier.size(20.dp),
-                            tint = TextHint
-                        )
-                    }
-                    
-                    DropdownMenu(
-                        expanded = showOptionsMenu,
-                        onDismissRequest = { showOptionsMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Edit") },
-                            onClick = {
-                                showOptionsMenu = false
-                                editContent = post.content
-                                // Set existing image URI for preview (don't convert to file yet)
-                                selectedImageUri = post.imageUrl?.let { 
-                                    Uri.parse(if (it.startsWith("http")) it else "http://72.61.145.239:9090$it")
-                                }
-                                selectedImageFile = null
-                                removeImage = false
-                                showEditDialog = true
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Edit, contentDescription = null)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Delete", color = Error) },
-                            onClick = {
-                                showOptionsMenu = false
-                                showDeleteDialog = true
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Delete, contentDescription = null, tint = Error)
-                            }
-                        )
-                    }
-                }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -426,7 +460,7 @@ private fun MyPostCard(
 
             Spacer(Modifier.height(12.dp))
 
-            // Voting Section (reuse from PostCard)
+            // Voting Section
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -476,7 +510,6 @@ private fun MyPostCard(
                 }
 
                 Row(
-                    modifier = Modifier.clickable { onCommentClick(post._id) },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -495,54 +528,77 @@ private fun MyPostCard(
             }
         }
     }
-    
-    // Edit Post Dialog
-    if (showEditDialog) {
-        EditPostDialog(
-            post = post,
-            content = editContent,
-            onContentChange = { editContent = it },
-            imageUri = selectedImageUri,
-            onImageChange = { uri ->
-                selectedImageUri = uri
-                removeImage = false
-                coroutineScope.launch {
-                    uri?.let { selectedImageFile = uriToFile(context, it) }
-                }
-            },
-            onRemoveImage = {
-                selectedImageUri = null
-                selectedImageFile = null
-                removeImage = true
-            },
-            onDismiss = { showEditDialog = false },
-            onSave = {
-                coroutineScope.launch {
-                    viewModel.updatePost(
-                        authToken = authToken,
-                        postId = post._id,
-                        content = editContent,
-                        imageFile = selectedImageFile,
-                        removeImage = removeImage
-                    )
-                    showEditDialog = false
-                    ToastManager.showSuccess("Post updated successfully")
-                }
-            },
-            onSelectImage = { galleryLauncher.launch("image/*") }
-        )
-    }
-    
-    // Delete Confirmation Dialog
-    if (showDeleteDialog) {
-        DeletePostDialog(
-            onDismiss = { showDeleteDialog = false },
-            onConfirm = {
-                viewModel.deletePost(authToken = authToken, postId = post._id)
-                showDeleteDialog = false
-                ToastManager.showSuccess("Post deleted successfully")
+}
+
+@Composable
+private fun CommentItem(comment: tn.esprit.fithnity.data.CommentResponse) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        val profileImageUrl = comment.user.photoUrl?.let { url ->
+            if (url.startsWith("http")) url else "http://72.61.145.239:9090$url"
+        }
+        if (profileImageUrl != null) {
+            AsyncImage(
+                model = profileImageUrl,
+                contentDescription = "Profile picture",
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryLight),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = Color.White
+                )
             }
-        )
+        }
+
+        Spacer(Modifier.width(8.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Surface.copy(alpha = 0.5f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = comment.user.name ?: "User",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = comment.content,
+                        fontSize = 14.sp,
+                        color = TextPrimary,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = comment.timeAgo ?: formatTimeAgo(comment.createdAt),
+                fontSize = 11.sp,
+                color = TextHint
+            )
+        }
     }
 }
 
@@ -600,7 +656,6 @@ private fun EditPostDialog(
                     )
                 )
                 
-                // Image preview
                 if (imageUri != null) {
                     Box {
                         AsyncImage(
@@ -627,7 +682,6 @@ private fun EditPostDialog(
                     }
                 }
                 
-                // Image selection button
                 if (imageUri == null) {
                     Button(
                         onClick = onSelectImage,

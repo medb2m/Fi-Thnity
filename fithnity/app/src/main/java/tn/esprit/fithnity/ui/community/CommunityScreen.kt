@@ -142,8 +142,9 @@ fun CommunityScreen(
                                 post = post,
                                 viewModel = viewModel,
                                 authToken = authToken,
+                                navController = navController,
                                 onCommentClick = { postId ->
-                                    // TODO: Navigate to comments screen or show dialog
+                                    navController.navigate(Screen.PostDetail.createRoute(postId))
                                 }
                             )
                         }
@@ -229,15 +230,16 @@ internal fun PostCard(
     post: CommunityPostResponse,
     viewModel: CommunityViewModel,
     authToken: String?,
+    navController: NavHostController,
     onCommentClick: (String) -> Unit
 ) {
-    var showComments by remember { mutableStateOf(false) }
-    var commentText by remember { mutableStateOf("") }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp)
+            .clickable {
+                navController.navigate(Screen.PostDetail.createRoute(post._id))
+            },
         shape = RoundedCornerShape(0.dp),
         colors = CardDefaults.cardColors(
             containerColor = Surface
@@ -396,7 +398,7 @@ internal fun PostCard(
 
                 // Right: Comment button
                 Row(
-                    modifier = Modifier.clickable { showComments = !showComments },
+                    modifier = Modifier.clickable { onCommentClick(post._id) },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -411,53 +413,6 @@ internal fun PostCard(
                         fontSize = 14.sp,
                         color = TextHint
                     )
-                }
-            }
-
-            // Comments Section
-            if (showComments) {
-                Spacer(Modifier.height(12.dp))
-                Divider()
-                Spacer(Modifier.height(12.dp))
-
-                // Existing comments
-                post.comments?.forEach { comment ->
-                    CommentItem(comment = comment)
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                // Add comment input
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = commentText,
-                        onValueChange = { commentText = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Write a comment...", fontSize = 14.sp) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        )
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(
-                        onClick = {
-                            if (commentText.isNotBlank()) {
-                                viewModel.addComment(authToken = authToken, postId = post._id, content = commentText)
-                                commentText = ""
-                            }
-                        },
-                        enabled = commentText.isNotBlank()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Send,
-                            contentDescription = "Send comment",
-                            tint = if (commentText.isNotBlank()) Primary else TextHint
-                        )
-                    }
                 }
             }
         }
