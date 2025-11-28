@@ -89,6 +89,8 @@ fun FiThnityTopBar(
             stringResource(R.string.search_rides)
         currentRoute?.startsWith(Screen.Community.route) == true -> 
             stringResource(R.string.search_posts)
+        currentRoute?.startsWith(Screen.Chat.route) == true -> 
+            stringResource(R.string.search_users)
         else -> stringResource(R.string.search_placeholder)
     }
     

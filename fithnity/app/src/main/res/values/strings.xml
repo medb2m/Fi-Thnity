@@ -8,6 +8,7 @@
     <string name="search_places">Search places on map...</string>
     <string name="search_rides">Search rides by origin, destination...</string>
     <string name="search_posts">Search posts in community...</string>
+    <string name="search_users">Search users by name...</string>
     <string name="profile">Profile</string>
     <string name="settings">Settings</string>
     <string name="logout">Logout</string>
