@@ -307,6 +307,121 @@ export const getMyRides = async (req, res) => {
 };
 
 /**
+ * Update a ride
+ * PUT /api/rides/:rideId
+ */
+export const updateRide = async (req, res) => {
+  try {
+    const ride = await Ride.findById(req.params.rideId);
+
+    if (!ride) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ride not found'
+      });
+    }
+
+    // Check if user owns the ride
+    if (ride.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this ride'
+      });
+    }
+
+    const {
+      transportType,
+      origin,
+      destination,
+      availableSeats,
+      notes,
+      departureDate,
+      price
+    } = req.body;
+
+    // Update fields if provided
+    if (transportType && ['TAXI', 'TAXI_COLLECTIF', 'PRIVATE_CAR', 'METRO', 'BUS'].includes(transportType.trim().toUpperCase())) {
+      ride.transportType = transportType.trim().toUpperCase();
+    }
+
+    if (origin) {
+      if (origin.latitude && origin.longitude && origin.address) {
+        ride.origin = {
+          latitude: parseFloat(origin.latitude),
+          longitude: parseFloat(origin.longitude),
+          address: origin.address.trim()
+        };
+      }
+    }
+
+    if (destination) {
+      if (destination.latitude && destination.longitude && destination.address) {
+        ride.destination = {
+          latitude: parseFloat(destination.latitude),
+          longitude: parseFloat(destination.longitude),
+          address: destination.address.trim()
+        };
+      }
+    }
+
+    if (availableSeats !== undefined) {
+      const seats = parseInt(availableSeats);
+      if (seats >= 1 && seats <= 8) {
+        ride.availableSeats = seats;
+      }
+    }
+
+    if (notes !== undefined) {
+      ride.notes = notes.trim().substring(0, 200);
+    }
+
+    if (departureDate) {
+      const parsedDate = new Date(departureDate);
+      if (!isNaN(parsedDate.getTime())) {
+        ride.departureDate = parsedDate;
+        // Recalculate expiration time (2 hours from departure date)
+        ride.expiresAt = new Date(parsedDate.getTime() + 2 * 60 * 60 * 1000);
+      }
+    }
+
+    // Update price for taxi rides
+    if (['TAXI', 'TAXI_COLLECTIF'].includes(ride.transportType)) {
+      if (price !== undefined) {
+        const parsedPrice = parseFloat(price);
+        if (!isNaN(parsedPrice) && parsedPrice >= 0) {
+          ride.price = parsedPrice;
+        }
+      }
+    } else {
+      ride.price = null;
+    }
+
+    // Recalculate distance if origin or destination changed
+    if (origin || destination) {
+      ride.calculateDistance();
+    }
+
+    await ride.save();
+
+    // Populate user info
+    await ride.populate('user', 'name photoUrl rating');
+
+    res.json({
+      success: true,
+      message: 'Ride updated successfully',
+      data: ride
+    });
+  } catch (error) {
+    console.error('Update ride error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating ride',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Update ride status
  * PUT /api/rides/:rideId/status
  */
@@ -445,6 +560,107 @@ export const findMatchingRides = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error finding matching rides',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Add a user to a ride offer
+ * PUT /api/rides/:rideId/add-user
+ */
+export const addUserToRide = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const { userId } = req.body; // User to add to the ride
+
+    const ride = await Ride.findById(rideId);
+
+    if (!ride) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ride not found'
+      });
+    }
+
+    // Check if user owns the ride
+    if (ride.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to modify this ride'
+      });
+    }
+
+    // Check if ride is an offer
+    if (ride.rideType !== 'OFFER') {
+      return res.status(400).json({
+        success: false,
+        message: 'Can only add users to ride offers'
+      });
+    }
+
+    // Check if ride is active
+    if (ride.status !== 'ACTIVE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Can only add users to active rides'
+      });
+    }
+
+    // Check if there are available seats
+    if (ride.availableSeats <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No available seats in this ride'
+      });
+    }
+
+    // Check if user to add exists
+    const userToAdd = await User.findById(userId);
+    if (!userToAdd) {
+      return res.status(404).json({
+        success: false,
+        message: 'User to add not found'
+      });
+    }
+
+    // Check if user is not the ride owner
+    if (ride.user.toString() === userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot add ride owner to their own ride'
+      });
+    }
+
+    // Set matchedWith if not already set, or keep existing
+    if (!ride.matchedWith) {
+      ride.matchedWith = userId;
+    }
+
+    // Decrement available seats
+    ride.availableSeats = Math.max(0, ride.availableSeats - 1);
+
+    // Update status to MATCHED if seats are now 0
+    if (ride.availableSeats === 0) {
+      ride.status = 'MATCHED';
+    }
+
+    await ride.save();
+
+    // Populate user info
+    await ride.populate('user', 'name photoUrl rating');
+    await ride.populate('matchedWith', 'name photoUrl rating');
+
+    res.json({
+      success: true,
+      message: 'User added to ride successfully',
+      data: ride
+    });
+  } catch (error) {
+    console.error('Add user to ride error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding user to ride',
       error: error.message
     });
   }

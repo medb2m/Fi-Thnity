@@ -1,7 +1,10 @@
 package tn.esprit.fithnity.ui.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,13 +20,22 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import tn.esprit.fithnity.data.UserPreferences
+import tn.esprit.fithnity.data.RideResponse
+import tn.esprit.fithnity.ui.rides.RideViewModel
+import tn.esprit.fithnity.ui.rides.RideUiState
 import tn.esprit.fithnity.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 /**
  * Chat User Profile Screen - Messenger-style user profile preview
@@ -35,9 +47,23 @@ fun ChatUserProfileScreen(
     userId: String,
     userName: String,
     userPhoto: String?,
+    userPreferences: UserPreferences,
+    rideViewModel: RideViewModel = viewModel(),
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    var showRideSelectionDialog by remember { mutableStateOf(false) }
+    val authToken = remember { userPreferences.getAuthToken() }
+    val currentUserId = remember { userPreferences.getUserId() }
+    val ridesState by rideViewModel.uiState.collectAsState()
+    
+    // Load user's offers when dialog opens
+    LaunchedEffect(showRideSelectionDialog) {
+        if (showRideSelectionDialog && authToken != null) {
+            rideViewModel.loadMyRides(authToken, status = "ACTIVE")
+        }
+    }
     
     Box(
         modifier = modifier
@@ -167,7 +193,7 @@ fun ChatUserProfileScreen(
                 ActionCircleButton(
                     icon = Icons.Default.DirectionsCar,
                     label = "Add to Ride",
-                    onClick = { /* TODO: Implement add to ride */ }
+                    onClick = { showRideSelectionDialog = true }
                 )
                 
                 ActionCircleButton(
@@ -263,6 +289,25 @@ fun ChatUserProfileScreen(
             
             Spacer(modifier = Modifier.height(100.dp))
         }
+    }
+    
+    // Ride Selection Dialog
+    if (showRideSelectionDialog) {
+        RideSelectionDialog(
+            onDismiss = { showRideSelectionDialog = false },
+            ridesState = ridesState,
+            userIdToAdd = userId,
+            authToken = authToken,
+            rideViewModel = rideViewModel,
+            onUserAdded = {
+                showRideSelectionDialog = false
+                android.widget.Toast.makeText(
+                    context,
+                    "$userName has been added to the ride",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        )
     }
 }
 
@@ -362,6 +407,295 @@ private fun ProfileOptionItem(
                 tint = TextHint,
                 modifier = Modifier.size(24.dp)
             )
+        }
+    }
+}
+
+/**
+ * Dialog to select a ride offer to add a user to
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RideSelectionDialog(
+    onDismiss: () -> Unit,
+    ridesState: RideUiState,
+    userIdToAdd: String,
+    authToken: String?,
+    rideViewModel: RideViewModel,
+    onUserAdded: () -> Unit
+) {
+    val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
+    
+    // Filter only OFFER rides that are active and have available seats
+    val availableOffers = when (ridesState) {
+        is RideUiState.Success -> {
+            ridesState.rides
+                .filter { it.rideType == "OFFER" && it.status == "ACTIVE" && it.availableSeats > 0 }
+        }
+        else -> emptyList()
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Select a Ride Offer",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            when (ridesState) {
+                is RideUiState.Loading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Primary)
+                    }
+                }
+                is RideUiState.Error -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Error loading rides",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Error
+                        )
+                        Text(
+                            text = ridesState.message,
+                            fontSize = 14.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+                is RideUiState.Success -> {
+                    if (availableOffers.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DirectionsCar,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = TextHint
+                                )
+                                Text(
+                                    text = "No available offers",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "You don't have any active ride offers with available seats",
+                                    fontSize = 14.sp,
+                                    color = TextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 400.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(availableOffers) { ride ->
+                                RideOfferItem(
+                                    ride = ride,
+                                    dateFormatter = dateFormatter,
+                                    onClick = {
+                                        if (authToken != null) {
+                                            rideViewModel.addUserToRide(
+                                                authToken = authToken,
+                                                rideId = ride._id,
+                                                userId = userIdToAdd
+                                            )
+                                            onUserAdded()
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Primary)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+/**
+ * Ride offer item in the selection dialog
+ */
+@Composable
+private fun RideOfferItem(
+    ride: RideResponse,
+    dateFormatter: SimpleDateFormat,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = Surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Origin and Destination
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.RadioButtonChecked,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Primary
+                        )
+                        Text(
+                            text = ride.origin.address,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Accent
+                        )
+                        Text(
+                            text = ride.destination.address,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+            
+            HorizontalDivider(color = DividerColor)
+            
+            // Date and Seats
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = TextSecondary
+                    )
+                    Text(
+                        text = try {
+                            val date = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                                .parse(ride.departureDate) ?: Date()
+                            dateFormatter.format(date)
+                        } catch (e: Exception) {
+                            ride.departureDate
+                        },
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = TextSecondary
+                    )
+                    Text(
+                        text = "${ride.availableSeats} seat${if (ride.availableSeats > 1) "s" else ""} available",
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            
+            // Price if available
+            if (ride.price != null && ride.price > 0) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AttachMoney,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Accent
+                    )
+                    Text(
+                        text = "${ride.price} TND",
+                        fontSize = 12.sp,
+                        color = Accent,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
 }

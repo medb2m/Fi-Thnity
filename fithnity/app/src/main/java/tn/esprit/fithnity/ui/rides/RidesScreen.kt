@@ -1120,12 +1120,9 @@ private fun AddRideFormDialog(
 /**
  * Dialog for selecting destination on map
  */
-/**
- * Dialog for selecting destination on map
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DestinationMapDialog(
+fun DestinationMapDialog(
     onDismiss: () -> Unit,
     onLocationSelected: (LatLng, String) -> Unit,
     initialLocation: LatLng,

@@ -5,9 +5,11 @@ import {
   getRides,
   getRideById,
   getMyRides,
+  updateRide,
   updateRideStatus,
   deleteRide,
-  findMatchingRides
+  findMatchingRides,
+  addUserToRide
 } from '../controllers/rideController.js';
 import { authenticate } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
@@ -58,8 +60,37 @@ router.post(
   findMatchingRides
 );
 
-// Get ride by ID
-router.get('/:rideId', getRideById);
+// Add user to ride offer (must be before /:rideId route)
+router.put(
+  '/:rideId/add-user',
+  authenticate,
+  [
+    body('userId').notEmpty().withMessage('userId is required'),
+    handleValidationErrors
+  ],
+  addUserToRide
+);
+
+// Update a ride (must be before /:rideId/status route)
+router.put(
+  '/:rideId',
+  authenticate,
+  [
+    body('transportType').optional().isIn(['TAXI', 'TAXI_COLLECTIF', 'PRIVATE_CAR', 'METRO', 'BUS']),
+    body('origin.latitude').optional().isFloat({ min: -90, max: 90 }),
+    body('origin.longitude').optional().isFloat({ min: -180, max: 180 }),
+    body('origin.address').optional().notEmpty().trim(),
+    body('destination.latitude').optional().isFloat({ min: -90, max: 90 }),
+    body('destination.longitude').optional().isFloat({ min: -180, max: 180 }),
+    body('destination.address').optional().notEmpty().trim(),
+    body('availableSeats').optional().isInt({ min: 1, max: 8 }),
+    body('notes').optional().trim().isLength({ max: 200 }),
+    body('departureDate').optional().isISO8601().toDate(),
+    body('price').optional().isFloat({ min: 0, max: 1000 }),
+    handleValidationErrors
+  ],
+  updateRide
+);
 
 // Update ride status
 router.put(
@@ -71,6 +102,9 @@ router.put(
   ],
   updateRideStatus
 );
+
+// Get ride by ID
+router.get('/:rideId', getRideById);
 
 // Delete/Cancel a ride
 router.delete('/:rideId', authenticate, deleteRide);

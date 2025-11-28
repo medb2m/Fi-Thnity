@@ -197,7 +197,8 @@ fun FiThnityNavGraph(
                 navController = navController,
                 userId = userId,
                 userName = java.net.URLDecoder.decode(userName, "UTF-8"),
-                userPhoto = userPhoto
+                userPhoto = userPhoto,
+                userPreferences = userPreferences
             )
         }
 

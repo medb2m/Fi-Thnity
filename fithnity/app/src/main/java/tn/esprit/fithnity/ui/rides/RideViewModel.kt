@@ -157,10 +157,102 @@ class RideViewModel : ViewModel() {
     }
 
     /**
+     * Update an existing ride
+     */
+    fun updateRide(
+        authToken: String?,
+        rideId: String,
+        transportType: String,
+        origin: Location,
+        destination: Location,
+        availableSeats: Int? = null,
+        notes: String? = null,
+        departureDate: String? = null,
+        price: Double? = null
+    ) = viewModelScope.launch {
+        Log.d(TAG, "updateRide: Starting ride update for $rideId")
+        _createRideState.value = CreateRideUiState.Loading
+
+        try {
+            val token = authToken
+            if (token == null) {
+                _createRideState.value = CreateRideUiState.Error("Not authenticated. Please sign in.")
+                return@launch
+            }
+
+            val request = CreateRideRequest(
+                rideType = "", // Not needed for update
+                transportType = transportType,
+                origin = origin,
+                destination = destination,
+                availableSeats = availableSeats,
+                notes = notes,
+                departureDate = departureDate,
+                price = price
+            )
+
+            val response = api.updateRide(bearer = "Bearer $token", rideId = rideId, request = request)
+            Log.d(TAG, "updateRide: Response received - success: ${response.success}")
+
+            if (response.success && response.data != null) {
+                Log.d(TAG, "updateRide: Ride updated successfully - ${response.data._id}")
+                _createRideState.value = CreateRideUiState.Success(response.data)
+                // Refresh rides list
+                loadRides()
+            } else {
+                val errorMsg = response.message ?: response.error ?: "Failed to update ride"
+                Log.e(TAG, "updateRide: Failed - $errorMsg")
+                _createRideState.value = CreateRideUiState.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateRide: Exception occurred", e)
+            _createRideState.value = CreateRideUiState.Error(e.message ?: "Unknown error occurred")
+        }
+    }
+
+    /**
      * Reset create ride state
      */
     fun resetCreateRideState() {
         _createRideState.value = CreateRideUiState.Idle
+    }
+
+    /**
+     * Add a user to a ride offer
+     */
+    fun addUserToRide(
+        authToken: String?,
+        rideId: String,
+        userId: String
+    ) = viewModelScope.launch {
+        Log.d(TAG, "addUserToRide: Adding user $userId to ride $rideId")
+        
+        try {
+            val token = authToken
+            if (token == null) {
+                Log.e(TAG, "addUserToRide: Not authenticated")
+                return@launch
+            }
+
+            val request = AddUserToRideRequest(userId = userId)
+            val response = api.addUserToRide(
+                bearer = "Bearer $token",
+                rideId = rideId,
+                request = request
+            )
+            Log.d(TAG, "addUserToRide: Response received - success: ${response.success}")
+
+            if (response.success && response.data != null) {
+                Log.d(TAG, "addUserToRide: User added successfully")
+                // Refresh rides list
+                loadRides()
+            } else {
+                val errorMsg = response.message ?: response.error ?: "Failed to add user to ride"
+                Log.e(TAG, "addUserToRide: Failed - $errorMsg")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "addUserToRide: Exception occurred", e)
+        }
     }
 }
 

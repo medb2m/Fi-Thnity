@@ -45,6 +45,17 @@ interface RideApiService {
     ): ApiResponse<List<RideResponse>>
 
     /**
+     * Update a ride
+     * PUT /api/rides/:rideId
+     */
+    @PUT("/api/rides/{rideId}")
+    suspend fun updateRide(
+        @Header("Authorization") bearer: String,
+        @Path("rideId") rideId: String,
+        @Body request: CreateRideRequest
+    ): ApiResponse<RideResponse>
+
+    /**
      * Update ride status
      * PUT /api/rides/:rideId/status
      */
@@ -74,6 +85,17 @@ interface RideApiService {
         @Header("Authorization") bearer: String,
         @Body request: MatchRidesRequest
     ): ApiResponse<MatchRidesResponse>
+
+    /**
+     * Add a user to a ride offer
+     * PUT /api/rides/:rideId/add-user
+     */
+    @PUT("/api/rides/{rideId}/add-user")
+    suspend fun addUserToRide(
+        @Header("Authorization") bearer: String,
+        @Path("rideId") rideId: String,
+        @Body request: AddUserToRideRequest
+    ): ApiResponse<RideResponse>
 }
 
 data class RidesListResponse(
@@ -95,5 +117,9 @@ data class MatchRidesRequest(
 data class MatchRidesResponse(
     val data: List<RideResponse>,
     val count: Int
+)
+
+data class AddUserToRideRequest(
+    val userId: String
 )
 
