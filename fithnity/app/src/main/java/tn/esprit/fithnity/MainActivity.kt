@@ -46,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
+import tn.esprit.fithnity.ui.theme.Background
 
 class MainActivity : ComponentActivity() {
     
@@ -186,7 +187,9 @@ fun MainAppScreen(
         Screen.Settings.route,
         Screen.EditProfile.route,
         Screen.Notifications.route,
-        Screen.MyPosts.route
+        Screen.MyPosts.route,
+        Screen.MyOffers.route,
+        Screen.MyRequests.route
     )
     
     // Routes that should NOT show the bottom navigation (full-screen views)
@@ -198,6 +201,13 @@ fun MainAppScreen(
     val showTopBar = currentRoute !in routesWithoutTopBar && !isChatDetailScreen
     val showBottomNavigation = currentRoute !in routesWithoutBottomNav && !isChatDetailScreen
     var showQuickActionsSheet by remember { mutableStateOf(false) }
+    
+    // Use Background color for MyOffers and MyRequests screens to match their theme
+    val scaffoldContainerColor = if (currentRoute == Screen.MyOffers.route || currentRoute == Screen.MyRequests.route) {
+        Background
+    } else {
+        androidx.compose.ui.graphics.Color.White
+    }
     
     // Unread conversation count
     val authToken = remember { userPreferences.getAuthToken() }
@@ -234,7 +244,7 @@ fun MainAppScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            containerColor = androidx.compose.ui.graphics.Color.White,
+            containerColor = scaffoldContainerColor,
             topBar = {
                 if (showTopBar) {
                     FiThnityTopBar(
