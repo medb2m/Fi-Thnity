@@ -27,6 +27,7 @@ import tn.esprit.fithnity.ui.community.CommunityScreen
 import tn.esprit.fithnity.ui.community.MyPostsScreen
 import tn.esprit.fithnity.ui.chat.ChatListScreen
 import tn.esprit.fithnity.ui.chat.ChatScreen
+import tn.esprit.fithnity.ui.chat.ChatUserProfileScreen
 import tn.esprit.fithnity.ui.notifications.NotificationScreen
 import tn.esprit.fithnity.ui.theme.*
 import tn.esprit.fithnity.ui.LanguageViewModel
@@ -163,6 +164,40 @@ fun FiThnityNavGraph(
                 otherUserName = java.net.URLDecoder.decode(otherUserName, "UTF-8"),
                 otherUserPhoto = otherUserPhoto,
                 userPreferences = userPreferences
+            )
+        }
+
+        // Chat User Profile Screen (Messenger-style profile preview)
+        composable(
+            route = Screen.ChatUserProfile.route,
+            arguments = listOf(
+                navArgument("userId") {
+                    type = NavType.StringType
+                },
+                navArgument("userName") {
+                    type = NavType.StringType
+                    defaultValue = "User"
+                },
+                navArgument("userPhoto") {
+                    type = NavType.StringType
+                    defaultValue = "none"
+                }
+            )
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            val userName = backStackEntry.arguments?.getString("userName") ?: "User"
+            val userPhotoRaw = backStackEntry.arguments?.getString("userPhoto") ?: "none"
+            val userPhoto = if (userPhotoRaw == "none" || userPhotoRaw.isEmpty()) {
+                null
+            } else {
+                val decoded = java.net.URLDecoder.decode(userPhotoRaw, "UTF-8")
+                if (decoded == "none" || decoded.isEmpty()) null else decoded
+            }
+            ChatUserProfileScreen(
+                navController = navController,
+                userId = userId,
+                userName = java.net.URLDecoder.decode(userName, "UTF-8"),
+                userPhoto = userPhoto
             )
         }
 

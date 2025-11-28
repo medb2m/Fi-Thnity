@@ -41,6 +41,7 @@ import kotlinx.coroutines.withContext
 import tn.esprit.fithnity.data.MessageResponse
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.components.ToastManager
+import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
 import java.io.File
 import java.io.FileOutputStream
@@ -328,45 +329,63 @@ fun ChatScreen(
 
                     Spacer(Modifier.width(8.dp))
 
-                    Box(
+                    // Clickable profile section - navigates to user profile preview
+                    Row(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (displayUserPhoto != null && displayUserPhoto!!.isNotEmpty()) {
-                            val fullPhotoUrl = if (displayUserPhoto!!.startsWith("http")) {
-                                displayUserPhoto
-                            } else {
-                                "http://72.61.145.239:9090$displayUserPhoto"
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                navController.navigate(
+                                    Screen.ChatUserProfile.createRoute(
+                                        userId = otherUserId,
+                                        userName = displayUserName,
+                                        userPhoto = displayUserPhoto
+                                    )
+                                )
                             }
-                            AsyncImage(
-                                model = fullPhotoUrl,
-                                contentDescription = "Profile picture",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                                tint = Color.White
-                            )
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (displayUserPhoto != null && displayUserPhoto!!.isNotEmpty()) {
+                                val fullPhotoUrl = if (displayUserPhoto!!.startsWith("http")) {
+                                    displayUserPhoto
+                                } else {
+                                    "http://72.61.145.239:9090$displayUserPhoto"
+                                }
+                                AsyncImage(
+                                    model = fullPhotoUrl,
+                                    contentDescription = "Profile picture",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp),
+                                    tint = Color.White
+                                )
+                            }
                         }
+
+                        Spacer(Modifier.width(12.dp))
+
+                        Text(
+                            text = displayUserName,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
                     }
-
-                    Spacer(Modifier.width(12.dp))
-
-                    Text(
-                        text = displayUserName,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
                 }
             }
         },
