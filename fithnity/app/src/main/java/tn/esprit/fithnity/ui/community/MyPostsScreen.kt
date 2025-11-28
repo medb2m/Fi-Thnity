@@ -4,6 +4,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,7 +34,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tn.esprit.fithnity.data.CommunityPostResponse
 import tn.esprit.fithnity.data.UserPreferences
-import tn.esprit.fithnity.ui.chat.formatTimeAgo
 import tn.esprit.fithnity.ui.components.ToastManager
 import tn.esprit.fithnity.ui.theme.*
 import java.io.File
@@ -711,6 +711,32 @@ suspend fun uriToFile(context: android.content.Context, uri: Uri): File? {
         } catch (e: Exception) {
             null
         }
+    }
+}
+
+/**
+ * Format timestamp to relative time
+ */
+private fun formatTimeAgo(timestamp: String?): String {
+    if (timestamp == null) return ""
+    return try {
+        val instant = java.time.Instant.parse(timestamp)
+        val now = java.time.Instant.now()
+        val duration = java.time.Duration.between(instant, now)
+        
+        when {
+            duration.toMinutes() < 1 -> "Just now"
+            duration.toMinutes() < 60 -> "${duration.toMinutes()}m ago"
+            duration.toHours() < 24 -> "${duration.toHours()}h ago"
+            duration.toDays() < 7 -> "${duration.toDays()}d ago"
+            else -> {
+                val formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d")
+                    .withZone(java.time.ZoneId.systemDefault())
+                formatter.format(instant)
+            }
+        }
+    } catch (e: Exception) {
+        ""
     }
 }
 
