@@ -379,12 +379,36 @@ fun ChatScreen(
 
                         Spacer(Modifier.width(12.dp))
 
-                        Text(
-                            text = displayUserName,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White
-                        )
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = displayUserName,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                            
+                            Spacer(Modifier.height(2.dp))
+                            
+                            // Active now indicator
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF22C55E)) // Green for active
+                                )
+                                Text(
+                                    text = "Active now",
+                                    fontSize = 12.sp,
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
                     }
                 }
             }
