@@ -1,5 +1,6 @@
 package tn.esprit.fithnity.data
 
+import okhttp3.MultipartBody
 import retrofit2.http.*
 
 interface ChatApiService {
@@ -87,5 +88,16 @@ interface ChatApiService {
     suspend fun getUnreadConversationCount(
         @Header("Authorization") bearer: String
     ): ApiResponse<UnreadConversationCountResponse>
+
+    /**
+     * Upload chat image
+     * POST /api/chat/upload-image
+     */
+    @Multipart
+    @POST("/api/chat/upload-image")
+    suspend fun uploadChatImage(
+        @Header("Authorization") bearer: String,
+        @Part image: MultipartBody.Part
+    ): ApiResponse<ChatImageUploadResponse>
 }
 

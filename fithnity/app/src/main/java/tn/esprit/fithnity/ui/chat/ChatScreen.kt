@@ -1,6 +1,10 @@
 package tn.esprit.fithnity.ui.chat
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,9 +12,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,16 +20,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tn.esprit.fithnity.data.MessageResponse
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.theme.*
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 
 /**
  * ChatScreen - Individual conversation view (WhatsApp/Messenger style)
@@ -52,9 +61,57 @@ fun ChatScreen(
     var messageText by remember { mutableStateOf("") }
     var displayUserName by remember { mutableStateOf(otherUserName) }
     var displayUserPhoto by remember { mutableStateOf(otherUserPhoto) }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedImageFile by remember { mutableStateOf<File?>(null) }
+    var isUploadingImage by remember { mutableStateOf(false) }
     
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    
+    // Image picker for gallery
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            selectedImageUri = it
+            // Convert URI to File
+            coroutineScope.launch(Dispatchers.IO) {
+                selectedImageFile = uriToFile(context, it)
+            }
+        }
+    }
+    
+    // Camera launcher
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && cameraUri != null) {
+            selectedImageUri = cameraUri
+            cameraUri?.let { uri ->
+                coroutineScope.launch(Dispatchers.IO) {
+                    selectedImageFile = uriToFile(context, uri)
+                }
+            }
+        }
+    }
+    
+    // Function to create camera file URI
+    fun createCameraFile(): Uri? {
+        return try {
+            val imageFile = File(context.cacheDir, "chat_image_${System.currentTimeMillis()}.jpg")
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                imageFile
+            ).also {
+                cameraUri = it
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     // Load messages
     LaunchedEffect(conversationId) {
@@ -151,55 +208,160 @@ fun ChatScreen(
                 color = Surface,
                 shadowElevation = 8.dp
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    OutlinedTextField(
-                        value = messageText,
-                        onValueChange = { messageText = it },
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp, max = 120.dp),
-                        placeholder = { Text("Message", color = TextHint) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
-                            focusedBorderColor = Primary,
-                            unfocusedBorderColor = TextHint.copy(alpha = 0.3f)
-                        ),
-                        shape = RoundedCornerShape(24.dp)
-                    )
-
-                    Spacer(Modifier.width(8.dp))
-
-                    IconButton(
-                        onClick = {
-                            if (messageText.isNotBlank()) {
-                                viewModel.sendMessage(authToken, conversationId, messageText)
-                                messageText = ""
+                Column {
+                    // Image preview
+                    if (selectedImageUri != null) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.Black.copy(alpha = 0.1f)
+                        ) {
+                            Box {
+                                AsyncImage(
+                                    model = selectedImageUri,
+                                    contentDescription = "Selected image",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(12.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                                
+                                // Remove button
+                                IconButton(
+                                    onClick = {
+                                        selectedImageUri = null
+                                        selectedImageFile = null
+                                    },
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .background(
+                                            Color.Black.copy(alpha = 0.5f),
+                                            CircleShape
+                                        )
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Remove image",
+                                        tint = Color.White
+                                    )
+                                }
                             }
-                        },
-                        enabled = messageText.isNotBlank() && sendMessageState !is SendMessageUiState.Sending,
+                        }
+                    }
+                    
+                    Row(
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(if (messageText.isNotBlank()) Primary else Primary.copy(alpha = 0.3f))
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.Bottom
                     ) {
-                        if (sendMessageState is SendMessageUiState.Sending) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = Color.White
-                            )
-                        } else {
-                            Icon(
-                                Icons.Default.Send,
-                                contentDescription = "Send",
-                                tint = Color.White
-                            )
+                        // Image picker buttons
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // Gallery button
+                            IconButton(
+                                onClick = { galleryLauncher.launch("image/*") },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Image,
+                                    contentDescription = "Select from gallery",
+                                    tint = Primary
+                                )
+                            }
+                            
+                            // Camera button
+                            IconButton(
+                                onClick = {
+                                    createCameraFile()?.let { uri ->
+                                        cameraLauncher.launch(uri)
+                                    }
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CameraAlt,
+                                    contentDescription = "Take photo",
+                                    tint = Primary
+                                )
+                            }
+                        }
+                        
+                        Spacer(Modifier.width(8.dp))
+                        
+                        OutlinedTextField(
+                            value = messageText,
+                            onValueChange = { messageText = it },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp, max = 120.dp),
+                            placeholder = { Text("Message", color = TextHint) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                focusedBorderColor = Primary,
+                                unfocusedBorderColor = TextHint.copy(alpha = 0.3f)
+                            ),
+                            shape = RoundedCornerShape(24.dp)
+                        )
+
+                        Spacer(Modifier.width(8.dp))
+
+                        IconButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    if (selectedImageFile != null && authToken != null) {
+                                        isUploadingImage = true
+                                        val imageUrl = withContext(Dispatchers.IO) {
+                                            viewModel.uploadChatImage(authToken, selectedImageFile!!)
+                                        }
+                                        isUploadingImage = false
+                                        
+                                        if (imageUrl != null) {
+                                            viewModel.sendMessage(
+                                                authToken,
+                                                conversationId,
+                                                messageText,
+                                                imageUrl
+                                            )
+                                            messageText = ""
+                                            selectedImageUri = null
+                                            selectedImageFile = null
+                                        }
+                                    } else if (messageText.isNotBlank()) {
+                                        viewModel.sendMessage(authToken, conversationId, messageText)
+                                        messageText = ""
+                                    }
+                                }
+                            },
+                            enabled = (messageText.isNotBlank() || selectedImageUri != null) 
+                                && sendMessageState !is SendMessageUiState.Sending 
+                                && !isUploadingImage,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (messageText.isNotBlank() || selectedImageUri != null) 
+                                        Primary 
+                                    else 
+                                        Primary.copy(alpha = 0.3f)
+                                )
+                        ) {
+                            if (sendMessageState is SendMessageUiState.Sending || isUploadingImage) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color.White
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Send,
+                                    contentDescription = "Send",
+                                    tint = Color.White
+                                )
+                            }
                         }
                     }
                 }
@@ -283,6 +445,29 @@ fun ChatScreen(
 }
 
 /**
+ * Helper function to convert URI to File
+ */
+suspend fun uriToFile(context: android.content.Context, uri: Uri): File? {
+    return withContext(Dispatchers.IO) {
+        try {
+            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+            val file = File(context.cacheDir, "chat_image_${System.currentTimeMillis()}.jpg")
+            val outputStream = FileOutputStream(file)
+            
+            inputStream?.use { input ->
+                outputStream.use { output ->
+                    input.copyTo(output)
+                }
+            }
+            
+            file
+        } catch (e: Exception) {
+            null
+        }
+    }
+}
+
+/**
  * Message bubble (WhatsApp/Messenger style)
  */
 @Composable
@@ -311,12 +496,38 @@ fun MessageBubble(
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                Text(
-                    text = message.content,
-                    fontSize = 15.sp,
-                    color = if (isOwnMessage) Color.White else TextPrimary,
-                    lineHeight = 20.sp
-                )
+                // Image if message type is IMAGE
+                if (message.messageType == "IMAGE" && message.imageUrl != null) {
+                    val fullImageUrl = if (message.imageUrl!!.startsWith("http")) {
+                        message.imageUrl
+                    } else {
+                        "http://72.61.145.239:9090${message.imageUrl}"
+                    }
+                    
+                    AsyncImage(
+                        model = fullImageUrl,
+                        contentDescription = "Message image",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    
+                    if (message.content.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+                
+                // Text content
+                if (message.content.isNotBlank()) {
+                    Text(
+                        text = message.content,
+                        fontSize = 15.sp,
+                        color = if (isOwnMessage) Color.White else TextPrimary,
+                        lineHeight = 20.sp
+                    )
+                }
                 
                 Spacer(Modifier.height(4.dp))
                 

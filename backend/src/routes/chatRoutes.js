@@ -8,10 +8,12 @@ import {
   markAsRead,
   getUsers,
   deleteConversation,
-  getUnreadConversationCount
+  getUnreadConversationCount,
+  uploadChatImage
 } from '../controllers/chatController.js';
 import { authenticate } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
+import { uploadChatImage as uploadChatImageMiddleware } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -41,7 +43,7 @@ router.get('/conversations/:conversationId/messages', getMessages);
 router.post(
   '/conversations/:conversationId/messages',
   [
-    body('content').notEmpty().trim().isLength({ min: 1, max: 5000 }),
+    body('content').optional().trim().isLength({ max: 5000 }),
     body('messageType').optional().isIn(['TEXT', 'IMAGE', 'LOCATION']),
     body('imageUrl').optional().isURL(),
     body('location.latitude').optional().isFloat({ min: -90, max: 90 }),
@@ -59,6 +61,13 @@ router.delete('/conversations/:conversationId', deleteConversation);
 
 // Get users list (for starting new chats)
 router.get('/users', getUsers);
+
+// Upload chat image
+router.post(
+  '/upload-image',
+  uploadChatImageMiddleware.single('image'),
+  uploadChatImage
+);
 
 export default router;
 

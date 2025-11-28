@@ -9,11 +9,15 @@ const __dirname = path.dirname(__filename);
 // Create uploads directories if they don't exist
 const profilePicturesDir = path.join(__dirname, '../uploads/profile-pictures');
 const communityPostsDir = path.join(__dirname, '../uploads/community-posts');
+const chatImagesDir = path.join(__dirname, '../uploads/chat-images');
 if (!fs.existsSync(profilePicturesDir)) {
   fs.mkdirSync(profilePicturesDir, { recursive: true });
 }
 if (!fs.existsSync(communityPostsDir)) {
   fs.mkdirSync(communityPostsDir, { recursive: true });
+}
+if (!fs.existsSync(chatImagesDir)) {
+  fs.mkdirSync(chatImagesDir, { recursive: true });
 }
 
 // Configure storage for profile pictures
@@ -133,6 +137,44 @@ const uploadCommunityPost = multer({
   }
 });
 
+// Configure storage for chat images
+const chatImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      if (!fs.existsSync(chatImagesDir)) {
+        fs.mkdirSync(chatImagesDir, { recursive: true });
+      }
+      cb(null, chatImagesDir);
+    } catch (error) {
+      console.error('Error setting chat image destination:', error);
+      cb(error);
+    }
+  },
+  filename: (req, file, cb) => {
+    try {
+      const userId = req.user?._id?.toString() || 'unknown';
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 8);
+      const ext = path.extname(file.originalname) || '.jpg';
+      const filename = `${userId}-${timestamp}-${random}${ext}`;
+      cb(null, filename);
+    } catch (error) {
+      console.error('Error generating chat image filename:', error);
+      const fallbackFilename = `chat-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.jpg`;
+      cb(null, fallbackFilename);
+    }
+  }
+});
+
+// Configure multer for chat images
+const uploadChatImage = multer({
+  storage: chatImageStorage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit for chat images
+  }
+});
+
 export default upload;
-export { uploadCommunityPost };
+export { uploadCommunityPost, uploadChatImage };
 

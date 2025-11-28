@@ -5,7 +5,7 @@ import { createNotification } from './notificationController.js';
 
 /**
  * Get all conversations for the authenticated user
- * GET /api/chat/conversations
+ * GET /api/chat/conversations?page=1&limit=20
  */
 export const getConversations = async (req, res) => {
   try {
@@ -50,7 +50,7 @@ export const getConversations = async (req, res) => {
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total: formattedConversations.length
+        total: await Conversation.countDocuments({ participants: userId })
       }
     });
   } catch (error) {
@@ -64,22 +64,22 @@ export const getConversations = async (req, res) => {
 };
 
 /**
- * Get or create a conversation with another user
+ * Get or create conversation with another user
  * POST /api/chat/conversations
  */
 export const getOrCreateConversation = async (req, res) => {
   try {
     const { otherUserId } = req.body;
-    const currentUserId = req.user._id;
+    const userId = req.user._id;
 
     if (!otherUserId) {
       return res.status(400).json({
         success: false,
-        message: 'Other user ID is required'
+        message: 'otherUserId is required'
       });
     }
 
-    if (otherUserId === currentUserId.toString()) {
+    if (otherUserId === userId.toString()) {
       return res.status(400).json({
         success: false,
         message: 'Cannot create conversation with yourself'
@@ -95,25 +95,24 @@ export const getOrCreateConversation = async (req, res) => {
       });
     }
 
-    // Try to find existing conversation
-    let conversation = await Conversation.findBetweenUsers(currentUserId, otherUserId);
+    // Find existing conversation
+    let conversation = await Conversation.findOne({
+      participants: { $all: [userId, otherUserId] },
+      $expr: { $eq: [{ $size: '$participants' }, 2] }
+    }).populate('participants', 'name photoUrl');
 
-    // Create new conversation if it doesn't exist
+    // Create new conversation if doesn't exist
     if (!conversation) {
       conversation = await Conversation.create({
-        participants: [currentUserId, otherUserId],
-        unreadCount: new Map([
-          [currentUserId.toString(), 0],
-          [otherUserId, 0]
-        ])
+        participants: [userId, otherUserId],
+        unreadCount: new Map()
       });
-
       await conversation.populate('participants', 'name photoUrl');
     }
 
     // Format response
     const otherParticipant = conversation.participants.find(
-      p => p._id.toString() !== currentUserId.toString()
+      p => p._id.toString() !== userId.toString()
     );
 
     res.json({
@@ -125,9 +124,9 @@ export const getOrCreateConversation = async (req, res) => {
           name: otherParticipant.name,
           photoUrl: otherParticipant.photoUrl
         },
-        lastMessage: conversation.lastMessage,
-        lastMessageTime: conversation.lastMessageTime,
-        unreadCount: conversation.unreadCount?.get(currentUserId.toString()) || 0,
+        lastMessage: null,
+        lastMessageTime: conversation.createdAt,
+        unreadCount: conversation.unreadCount?.get(userId.toString()) || 0,
         createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt
       }
@@ -144,7 +143,7 @@ export const getOrCreateConversation = async (req, res) => {
 
 /**
  * Get messages in a conversation
- * GET /api/chat/conversations/:conversationId/messages
+ * GET /api/chat/conversations/:conversationId/messages?page=1&limit=50
  */
 export const getMessages = async (req, res) => {
   try {
@@ -152,7 +151,7 @@ export const getMessages = async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const userId = req.user._id;
 
-    // Verify user is part of this conversation
+    // Verify conversation exists and user is a participant
     const conversation = await Conversation.findById(conversationId);
     if (!conversation) {
       return res.status(404).json({
@@ -173,23 +172,20 @@ export const getMessages = async (req, res) => {
     }
 
     // Get messages
-    const messages = await Message.findByConversation(conversationId, {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      userId
-    });
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const messages = await Message.find({ conversation: conversationId })
+      .populate('sender', 'name photoUrl')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(skip)
+      .lean();
 
     // Reverse to show oldest first
     messages.reverse();
 
     res.json({
       success: true,
-      data: messages,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: messages.length
-      }
+      data: messages
     });
   } catch (error) {
     console.error('Get messages error:', error);
@@ -211,11 +207,19 @@ export const sendMessage = async (req, res) => {
     const { content, messageType = 'TEXT', imageUrl, location } = req.body;
     const userId = req.user._id;
 
-    // Validate content
-    if (!content || content.trim().length === 0) {
+    // Validate content - allow empty for image-only messages
+    if (messageType === 'TEXT' && (!content || content.trim().length === 0)) {
       return res.status(400).json({
         success: false,
-        message: 'Message content is required'
+        message: 'Message content is required for text messages'
+      });
+    }
+
+    // Validate image messages
+    if (messageType === 'IMAGE' && !imageUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Image URL is required for image messages'
       });
     }
 
@@ -243,7 +247,7 @@ export const sendMessage = async (req, res) => {
     const message = await Message.create({
       conversation: conversationId,
       sender: userId,
-      content: content.trim(),
+      content: content?.trim() || '',
       messageType,
       imageUrl,
       location,
@@ -275,16 +279,21 @@ export const sendMessage = async (req, res) => {
       const participantId = participant._id.toString();
       if (participantId !== userId.toString()) {
         // Create notification for this participant
+        const notificationMessage = messageType === 'IMAGE' 
+          ? `${senderName} sent a photo`
+          : `${senderName}: ${content.trim().substring(0, 50)}${content.length > 50 ? '...' : ''}`;
+        
         await createNotification(
           participantId,
           'MESSAGE',
           'New message',
-          `${senderName}: ${content.trim().substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+          notificationMessage,
           {
             conversationId: conversationId.toString(),
             messageId: message._id.toString(),
             senderId: userId.toString(),
-            senderName: senderName
+            senderName: senderName,
+            messageType: messageType
           }
         );
       }
@@ -309,6 +318,38 @@ export const sendMessage = async (req, res) => {
 };
 
 /**
+ * Upload chat image
+ * POST /api/chat/upload-image
+ */
+export const uploadChatImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    const imageUrl = `/uploads/chat-images/${req.file.filename}`;
+
+    res.json({
+      success: true,
+      message: 'Image uploaded successfully',
+      data: {
+        imageUrl: imageUrl
+      }
+    });
+  } catch (error) {
+    console.error('Upload chat image error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading image',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Mark messages as read
  * PUT /api/chat/conversations/:conversationId/read
  */
@@ -317,7 +358,6 @@ export const markAsRead = async (req, res) => {
     const { conversationId } = req.params;
     const userId = req.user._id;
 
-    // Verify conversation exists and user is a participant
     const conversation = await Conversation.findById(conversationId);
     if (!conversation) {
       return res.status(404).json({
@@ -336,9 +376,6 @@ export const markAsRead = async (req, res) => {
         message: 'You are not a participant in this conversation'
       });
     }
-
-    // Mark all unread messages as read
-    await Message.markAsRead(conversationId, userId);
 
     // Reset unread count for this user
     conversation.unreadCount.set(userId.toString(), 0);
@@ -359,52 +396,7 @@ export const markAsRead = async (req, res) => {
 };
 
 /**
- * Get list of users (for starting new conversations)
- * GET /api/chat/users
- */
-export const getUsers = async (req, res) => {
-  try {
-    const { search = '', page = 1, limit = 20 } = req.query;
-    const currentUserId = req.user._id;
-
-    const query = {
-      _id: { $ne: currentUserId } // Exclude current user
-    };
-
-    if (search) {
-      query.name = { $regex: search, $options: 'i' };
-    }
-
-    const users = await User.find(query)
-      .select('name photoUrl')
-      .sort({ name: 1 })
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .limit(parseInt(limit));
-
-    const total = await User.countDocuments(query);
-
-    res.json({
-      success: true,
-      data: users,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
-    });
-  } catch (error) {
-    console.error('Get users error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching users',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Delete a conversation
+ * Delete conversation (soft delete)
  * DELETE /api/chat/conversations/:conversationId
  */
 export const deleteConversation = async (req, res) => {
@@ -431,11 +423,11 @@ export const deleteConversation = async (req, res) => {
       });
     }
 
-    // Mark all messages in this conversation as deleted for this user
-    await Message.updateMany(
-      { conversation: conversationId },
-      { $addToSet: { deletedFor: userId } }
+    // Soft delete - remove user from participants
+    conversation.participants = conversation.participants.filter(
+      p => p.toString() !== userId.toString()
     );
+    await conversation.save();
 
     res.json({
       success: true,
@@ -446,6 +438,84 @@ export const deleteConversation = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error deleting conversation',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get users list (for starting new chats)
+ * GET /api/chat/users?search=&page=1&limit=20
+ */
+export const getUsers = async (req, res) => {
+  try {
+    const { search = '', page = 1, limit = 20 } = req.query;
+    const userId = req.user._id;
+
+    const query = {
+      _id: { $ne: userId } // Exclude current user
+    };
+
+    if (search && search.trim().length > 0) {
+      query.$or = [
+        { name: { $regex: search.trim(), $options: 'i' } },
+        { email: { $regex: search.trim(), $options: 'i' } }
+      ];
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const users = await User.find(query)
+      .select('name email photoUrl')
+      .limit(parseInt(limit))
+      .skip(skip)
+      .lean();
+
+    res.json({
+      success: true,
+      data: users,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: await User.countDocuments(query)
+      }
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching users',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Upload chat image
+ * POST /api/chat/upload-image
+ */
+export const uploadChatImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    const imageUrl = `/uploads/chat-images/${req.file.filename}`;
+
+    res.json({
+      success: true,
+      message: 'Image uploaded successfully',
+      data: {
+        imageUrl: imageUrl
+      }
+    });
+  } catch (error) {
+    console.error('Upload chat image error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading image',
       error: error.message
     });
   }
@@ -488,4 +558,3 @@ export const getUnreadConversationCount = async (req, res) => {
     });
   }
 };
-
