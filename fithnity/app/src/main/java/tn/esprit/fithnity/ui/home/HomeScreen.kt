@@ -59,6 +59,7 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.RectF
+import tn.esprit.fithnity.ui.home.VehicleTrackingFAB
 
 /**
  * Modern Home Screen with MapLibre
@@ -101,6 +102,8 @@ fun HomeScreen(
     
     // Store MapView reference for lifecycle management
     var mapView by remember { mutableStateOf<MapView?>(null) }
+    // Store map style for vehicle markers
+    var mapStyle by remember { mutableStateOf<Style?>(null) }
     
     // Listen to search state changes for map location search
     LaunchedEffect(Unit) {
@@ -275,6 +278,11 @@ fun HomeScreen(
                                 mapLibreMap = map
                                 setupMapStyle(map) { success ->
                                     mapLoadError = !success
+                                    if (success) {
+                                        map.getStyle { style ->
+                                            mapStyle = style
+                                        }
+                                    }
                                 }
                             } catch (e: Exception) {
                                 android.util.Log.e("HomeScreen", "Error in getMapAsync callback", e)
@@ -422,7 +430,7 @@ fun HomeScreen(
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 180.dp, end = 20.dp),
+                .padding(bottom = 250.dp, end = 20.dp),
             containerColor = if (isFollowingLocation && locationState.location != null) Primary else Surface,
             contentColor = if (isFollowingLocation && locationState.location != null) Color.White else Primary
         ) {
@@ -439,6 +447,16 @@ fun HomeScreen(
                 )
             }
         }
+        
+        // Layer 4: Vehicle Tracking FAB (below location FAB)
+        VehicleTrackingFAB(
+            context = context,
+            mapLibreMap = mapLibreMap,
+            mapStyle = mapStyle,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 180.dp, end = 20.dp)
+        )
         
         // Handle location updates and center map
         LaunchedEffect(locationState.location, mapLibreMap, shouldCenterOnLocation) {

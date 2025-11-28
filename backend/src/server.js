@@ -238,8 +238,19 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Import WebSocket server
+import VehicleLocationServer from './websocket/vehicleLocationServer.js';
+import { createServer } from 'http';
+
+// Create HTTP server for WebSocket support
+const httpServer = createServer(app);
+
+// Initialize WebSocket server for vehicle location tracking
+const vehicleLocationServer = new VehicleLocationServer(httpServer);
+vehicleLocationServer.startCleanupTimer(); // Start cleanup timer for inactive vehicles
+
 // Start server - explicitly bind to 0.0.0.0 for IPv4 support
-app.listen(PORT, '0.0.0.0', () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`
 ╔═══════════════════════════════════════════════╗
 ║                                               ║
@@ -249,6 +260,7 @@ app.listen(PORT, '0.0.0.0', () => {
 ║   🚀 Server running on port ${PORT.toString().padEnd(14)}    ║
 ║   📍 URL: http://localhost:${PORT}              ║
 ║   🔧 Admin Panel: http://localhost:${PORT}/admin  ║
+║   📡 WebSocket: ws://localhost:${PORT}/ws/vehicle-location ║
 ║                                               ║
 ╚═══════════════════════════════════════════════╝
   `);
