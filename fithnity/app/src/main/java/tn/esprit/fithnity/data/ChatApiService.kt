@@ -99,5 +99,16 @@ interface ChatApiService {
         @Header("Authorization") bearer: String,
         @Part image: MultipartBody.Part
     ): ApiResponse<ChatImageUploadResponse>
+
+    /**
+     * Upload chat audio
+     * POST /api/chat/upload-audio
+     */
+    @Multipart
+    @POST("/api/chat/upload-audio")
+    suspend fun uploadChatAudio(
+        @Header("Authorization") bearer: String,
+        @Part audio: MultipartBody.Part
+    ): ApiResponse<ChatAudioUploadResponse>
 }
 

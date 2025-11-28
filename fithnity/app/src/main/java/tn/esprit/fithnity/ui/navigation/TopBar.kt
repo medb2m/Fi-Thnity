@@ -266,7 +266,10 @@ fun FiThnityTopBar(
             Box(modifier = Modifier.size(40.dp)) {
                 IconButton(
                     onClick = {
-                        navController.navigate(Screen.Notifications.route)
+                        navController.navigate(Screen.Notifications.route) {
+                            // Don't add to back stack in a way that persists across tab switches
+                            launchSingleTop = true
+                        }
                         // Refresh unread count when opening notifications
                         notificationViewModel.refreshUnreadCount(authToken)
                     },
@@ -523,12 +526,9 @@ fun BoxScope.MenuDropdown(
                 },
                 onClick = {
                     if (item.route != null) {
+                        // Simple navigation without saving state - these are secondary screens
                         navController.navigate(item.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
                             launchSingleTop = true
-                            restoreState = true
                         }
                     }
                     onDismiss()

@@ -334,6 +334,12 @@ fun ConversationItem(
                             val senderName = if (isSentByMe) "You" else (conversation.otherUser.name ?: "User")
                             "$senderName sent a photo"
                         }
+                        conversation.lastMessage.messageType == "AUDIO" -> {
+                            // Check if current user sent the message
+                            val isSentByMe = conversation.lastMessage.sender == currentUserId
+                            val senderName = if (isSentByMe) "You" else (conversation.otherUser.name ?: "User")
+                            "$senderName sent a voice message"
+                        }
                         conversation.lastMessage.content.isBlank() -> "No messages yet"
                         else -> conversation.lastMessage.content
                     }
@@ -376,28 +382,3 @@ fun ConversationItem(
         thickness = 0.5.dp
     )
 }
-
-/**
- * Format time ago for messages
- */
-fun formatTimeAgo(timestamp: String): String {
-    try {
-        val messageTime = java.time.Instant.parse(timestamp)
-        val now = java.time.Instant.now()
-        val duration = java.time.Duration.between(messageTime, now)
-
-        return when {
-            duration.toMinutes() < 1 -> "Just now"
-            duration.toMinutes() < 60 -> "${duration.toMinutes()}m"
-            duration.toHours() < 24 -> "${duration.toHours()}h"
-            duration.toDays() < 7 -> "${duration.toDays()}d"
-            else -> {
-                val formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d")
-                messageTime.atZone(java.time.ZoneId.systemDefault()).format(formatter)
-            }
-        }
-    } catch (e: Exception) {
-        return ""
-    }
-}
-

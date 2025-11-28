@@ -2,7 +2,10 @@ package tn.esprit.fithnity.ui.chat
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -32,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tn.esprit.fithnity.data.MessageResponse
@@ -41,6 +45,29 @@ import tn.esprit.fithnity.ui.theme.*
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+
+/**
+ * Helper function to convert URI to File
+ */
+suspend fun uriToFile(context: android.content.Context, uri: Uri): File? {
+    return withContext(Dispatchers.IO) {
+        try {
+            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+            val file = File(context.cacheDir, "chat_image_${System.currentTimeMillis()}.jpg")
+            val outputStream = FileOutputStream(file)
+            
+            inputStream?.use { input ->
+                outputStream.use { output ->
+                    input.copyTo(output)
+                }
+            }
+            
+            file
+        } catch (e: Exception) {
+            null
+        }
+    }
+}
 
 /**
  * ChatScreen - Individual conversation view (WhatsApp/Messenger style)
@@ -70,6 +97,13 @@ fun ChatScreen(
     var isUploadingImage by remember { mutableStateOf(false) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
     var showImageOptionsMenu by remember { mutableStateOf(false) }
+    
+    // Voice recording states
+    var isRecordingMode by remember { mutableStateOf(false) }
+    var isRecording by remember { mutableStateOf(false) }
+    var recordingDuration by remember { mutableStateOf(0) }
+    var audioFile by remember { mutableStateOf<File?>(null) }
+    var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
     
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -126,7 +160,6 @@ fun ChatScreen(
     ) { uri: Uri? ->
         uri?.let {
             selectedImageUri = it
-            // Convert URI to File
             coroutineScope.launch(Dispatchers.IO) {
                 selectedImageFile = uriToFile(context, it)
             }
@@ -137,19 +170,114 @@ fun ChatScreen(
     val requestCameraPermission: () -> Unit = remember {
         {
             when (PackageManager.PERMISSION_GRANTED) {
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.CAMERA
-                ) -> {
-                    // Permission already granted
+                ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) -> {
                     createCameraFile()?.let { uri ->
                         cameraLauncher.launch(uri)
                     }
                 }
                 else -> {
-                    // Request permission
                     cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                 }
+            }
+        }
+    }
+    
+    // Audio recording permission launcher
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            isRecordingMode = true
+        } else {
+            ToastManager.showError("Microphone permission is required to record audio")
+        }
+    }
+    
+    // Function to request audio permission and start recording mode
+    val requestAudioPermission: () -> Unit = remember {
+        {
+            when (PackageManager.PERMISSION_GRANTED) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) -> {
+                    isRecordingMode = true
+                }
+                else -> {
+                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            }
+        }
+    }
+    
+    // Function to start recording
+    val startRecording: () -> Unit = remember {
+        {
+            try {
+                val outputFile = File(context.cacheDir, "voice_message_${System.currentTimeMillis()}.m4a")
+                audioFile = outputFile
+                
+                mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    MediaRecorder(context)
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaRecorder()
+                }.apply {
+                    setAudioSource(MediaRecorder.AudioSource.MIC)
+                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                    setOutputFile(outputFile.absolutePath)
+                    prepare()
+                    start()
+                }
+                
+                isRecording = true
+                recordingDuration = 0
+                
+                coroutineScope.launch {
+                    while (isRecording) {
+                        delay(1000)
+                        recordingDuration++
+                    }
+                }
+            } catch (e: Exception) {
+                ToastManager.showError("Failed to start recording: ${e.message}")
+                isRecording = false
+            }
+        }
+    }
+    
+    // Function to stop recording
+    val stopRecording: () -> Unit = remember {
+        {
+            try {
+                mediaRecorder?.apply {
+                    stop()
+                    release()
+                }
+                mediaRecorder = null
+                isRecording = false
+            } catch (e: Exception) {
+                ToastManager.showError("Failed to stop recording")
+            }
+        }
+    }
+    
+    // Function to cancel recording
+    val cancelRecording: () -> Unit = remember {
+        {
+            try {
+                if (isRecording) {
+                    mediaRecorder?.apply {
+                        stop()
+                        release()
+                    }
+                    mediaRecorder = null
+                    isRecording = false
+                }
+                audioFile?.delete()
+                audioFile = null
+                recordingDuration = 0
+                isRecordingMode = false
+            } catch (e: Exception) {
+                isRecordingMode = false
             }
         }
     }
@@ -167,7 +295,6 @@ fun ChatScreen(
                 coroutineScope.launch {
                     listState.animateScrollToItem(messages.size - 1)
                 }
-                // Update photo from messages if not already set (fallback)
                 if (displayUserPhoto == null) {
                     messages.firstOrNull()?.let { msg ->
                         if (msg.sender._id != currentUserId) {
@@ -201,7 +328,6 @@ fun ChatScreen(
 
                     Spacer(Modifier.width(8.dp))
 
-                    // Profile Picture
                     Box(
                         modifier = Modifier
                             .size(40.dp)
@@ -270,7 +396,6 @@ fun ChatScreen(
                                     contentScale = ContentScale.Crop
                                 )
                                 
-                                // Remove button
                                 IconButton(
                                     onClick = {
                                         selectedImageUri = null
@@ -278,10 +403,7 @@ fun ChatScreen(
                                     },
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
-                                        .background(
-                                            Color.Black.copy(alpha = 0.5f),
-                                            CircleShape
-                                        )
+                                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                                 ) {
                                     Icon(
                                         Icons.Default.Close,
@@ -297,157 +419,296 @@ fun ChatScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.Bottom
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Add image button with dropdown menu
-                        Box {
+                        if (isRecordingMode) {
+                            // Recording mode UI
                             IconButton(
-                                onClick = { showImageOptionsMenu = true },
+                                onClick = { cancelRecording() },
                                 modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "Add image",
-                                    tint = Primary,
+                                    Icons.Default.Close,
+                                    contentDescription = "Cancel",
+                                    tint = Error,
                                     modifier = Modifier.size(28.dp)
                                 )
                             }
                             
-                            // Dropdown menu with image options
-                            DropdownMenu(
-                                expanded = showImageOptionsMenu,
-                                onDismissRequest = { showImageOptionsMenu = false },
-                                offset = androidx.compose.ui.unit.DpOffset(0.dp, (-48).dp), // Offset to appear above button
-                                modifier = Modifier
-                                    .background(Color.White)
-                                    .clip(RoundedCornerShape(12.dp))
+                            Spacer(Modifier.width(12.dp))
+                            
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
                             ) {
-                                // Gallery option
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Image,
-                                                contentDescription = null,
-                                                tint = Primary,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                            Text(
-                                                "Gallery",
-                                                fontSize = 15.sp,
-                                                color = TextPrimary
-                                            )
-                                        }
+                                if (isRecording) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .clip(CircleShape)
+                                            .background(Error)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                Text(
+                                    text = if (isRecording) {
+                                        "%02d:%02d".format(recordingDuration / 60, recordingDuration % 60)
+                                    } else {
+                                        "Tap to record"
                                     },
-                                    onClick = {
-                                        showImageOptionsMenu = false
-                                        galleryLauncher.launch("image/*")
-                                    }
-                                )
-                                
-                                // Camera option
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.CameraAlt,
-                                                contentDescription = null,
-                                                tint = Primary,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                            Text(
-                                                "Camera",
-                                                fontSize = 15.sp,
-                                                color = TextPrimary
-                                            )
-                                        }
-                                    },
-                                    onClick = {
-                                        showImageOptionsMenu = false
-                                        requestCameraPermission()
-                                    }
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (isRecording) Error else TextSecondary
                                 )
                             }
-                        }
-                        
-                        Spacer(Modifier.width(8.dp))
-                        
-                        OutlinedTextField(
-                            value = messageText,
-                            onValueChange = { messageText = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp, max = 120.dp),
-                            placeholder = { Text("Message", color = TextHint) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                focusedBorderColor = Primary,
-                                unfocusedBorderColor = TextHint.copy(alpha = 0.3f)
-                            ),
-                            shape = RoundedCornerShape(24.dp)
-                        )
-
-                        Spacer(Modifier.width(8.dp))
-
-                        IconButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    if (selectedImageFile != null && authToken != null) {
-                                        isUploadingImage = true
-                                        val imageUrl = withContext(Dispatchers.IO) {
-                                            viewModel.uploadChatImage(authToken, selectedImageFile!!)
+                            
+                            Spacer(Modifier.width(12.dp))
+                            
+                            if (isRecording) {
+                                IconButton(
+                                    onClick = { stopRecording() },
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .background(Primary)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Stop,
+                                        contentDescription = "Stop recording",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            } else if (audioFile != null) {
+                                IconButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            audioFile?.let { file ->
+                                                if (authToken != null) {
+                                                    isUploadingImage = true
+                                                    val audioUrl = withContext(Dispatchers.IO) {
+                                                        viewModel.uploadChatAudio(authToken, file)
+                                                    }
+                                                    isUploadingImage = false
+                                                    
+                                                    if (audioUrl != null) {
+                                                        viewModel.sendMessage(
+                                                            authToken,
+                                                            conversationId,
+                                                            "",
+                                                            null,
+                                                            audioUrl,
+                                                            recordingDuration
+                                                        )
+                                                        isRecordingMode = false
+                                                        audioFile = null
+                                                        recordingDuration = 0
+                                                    } else {
+                                                        ToastManager.showError("Failed to upload audio")
+                                                    }
+                                                }
+                                            }
                                         }
-                                        isUploadingImage = false
-                                        
-                                        if (imageUrl != null) {
-                                            viewModel.sendMessage(
-                                                authToken,
-                                                conversationId,
-                                                messageText,
-                                                imageUrl
-                                            )
-                                            messageText = ""
-                                            selectedImageUri = null
-                                            selectedImageFile = null
-                                        }
-                                    } else if (messageText.isNotBlank()) {
-                                        viewModel.sendMessage(authToken, conversationId, messageText)
-                                        messageText = ""
+                                    },
+                                    enabled = !isUploadingImage,
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .background(Primary)
+                                ) {
+                                    if (isUploadingImage) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(24.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color.White
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Default.Send,
+                                            contentDescription = "Send",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(28.dp)
+                                        )
                                     }
                                 }
-                            },
-                            enabled = (messageText.isNotBlank() || selectedImageUri != null) 
-                                && sendMessageState !is SendMessageUiState.Sending 
-                                && !isUploadingImage,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (messageText.isNotBlank() || selectedImageUri != null) 
-                                        Primary 
-                                    else 
-                                        Primary.copy(alpha = 0.3f)
-                                )
-                        ) {
-                            if (sendMessageState is SendMessageUiState.Sending || isUploadingImage) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = Color.White
-                                )
                             } else {
-                                Icon(
-                                    Icons.Default.Send,
-                                    contentDescription = "Send",
-                                    tint = Color.White
-                                )
+                                IconButton(
+                                    onClick = { startRecording() },
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .background(Primary)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Mic,
+                                        contentDescription = "Start recording",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            }
+                        } else {
+                            // Normal mode UI (text input)
+                            Box {
+                                IconButton(
+                                    onClick = { showImageOptionsMenu = true },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = "Add image",
+                                        tint = Primary,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                                
+                                DropdownMenu(
+                                    expanded = showImageOptionsMenu,
+                                    onDismissRequest = { showImageOptionsMenu = false },
+                                    offset = androidx.compose.ui.unit.DpOffset(0.dp, (-48).dp),
+                                    modifier = Modifier
+                                        .background(Color.White)
+                                        .clip(RoundedCornerShape(12.dp))
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Image,
+                                                    contentDescription = null,
+                                                    tint = Primary,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                                Text("Gallery", fontSize = 15.sp, color = TextPrimary)
+                                            }
+                                        },
+                                        onClick = {
+                                            showImageOptionsMenu = false
+                                            galleryLauncher.launch("image/*")
+                                        }
+                                    )
+                                    
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.CameraAlt,
+                                                    contentDescription = null,
+                                                    tint = Primary,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                                Text("Camera", fontSize = 15.sp, color = TextPrimary)
+                                            }
+                                        },
+                                        onClick = {
+                                            showImageOptionsMenu = false
+                                            requestCameraPermission()
+                                        }
+                                    )
+                                    
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Mic,
+                                                    contentDescription = null,
+                                                    tint = Primary,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                                Text("Voice Message", fontSize = 15.sp, color = TextPrimary)
+                                            }
+                                        },
+                                        onClick = {
+                                            showImageOptionsMenu = false
+                                            requestAudioPermission()
+                                        }
+                                    )
+                                }
+                            }
+                            
+                            Spacer(Modifier.width(8.dp))
+                            
+                            OutlinedTextField(
+                                value = messageText,
+                                onValueChange = { messageText = it },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp, max = 120.dp),
+                                placeholder = { Text("Message", color = TextHint) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary,
+                                    focusedBorderColor = Primary,
+                                    unfocusedBorderColor = TextHint.copy(alpha = 0.3f)
+                                ),
+                                shape = RoundedCornerShape(24.dp)
+                            )
+
+                            Spacer(Modifier.width(8.dp))
+
+                            IconButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        if (selectedImageFile != null && authToken != null) {
+                                            isUploadingImage = true
+                                            val imageUrl = withContext(Dispatchers.IO) {
+                                                viewModel.uploadChatImage(authToken, selectedImageFile!!)
+                                            }
+                                            isUploadingImage = false
+                                            
+                                            if (imageUrl != null) {
+                                                viewModel.sendMessage(
+                                                    authToken,
+                                                    conversationId,
+                                                    messageText,
+                                                    imageUrl
+                                                )
+                                                messageText = ""
+                                                selectedImageUri = null
+                                                selectedImageFile = null
+                                            }
+                                        } else if (messageText.isNotBlank()) {
+                                            viewModel.sendMessage(authToken, conversationId, messageText)
+                                            messageText = ""
+                                        }
+                                    }
+                                },
+                                enabled = (messageText.isNotBlank() || selectedImageUri != null) 
+                                    && sendMessageState !is SendMessageUiState.Sending 
+                                    && !isUploadingImage,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (messageText.isNotBlank() || selectedImageUri != null) 
+                                            Primary 
+                                        else 
+                                            Primary.copy(alpha = 0.3f)
+                                    )
+                            ) {
+                                if (sendMessageState is SendMessageUiState.Sending || isUploadingImage) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color.White
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Send,
+                                        contentDescription = "Send",
+                                        tint = Color.White
+                                    )
+                                }
                             }
                         }
                     }
@@ -532,29 +793,6 @@ fun ChatScreen(
 }
 
 /**
- * Helper function to convert URI to File
- */
-suspend fun uriToFile(context: android.content.Context, uri: Uri): File? {
-    return withContext(Dispatchers.IO) {
-        try {
-            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-            val file = File(context.cacheDir, "chat_image_${System.currentTimeMillis()}.jpg")
-            val outputStream = FileOutputStream(file)
-            
-            inputStream?.use { input ->
-                outputStream.use { output ->
-                    input.copyTo(output)
-                }
-            }
-            
-            file
-        } catch (e: Exception) {
-            null
-        }
-    }
-}
-
-/**
  * Message bubble (WhatsApp/Messenger style)
  */
 @Composable
@@ -562,6 +800,23 @@ fun MessageBubble(
     message: MessageResponse,
     isOwnMessage: Boolean
 ) {
+    val context = LocalContext.current
+    
+    // Audio playback state
+    var isPlaying by remember { mutableStateOf(false) }
+    var playbackProgress by remember { mutableStateOf(0f) }
+    var currentPosition by remember { mutableStateOf(0) }
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Cleanup MediaPlayer when composable is disposed
+    DisposableEffect(message._id) {
+        onDispose {
+            mediaPlayer?.release()
+            mediaPlayer = null
+        }
+    }
+    
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start
@@ -606,6 +861,140 @@ fun MessageBubble(
                     }
                 }
                 
+                // Audio if message type is AUDIO
+                if (message.messageType == "AUDIO" && message.audioUrl != null) {
+                    val fullAudioUrl = if (message.audioUrl!!.startsWith("http")) {
+                        message.audioUrl
+                    } else {
+                        "http://72.61.145.239:9090${message.audioUrl}"
+                    }
+                    
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                if (isPlaying) {
+                                    // Stop playback
+                                    mediaPlayer?.pause()
+                                    isPlaying = false
+                                } else {
+                                    // Start playback
+                                    if (mediaPlayer == null) {
+                                        try {
+                                            mediaPlayer = MediaPlayer().apply {
+                                                setDataSource(fullAudioUrl)
+                                                prepareAsync()
+                                                setOnPreparedListener {
+                                                    start()
+                                                    isPlaying = true
+                                                    // Update progress
+                                                    coroutineScope.launch {
+                                                        while (isPlaying && mediaPlayer != null) {
+                                                            try {
+                                                                val mp = mediaPlayer
+                                                                if (mp != null && mp.isPlaying) {
+                                                                    currentPosition = mp.currentPosition / 1000
+                                                                    playbackProgress = mp.currentPosition.toFloat() / mp.duration.toFloat()
+                                                                }
+                                                            } catch (e: Exception) {
+                                                                // Ignore
+                                                            }
+                                                            delay(100)
+                                                        }
+                                                    }
+                                                }
+                                                setOnCompletionListener {
+                                                    isPlaying = false
+                                                    playbackProgress = 0f
+                                                    currentPosition = 0
+                                                    mediaPlayer?.release()
+                                                    mediaPlayer = null
+                                                }
+                                                setOnErrorListener { _, _, _ ->
+                                                    isPlaying = false
+                                                    ToastManager.showError("Failed to play audio")
+                                                    true
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            ToastManager.showError("Failed to play audio: ${e.message}")
+                                        }
+                                    } else {
+                                        mediaPlayer?.start()
+                                        isPlaying = true
+                                        coroutineScope.launch {
+                                            while (isPlaying && mediaPlayer != null) {
+                                                try {
+                                                    val mp = mediaPlayer
+                                                    if (mp != null && mp.isPlaying) {
+                                                        currentPosition = mp.currentPosition / 1000
+                                                        playbackProgress = mp.currentPosition.toFloat() / mp.duration.toFloat()
+                                                    }
+                                                } catch (e: Exception) {
+                                                    // Ignore
+                                                }
+                                                delay(100)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(4.dp)
+                    ) {
+                        // Play/Pause button
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isOwnMessage) Color.White.copy(alpha = 0.2f) 
+                                    else Primary.copy(alpha = 0.1f)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = if (isOwnMessage) Color.White else Primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            // Progress bar
+                            LinearProgressIndicator(
+                                progress = { playbackProgress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = if (isOwnMessage) Color.White else Primary,
+                                trackColor = if (isOwnMessage) Color.White.copy(alpha = 0.3f) else Primary.copy(alpha = 0.2f)
+                            )
+                            
+                            Spacer(Modifier.height(4.dp))
+                            
+                            // Duration
+                            Text(
+                                text = if (isPlaying || currentPosition > 0) {
+                                    "%02d:%02d".format(currentPosition / 60, currentPosition % 60)
+                                } else {
+                                    message.audioDuration?.let { 
+                                        "%02d:%02d".format(it / 60, it % 60) 
+                                    } ?: "Voice message"
+                                },
+                                fontSize = 12.sp,
+                                color = if (isOwnMessage) Color.White.copy(alpha = 0.8f) else TextSecondary
+                            )
+                        }
+                    }
+                }
+                
                 // Text content
                 if (message.content.isNotBlank()) {
                     Text(
@@ -629,3 +1018,27 @@ fun MessageBubble(
     }
 }
 
+/**
+ * Format timestamp to relative time
+ */
+fun formatTimeAgo(timestamp: String): String {
+    return try {
+        val instant = java.time.Instant.parse(timestamp)
+        val now = java.time.Instant.now()
+        val duration = java.time.Duration.between(instant, now)
+        
+        when {
+            duration.toMinutes() < 1 -> "Just now"
+            duration.toMinutes() < 60 -> "${duration.toMinutes()}m ago"
+            duration.toHours() < 24 -> "${duration.toHours()}h ago"
+            duration.toDays() < 7 -> "${duration.toDays()}d ago"
+            else -> {
+                val formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d")
+                    .withZone(java.time.ZoneId.systemDefault())
+                formatter.format(instant)
+            }
+        }
+    } catch (e: Exception) {
+        ""
+    }
+}

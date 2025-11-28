@@ -96,11 +96,11 @@ fun FiThnityBottomNavigation(
                         selected = isSelected,
                         onClick = {
                             navController.navigate(screen.route) {
+                                // Pop up to the start destination, clearing the back stack
                                 popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                                    inclusive = false
                                 }
                                 launchSingleTop = true
-                                restoreState = true
                             }
                         },
                         modifier = Modifier.weight(1f)
@@ -120,11 +120,11 @@ fun FiThnityBottomNavigation(
                         badgeCount = null, // Don't render badge here, will render at root level
                         onClick = {
                             navController.navigate(screen.route) {
+                                // Pop up to the start destination, clearing the back stack
                                 popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                                    inclusive = false
                                 }
                                 launchSingleTop = true
-                                restoreState = true
                             }
                         },
                         modifier = Modifier.weight(1f)

@@ -17,8 +17,10 @@ data class MessageResponse(
     val conversation: String,
     val sender: ChatUserInfo,
     val content: String,
-    val messageType: String = "TEXT", // TEXT, IMAGE, LOCATION
+    val messageType: String = "TEXT", // TEXT, IMAGE, AUDIO, LOCATION
     val imageUrl: String? = null,
+    val audioUrl: String? = null,
+    val audioDuration: Int? = null,
     val location: LocationData? = null,
     val status: String = "SENT", // SENT, DELIVERED, READ
     val createdAt: String? = null,
@@ -89,6 +91,8 @@ data class SendMessageRequest(
     val content: String,
     val messageType: String = "TEXT",
     val imageUrl: String? = null,
+    val audioUrl: String? = null,
+    val audioDuration: Int? = null,
     val location: LocationData? = null
 )
 
@@ -121,5 +125,12 @@ data class UnreadConversationCountResponse(
  */
 data class ChatImageUploadResponse(
     val imageUrl: String
+)
+
+/**
+ * Chat audio upload response
+ */
+data class ChatAudioUploadResponse(
+    val audioUrl: String
 )
 

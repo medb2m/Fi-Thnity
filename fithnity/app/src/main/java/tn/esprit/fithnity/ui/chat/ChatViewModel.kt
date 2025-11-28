@@ -160,7 +160,7 @@ class ChatViewModel : ViewModel() {
     /**
      * Send a message
      */
-    fun sendMessage(authToken: String?, conversationId: String, content: String, imageUrl: String? = null) = viewModelScope.launch {
+    fun sendMessage(authToken: String?, conversationId: String, content: String, imageUrl: String? = null, audioUrl: String? = null, audioDuration: Int? = null) = viewModelScope.launch {
         Log.d(TAG, "sendMessage: Sending message to conversation $conversationId")
         _sendMessageState.value = SendMessageUiState.Sending
 
@@ -171,8 +171,12 @@ class ChatViewModel : ViewModel() {
                 return@launch
             }
 
-            val messageType = if (imageUrl != null) "IMAGE" else "TEXT"
-            val messageContent = if (imageUrl != null && content.isBlank()) "" else content
+            val messageType = when {
+                audioUrl != null -> "AUDIO"
+                imageUrl != null -> "IMAGE"
+                else -> "TEXT"
+            }
+            val messageContent = if ((imageUrl != null || audioUrl != null) && content.isBlank()) "" else content
 
             val response = api.sendMessage(
                 bearer = "Bearer $token",
@@ -180,7 +184,9 @@ class ChatViewModel : ViewModel() {
                 request = SendMessageRequest(
                     content = messageContent,
                     messageType = messageType,
-                    imageUrl = imageUrl
+                    imageUrl = imageUrl,
+                    audioUrl = audioUrl,
+                    audioDuration = audioDuration
                 )
             )
 
@@ -242,6 +248,48 @@ class ChatViewModel : ViewModel() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "uploadChatImage: Exception occurred", e)
+            null
+        }
+    }
+
+    /**
+     * Upload chat audio
+     */
+    suspend fun uploadChatAudio(authToken: String?, audioFile: File): String? {
+        if (authToken == null) {
+            Log.e(TAG, "uploadChatAudio: Not authenticated")
+            return null
+        }
+
+        return try {
+            val mimeType = when (audioFile.extension.lowercase()) {
+                "m4a" -> "audio/mp4"
+                "aac" -> "audio/aac"
+                "mp3" -> "audio/mpeg"
+                "wav" -> "audio/wav"
+                "ogg" -> "audio/ogg"
+                "3gp" -> "audio/3gpp"
+                "amr" -> "audio/amr"
+                else -> "audio/mp4"
+            }
+
+            val requestFile = audioFile.asRequestBody(mimeType.toMediaTypeOrNull())
+            val audioPart = MultipartBody.Part.createFormData("audio", audioFile.name, requestFile)
+
+            val response = api.uploadChatAudio(
+                bearer = "Bearer $authToken",
+                audio = audioPart
+            )
+
+            if (response.success && response.data != null) {
+                Log.d(TAG, "uploadChatAudio: Audio uploaded successfully - ${response.data.audioUrl}")
+                response.data.audioUrl
+            } else {
+                Log.e(TAG, "uploadChatAudio: Failed - ${response.message}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "uploadChatAudio: Exception occurred", e)
             null
         }
     }
