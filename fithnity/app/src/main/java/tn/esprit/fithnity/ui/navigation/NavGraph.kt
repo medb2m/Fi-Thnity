@@ -23,6 +23,7 @@ import tn.esprit.fithnity.ui.user.ProfileScreen
 import tn.esprit.fithnity.ui.user.SettingsScreen
 import tn.esprit.fithnity.ui.user.EditProfileScreen
 import tn.esprit.fithnity.ui.community.CommunityScreen
+import tn.esprit.fithnity.ui.community.MyPostsScreen
 import tn.esprit.fithnity.ui.chat.ChatListScreen
 import tn.esprit.fithnity.ui.chat.ChatScreen
 import tn.esprit.fithnity.ui.notifications.NotificationScreen
@@ -193,6 +194,13 @@ fun FiThnityNavGraph(
 
         composable(Screen.Notifications.route) {
             NotificationScreen(
+                navController = navController,
+                userPreferences = userPreferences
+            )
+        }
+
+        composable(Screen.MyPosts.route) {
+            MyPostsScreen(
                 navController = navController,
                 userPreferences = userPreferences
             )

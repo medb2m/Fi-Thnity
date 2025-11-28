@@ -185,7 +185,8 @@ fun MainAppScreen(
         Screen.Profile.route,
         Screen.Settings.route,
         Screen.EditProfile.route,
-        Screen.Notifications.route
+        Screen.Notifications.route,
+        Screen.MyPosts.route
     )
     
     // Routes that should NOT show the bottom navigation (full-screen views)
