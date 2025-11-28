@@ -422,6 +422,91 @@ export const deletePost = async (req, res) => {
 };
 
 /**
+ * Update a post
+ * PUT /api/community/posts/:postId
+ */
+export const updatePost = async (req, res) => {
+  try {
+    const post = await CommunityPost.findById(req.params.postId);
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: 'Post not found'
+      });
+    }
+
+    // Check if user owns the post
+    if (post.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this post'
+      });
+    }
+
+    const { content } = req.body;
+    
+    // Get image URL from uploaded file or from body
+    let imageUrl = post.imageUrl; // Keep existing image by default
+    if (req.file) {
+      // Delete old image if exists
+      if (post.imageUrl && !post.imageUrl.startsWith('http')) {
+        try {
+          const oldFilePath = path.join(__dirname, '../uploads/community-posts', path.basename(post.imageUrl));
+          if (fs.existsSync(oldFilePath)) {
+            fs.unlinkSync(oldFilePath);
+          }
+        } catch (cleanupError) {
+          console.error('Error deleting old image:', cleanupError);
+        }
+      }
+      // New image uploaded
+      const filePath = path.join(__dirname, '../uploads/community-posts', req.file.filename);
+      if (fs.existsSync(filePath)) {
+        imageUrl = `/uploads/community-posts/${req.file.filename}`;
+      }
+    } else if (req.body.removeImage === 'true') {
+      // Remove image if requested
+      if (post.imageUrl && !post.imageUrl.startsWith('http')) {
+        try {
+          const oldFilePath = path.join(__dirname, '../uploads/community-posts', path.basename(post.imageUrl));
+          if (fs.existsSync(oldFilePath)) {
+            fs.unlinkSync(oldFilePath);
+          }
+        } catch (cleanupError) {
+          console.error('Error deleting old image:', cleanupError);
+        }
+      }
+      imageUrl = null;
+    }
+
+    // Update post
+    if (content !== undefined) {
+      post.content = typeof content === 'string' ? content.trim() : content;
+    }
+    if (imageUrl !== undefined) {
+      post.imageUrl = imageUrl;
+    }
+
+    await post.save();
+    await post.populate('user', 'name photoUrl rating');
+
+    res.json({
+      success: true,
+      message: 'Post updated successfully',
+      data: post
+    });
+  } catch (error) {
+    console.error('Update post error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating post',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Get user's posts
  * GET /api/community/my-posts
  */

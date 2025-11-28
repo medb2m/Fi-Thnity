@@ -9,6 +9,7 @@ import {
   votePost,
   addComment,
   deletePost,
+  updatePost,
   getMyPosts
 } from '../controllers/communityController.js';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
@@ -115,6 +116,41 @@ router.post(
     handleValidationErrors
   ],
   addComment
+);
+
+// Update a post
+router.put(
+  '/posts/:postId',
+  authenticate,
+  (req, res, next) => {
+    uploadCommunityPost.single('image')(req, res, (err) => {
+      if (err) {
+        if (err instanceof multer.MulterError) {
+          if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+              success: false,
+              message: 'File too large. Maximum size is 10MB.'
+            });
+          }
+          return res.status(400).json({
+            success: false,
+            message: 'File upload error: ' + err.message
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          message: err.message || 'Error uploading file'
+        });
+      }
+      next();
+    });
+  },
+  [
+    body('content').optional().trim().isLength({ min: 1, max: 500 }),
+    body('removeImage').optional().isIn(['true', 'false']),
+    handleValidationErrors
+  ],
+  updatePost
 );
 
 // Delete a post
