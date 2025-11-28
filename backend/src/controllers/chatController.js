@@ -204,10 +204,10 @@ export const getMessages = async (req, res) => {
 export const sendMessage = async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const { content, messageType = 'TEXT', imageUrl, location } = req.body;
+    const { content, messageType = 'TEXT', imageUrl, audioUrl, audioDuration, location } = req.body;
     const userId = req.user._id;
 
-    // Validate content - allow empty for image-only messages
+    // Validate content - allow empty for image and audio messages
     if (messageType === 'TEXT' && (!content || content.trim().length === 0)) {
       return res.status(400).json({
         success: false,
@@ -220,6 +220,14 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Image URL is required for image messages'
+      });
+    }
+
+    // Validate audio messages
+    if (messageType === 'AUDIO' && !audioUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Audio URL is required for audio messages'
       });
     }
 
@@ -250,6 +258,8 @@ export const sendMessage = async (req, res) => {
       content: content?.trim() || '',
       messageType,
       imageUrl,
+      audioUrl,
+      audioDuration,
       location,
       status: 'SENT'
     });
@@ -279,9 +289,14 @@ export const sendMessage = async (req, res) => {
       const participantId = participant._id.toString();
       if (participantId !== userId.toString()) {
         // Create notification for this participant
-        const notificationMessage = messageType === 'IMAGE' 
-          ? `${senderName} sent a photo`
-          : `${senderName}: ${content.trim().substring(0, 50)}${content.length > 50 ? '...' : ''}`;
+        let notificationMessage;
+        if (messageType === 'IMAGE') {
+          notificationMessage = `${senderName} sent a photo`;
+        } else if (messageType === 'AUDIO') {
+          notificationMessage = `${senderName} sent a voice message`;
+        } else {
+          notificationMessage = `${senderName}: ${content.trim().substring(0, 50)}${content.length > 50 ? '...' : ''}`;
+        }
         
         await createNotification(
           participantId,
@@ -344,6 +359,38 @@ export const uploadChatImage = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error uploading image',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Upload chat audio
+ * POST /api/chat/upload-audio
+ */
+export const uploadChatAudio = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No audio file provided'
+      });
+    }
+
+    const audioUrl = `/uploads/chat-audios/${req.file.filename}`;
+
+    res.json({
+      success: true,
+      message: 'Audio uploaded successfully',
+      data: {
+        audioUrl: audioUrl
+      }
+    });
+  } catch (error) {
+    console.error('Upload chat audio error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading audio',
       error: error.message
     });
   }

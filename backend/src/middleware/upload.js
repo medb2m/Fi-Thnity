@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const profilePicturesDir = path.join(__dirname, '../uploads/profile-pictures');
 const communityPostsDir = path.join(__dirname, '../uploads/community-posts');
 const chatImagesDir = path.join(__dirname, '../uploads/chat-images');
+const chatAudiosDir = path.join(__dirname, '../uploads/chat-audios');
 if (!fs.existsSync(profilePicturesDir)) {
   fs.mkdirSync(profilePicturesDir, { recursive: true });
 }
@@ -18,6 +19,9 @@ if (!fs.existsSync(communityPostsDir)) {
 }
 if (!fs.existsSync(chatImagesDir)) {
   fs.mkdirSync(chatImagesDir, { recursive: true });
+}
+if (!fs.existsSync(chatAudiosDir)) {
+  fs.mkdirSync(chatAudiosDir, { recursive: true });
 }
 
 // Configure storage for profile pictures
@@ -119,6 +123,52 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+// File filter for audio files
+const audioFileFilter = (req, file, cb) => {
+  try {
+    const allowedMimes = [
+      'audio/mpeg',
+      'audio/mp3',
+      'audio/wav',
+      'audio/x-wav',
+      'audio/aac',
+      'audio/mp4',
+      'audio/m4a',
+      'audio/ogg',
+      'audio/3gpp',
+      'audio/amr'
+    ];
+    
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const allowedExtensions = ['.mp3', '.wav', '.aac', '.m4a', '.ogg', '.3gp', '.amr'];
+    
+    const mimetype = (file.mimetype || '').toLowerCase();
+    const isAllowedMime = allowedMimes.includes(mimetype) || mimetype.startsWith('audio/');
+    const isAllowedExt = allowedExtensions.includes(ext);
+    
+    console.log('🎤 Audio upload attempt:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      extension: ext,
+      isAllowedMime,
+      isAllowedExt,
+      fieldname: file.fieldname
+    });
+    
+    if (isAllowedMime || isAllowedExt) {
+      console.log('✅ Audio file accepted');
+      cb(null, true);
+    } else {
+      const errorMsg = `Invalid audio file type. Received: ${file.mimetype || 'unknown'}, extension: ${ext}`;
+      console.log('❌ Audio file rejected:', errorMsg);
+      cb(new Error(errorMsg), false);
+    }
+  } catch (error) {
+    console.error('❌ Error in audioFileFilter:', error);
+    cb(error, false);
+  }
+};
+
 // Configure multer for profile pictures
 const upload = multer({
   storage: profileStorage,
@@ -175,6 +225,44 @@ const uploadChatImage = multer({
   }
 });
 
+// Configure storage for chat audios
+const chatAudioStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      if (!fs.existsSync(chatAudiosDir)) {
+        fs.mkdirSync(chatAudiosDir, { recursive: true });
+      }
+      cb(null, chatAudiosDir);
+    } catch (error) {
+      console.error('Error setting chat audio destination:', error);
+      cb(error);
+    }
+  },
+  filename: (req, file, cb) => {
+    try {
+      const userId = req.user?._id?.toString() || 'unknown';
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 8);
+      const ext = path.extname(file.originalname) || '.m4a';
+      const filename = `${userId}-${timestamp}-${random}${ext}`;
+      cb(null, filename);
+    } catch (error) {
+      console.error('Error generating chat audio filename:', error);
+      const fallbackFilename = `audio-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.m4a`;
+      cb(null, fallbackFilename);
+    }
+  }
+});
+
+// Configure multer for chat audios
+const uploadChatAudio = multer({
+  storage: chatAudioStorage,
+  fileFilter: audioFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit for audio files
+  }
+});
+
 export default upload;
-export { uploadCommunityPost, uploadChatImage };
+export { uploadCommunityPost, uploadChatImage, uploadChatAudio };
 

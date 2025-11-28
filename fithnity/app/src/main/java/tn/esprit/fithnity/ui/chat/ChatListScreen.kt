@@ -42,6 +42,7 @@ fun ChatListScreen(
 ) {
     val conversationsState by viewModel.conversationsState.collectAsState()
     val authToken = userPreferences.getAuthToken()
+    val currentUserId = userPreferences.getUserId()
     var showNewChatDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -121,6 +122,7 @@ fun ChatListScreen(
                             items(state.conversations) { conversation ->
                                 ConversationItem(
                                     conversation = conversation,
+                                    currentUserId = currentUserId,
                                     onClick = {
                                         val userName = conversation.otherUser.name ?: "User"
                                         val userPhoto = conversation.otherUser.photoUrl
@@ -239,7 +241,8 @@ fun ChatListScreen(
 @Composable
 fun ConversationItem(
     conversation: ConversationResponse,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    currentUserId: String? = null
 ) {
     Surface(
         modifier = Modifier
@@ -322,8 +325,21 @@ fun ConversationItem(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Format last message preview
+                    val lastMessagePreview = when {
+                        conversation.lastMessage == null -> "No messages yet"
+                        conversation.lastMessage.messageType == "IMAGE" -> {
+                            // Check if current user sent the message
+                            val isSentByMe = conversation.lastMessage.sender == currentUserId
+                            val senderName = if (isSentByMe) "You" else (conversation.otherUser.name ?: "User")
+                            "$senderName sent a photo"
+                        }
+                        conversation.lastMessage.content.isBlank() -> "No messages yet"
+                        else -> conversation.lastMessage.content
+                    }
+                    
                     Text(
-                        text = conversation.lastMessage?.content ?: "No messages yet",
+                        text = lastMessagePreview,
                         fontSize = 14.sp,
                         color = if (conversation.unreadCount > 0) TextPrimary else TextSecondary,
                         fontWeight = if (conversation.unreadCount > 0) FontWeight.Medium else FontWeight.Normal,

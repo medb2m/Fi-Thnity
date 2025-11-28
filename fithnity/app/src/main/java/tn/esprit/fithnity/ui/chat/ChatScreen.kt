@@ -69,6 +69,7 @@ fun ChatScreen(
     var selectedImageFile by remember { mutableStateOf<File?>(null) }
     var isUploadingImage by remember { mutableStateOf(false) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
+    var showImageOptionsMenu by remember { mutableStateOf(false) }
     
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -298,29 +299,79 @@ fun ChatScreen(
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.Bottom
                     ) {
-                        // Image picker buttons
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            // Gallery button
+                        // Add image button with dropdown menu
+                        Box {
                             IconButton(
-                                onClick = { galleryLauncher.launch("image/*") },
+                                onClick = { showImageOptionsMenu = true },
                                 modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Image,
-                                    contentDescription = "Select from gallery",
-                                    tint = Primary
+                                    Icons.Default.Add,
+                                    contentDescription = "Add image",
+                                    tint = Primary,
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
                             
-                            // Camera button
-                            IconButton(
-                                onClick = { requestCameraPermission() },
-                                modifier = Modifier.size(48.dp)
+                            // Dropdown menu with image options
+                            DropdownMenu(
+                                expanded = showImageOptionsMenu,
+                                onDismissRequest = { showImageOptionsMenu = false },
+                                offset = androidx.compose.ui.unit.DpOffset(0.dp, (-48).dp), // Offset to appear above button
+                                modifier = Modifier
+                                    .background(Color.White)
+                                    .clip(RoundedCornerShape(12.dp))
                             ) {
-                                Icon(
-                                    Icons.Default.CameraAlt,
-                                    contentDescription = "Take photo",
-                                    tint = Primary
+                                // Gallery option
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Image,
+                                                contentDescription = null,
+                                                tint = Primary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Text(
+                                                "Gallery",
+                                                fontSize = 15.sp,
+                                                color = TextPrimary
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        showImageOptionsMenu = false
+                                        galleryLauncher.launch("image/*")
+                                    }
+                                )
+                                
+                                // Camera option
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.CameraAlt,
+                                                contentDescription = null,
+                                                tint = Primary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Text(
+                                                "Camera",
+                                                fontSize = 15.sp,
+                                                color = TextPrimary
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        showImageOptionsMenu = false
+                                        requestCameraPermission()
+                                    }
                                 )
                             }
                         }

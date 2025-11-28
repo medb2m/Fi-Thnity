@@ -9,11 +9,12 @@ import {
   getUsers,
   deleteConversation,
   getUnreadConversationCount,
-  uploadChatImage
+  uploadChatImage,
+  uploadChatAudio
 } from '../controllers/chatController.js';
 import { authenticate } from '../middleware/auth.js';
 import handleValidationErrors from '../middleware/validate.js';
-import { uploadChatImage as uploadChatImageMiddleware } from '../middleware/upload.js';
+import { uploadChatImage as uploadChatImageMiddleware, uploadChatAudio as uploadChatAudioMiddleware } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -44,8 +45,10 @@ router.post(
   '/conversations/:conversationId/messages',
   [
     body('content').optional().trim().isLength({ max: 5000 }),
-    body('messageType').optional().isIn(['TEXT', 'IMAGE', 'LOCATION']),
-    body('imageUrl').optional().isString(), // Changed from isURL() to isString() to allow relative paths
+    body('messageType').optional().isIn(['TEXT', 'IMAGE', 'AUDIO', 'LOCATION']),
+    body('imageUrl').optional().isString(),
+    body('audioUrl').optional().isString(),
+    body('audioDuration').optional().isNumeric(),
     body('location.latitude').optional().isFloat({ min: -90, max: 90 }),
     body('location.longitude').optional().isFloat({ min: -180, max: 180 }),
     handleValidationErrors
@@ -67,6 +70,13 @@ router.post(
   '/upload-image',
   uploadChatImageMiddleware.single('image'),
   uploadChatImage
+);
+
+// Upload chat audio
+router.post(
+  '/upload-audio',
+  uploadChatAudioMiddleware.single('audio'),
+  uploadChatAudio
 );
 
 export default router;

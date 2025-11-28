@@ -15,8 +15,8 @@ const messageSchema = new mongoose.Schema({
   content: {
     type: String,
     required: function() {
-      // Content is required for TEXT and LOCATION messages, optional for IMAGE messages
-      return this.messageType !== 'IMAGE';
+      // Content is required for TEXT and LOCATION messages, optional for IMAGE and AUDIO messages
+      return this.messageType !== 'IMAGE' && this.messageType !== 'AUDIO';
     },
     trim: true,
     maxlength: 5000,
@@ -24,11 +24,17 @@ const messageSchema = new mongoose.Schema({
   },
   messageType: {
     type: String,
-    enum: ['TEXT', 'IMAGE', 'LOCATION'],
+    enum: ['TEXT', 'IMAGE', 'AUDIO', 'LOCATION'],
     default: 'TEXT'
   },
   imageUrl: {
     type: String
+  },
+  audioUrl: {
+    type: String
+  },
+  audioDuration: {
+    type: Number // Duration in seconds
   },
   location: {
     latitude: Number,
