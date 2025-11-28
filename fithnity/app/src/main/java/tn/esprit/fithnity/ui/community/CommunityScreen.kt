@@ -146,6 +146,7 @@ fun CommunityScreen(
                                 post = post,
                                 viewModel = viewModel,
                                 authToken = authToken,
+                                currentUserId = userPreferences.getUserId(),
                                 navController = navController,
                                 onCommentClick = { postId ->
                                     navController.navigate(Screen.PostDetail.createRoute(postId))
@@ -235,9 +236,12 @@ internal fun PostCard(
     post: CommunityPostResponse,
     viewModel: CommunityViewModel,
     authToken: String?,
+    currentUserId: String?,
     navController: NavHostController,
     onCommentClick: (String) -> Unit
 ) {
+    var showOptionsMenu by remember { mutableStateOf(false) }
+    val isOwnPost = post.user._id == currentUserId
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -307,14 +311,34 @@ internal fun PostCard(
                     )
                 }
 
-                // More Options
-                IconButton(onClick = { /* TODO: Show options */ }) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More",
-                        modifier = Modifier.size(20.dp),
-                        tint = TextHint
-                    )
+                // More Options (only show for posts that are not owned by current user)
+                if (!isOwnPost) {
+                    Box {
+                        IconButton(
+                            onClick = { showOptionsMenu = true },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More",
+                                modifier = Modifier.size(20.dp),
+                                tint = TextHint
+                            )
+                        }
+                        
+                        DropdownMenu(
+                            expanded = showOptionsMenu,
+                            onDismissRequest = { showOptionsMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Report") },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    // TODO: Implement report functionality
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
