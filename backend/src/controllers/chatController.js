@@ -490,38 +490,6 @@ export const getUsers = async (req, res) => {
 };
 
 /**
- * Upload chat image
- * POST /api/chat/upload-image
- */
-export const uploadChatImage = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'No image file provided'
-      });
-    }
-
-    const imageUrl = `/uploads/chat-images/${req.file.filename}`;
-
-    res.json({
-      success: true,
-      message: 'Image uploaded successfully',
-      data: {
-        imageUrl: imageUrl
-      }
-    });
-  } catch (error) {
-    console.error('Upload chat image error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error uploading image',
-      error: error.message
-    });
-  }
-};
-
-/**
  * Get unread conversation count (number of conversations with unread messages)
  * GET /api/chat/conversations/unread-count
  */
