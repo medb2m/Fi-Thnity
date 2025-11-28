@@ -41,6 +41,7 @@ import kotlinx.coroutines.withContext
 import tn.esprit.fithnity.data.MessageResponse
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.components.ToastManager
+import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
 import java.io.File
 import java.io.FileOutputStream
@@ -328,45 +329,87 @@ fun ChatScreen(
 
                     Spacer(Modifier.width(8.dp))
 
-                    Box(
+                    // Clickable profile section - navigates to user profile preview
+                    Row(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (displayUserPhoto != null && displayUserPhoto!!.isNotEmpty()) {
-                            val fullPhotoUrl = if (displayUserPhoto!!.startsWith("http")) {
-                                displayUserPhoto
-                            } else {
-                                "http://72.61.145.239:9090$displayUserPhoto"
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                navController.navigate(
+                                    Screen.ChatUserProfile.createRoute(
+                                        userId = otherUserId,
+                                        userName = displayUserName,
+                                        userPhoto = displayUserPhoto
+                                    )
+                                )
                             }
-                            AsyncImage(
-                                model = fullPhotoUrl,
-                                contentDescription = "Profile picture",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (displayUserPhoto != null && displayUserPhoto!!.isNotEmpty()) {
+                                val fullPhotoUrl = if (displayUserPhoto!!.startsWith("http")) {
+                                    displayUserPhoto
+                                } else {
+                                    "http://72.61.145.239:9090$displayUserPhoto"
+                                }
+                                AsyncImage(
+                                    model = fullPhotoUrl,
+                                    contentDescription = "Profile picture",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp),
+                                    tint = Color.White
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(12.dp))
+
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = displayUserName,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
                             )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                                tint = Color.White
-                            )
+                            
+                            Spacer(Modifier.height(2.dp))
+                            
+                            // Active now indicator
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF22C55E)) // Green for active
+                                )
+                                Text(
+                                    text = "Active now",
+                                    fontSize = 12.sp,
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                            }
                         }
                     }
-
-                    Spacer(Modifier.width(12.dp))
-
-                    Text(
-                        text = displayUserName,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
                 }
             }
         },
