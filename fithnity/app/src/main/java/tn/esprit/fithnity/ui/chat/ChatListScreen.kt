@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,7 +28,9 @@ import coil.compose.AsyncImage
 import tn.esprit.fithnity.data.ConversationResponse
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.navigation.Screen
+import tn.esprit.fithnity.ui.navigation.SearchState
 import tn.esprit.fithnity.ui.theme.*
+import androidx.compose.runtime.DisposableEffect
 
 /**
  * ChatListScreen - Shows list of conversations
@@ -44,6 +47,22 @@ fun ChatListScreen(
     val authToken = userPreferences.getAuthToken()
     val currentUserId = userPreferences.getUserId()
     var showNewChatDialog by remember { mutableStateOf(false) }
+    
+    // Get search query from global SearchState
+    var searchQuery by remember { mutableStateOf(SearchState.searchQuery) }
+    
+    // Listen to search state changes
+    LaunchedEffect(SearchState.searchQuery) {
+        searchQuery = SearchState.searchQuery
+    }
+    
+    // Cleanup on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            // Clear search when leaving chat screen
+            SearchState.updateQuery("")
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.loadConversations(authToken)
@@ -85,6 +104,16 @@ fun ChatListScreen(
                 }
 
                 is ConversationsUiState.Success -> {
+                    // Filter conversations by search query
+                    val filteredConversations = if (searchQuery.isBlank()) {
+                        state.conversations
+                    } else {
+                        val queryLower = searchQuery.lowercase()
+                        state.conversations.filter { conversation ->
+                            conversation.otherUser.name?.lowercase()?.contains(queryLower) == true
+                        }
+                    }
+                    
                     if (state.conversations.isEmpty()) {
                         // Empty State
                         Box(
@@ -114,12 +143,41 @@ fun ChatListScreen(
                                 )
                             }
                         }
+                    } else if (filteredConversations.isEmpty() && searchQuery.isNotEmpty()) {
+                        // No results for search
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = TextHint
+                                )
+                                Text(
+                                    text = "No users found",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextSecondary
+                                )
+                                Text(
+                                    text = "Try searching with a different name",
+                                    fontSize = 14.sp,
+                                    color = TextHint
+                                )
+                            }
+                        }
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(bottom = UiConstants.ContentBottomPadding + 80.dp)
                         ) {
-                            items(state.conversations) { conversation ->
+                            items(filteredConversations) { conversation ->
                                 ConversationItem(
                                     conversation = conversation,
                                     currentUserId = currentUserId,

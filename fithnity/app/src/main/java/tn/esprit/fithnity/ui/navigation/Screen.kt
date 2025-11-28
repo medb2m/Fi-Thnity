@@ -85,6 +85,11 @@ sealed class Screen(
         title = "My Requests"
     )
 
+    object MyFriends : Screen(
+        route = "my_friends",
+        title = "My Friends"
+    )
+
     object RideDetail : Screen(
         route = "ride_detail/{rideId}",
         title = "Ride Details"

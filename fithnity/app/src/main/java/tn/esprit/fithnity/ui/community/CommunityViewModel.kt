@@ -33,6 +33,12 @@ sealed class CreatePostUiState {
     data class Error(val message: String) : CreatePostUiState()
 }
 
+sealed class PostDetailState {
+    object Loading : PostDetailState()
+    data class Success(val post: CommunityPostResponse) : PostDetailState()
+    data class Error(val message: String) : PostDetailState()
+}
+
 class CommunityViewModel : ViewModel() {
     private val api = NetworkModule.communityApi
 
@@ -41,7 +47,38 @@ class CommunityViewModel : ViewModel() {
 
     private val _createPostState = MutableStateFlow<CreatePostUiState>(CreatePostUiState.Idle)
     val createPostState: StateFlow<CreatePostUiState> = _createPostState.asStateFlow()
+    
+    private val _postDetailState = MutableStateFlow<PostDetailState>(PostDetailState.Loading)
+    val postDetailState: StateFlow<PostDetailState> = _postDetailState.asStateFlow()
 
+    /**
+     * Load a single post by ID
+     */
+    fun loadPostById(
+        authToken: String?,
+        postId: String
+    ) = viewModelScope.launch {
+        Log.d(TAG, "loadPostById: Loading post $postId")
+        _postDetailState.value = PostDetailState.Loading
+        
+        try {
+            val bearer = if (authToken != null) "Bearer $authToken" else null
+            val response = api.getPostById(bearer = bearer, postId = postId)
+            
+            if (response.success && response.data != null) {
+                Log.d(TAG, "loadPostById: Post loaded successfully")
+                _postDetailState.value = PostDetailState.Success(response.data)
+            } else {
+                val errorMsg = response.message ?: response.error ?: "Failed to load post"
+                Log.e(TAG, "loadPostById: Failed - $errorMsg")
+                _postDetailState.value = PostDetailState.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "loadPostById: Exception occurred", e)
+            _postDetailState.value = PostDetailState.Error(e.message ?: "Unknown error occurred")
+        }
+    }
+    
     /**
      * Load all community posts
      */
@@ -244,11 +281,146 @@ class CommunityViewModel : ViewModel() {
                     _uiState.value = CommunityUiState.Success(updatedPosts)
                     Log.d(TAG, "addComment: UI updated with new comment")
                 }
+                
+                // Also update PostDetailState if it's the same post
+                val detailState = _postDetailState.value
+                if (detailState is PostDetailState.Success && detailState.post._id == postId) {
+                    val updatedComments = (detailState.post.comments ?: emptyList()) + response.data
+                    _postDetailState.value = PostDetailState.Success(
+                        detailState.post.copy(
+                            comments = updatedComments,
+                            commentsCount = updatedComments.size
+                        )
+                    )
+                }
             } else {
                 Log.e(TAG, "addComment: Failed - ${response.message}")
             }
         } catch (e: Exception) {
             Log.e(TAG, "addComment: Exception occurred", e)
+        }
+    }
+
+    /**
+     * Update a comment
+     */
+    fun updateComment(authToken: String?, postId: String, commentId: String, content: String) = viewModelScope.launch {
+        Log.d(TAG, "updateComment: Updating comment $commentId in post $postId")
+
+        try {
+            val token = authToken
+            if (token == null) {
+                Log.e(TAG, "updateComment: Not authenticated")
+                return@launch
+            }
+
+            val response = api.updateComment(
+                bearer = "Bearer $token",
+                postId = postId,
+                commentId = commentId,
+                request = CommentRequest(content = content)
+            )
+
+            if (response.success && response.data != null) {
+                Log.d(TAG, "updateComment: Comment updated successfully")
+                
+                // Update PostDetailState
+                val detailState = _postDetailState.value
+                if (detailState is PostDetailState.Success && detailState.post._id == postId) {
+                    val updatedComments = detailState.post.comments?.map { comment ->
+                        if (comment._id == commentId) {
+                            response.data
+                        } else {
+                            comment
+                        }
+                    } ?: emptyList()
+                    _postDetailState.value = PostDetailState.Success(
+                        detailState.post.copy(comments = updatedComments)
+                    )
+                }
+                
+                // Also update the main UI state
+                val currentState = _uiState.value
+                if (currentState is CommunityUiState.Success) {
+                    val updatedPosts = currentState.posts.map { post ->
+                        if (post._id == postId) {
+                            val updatedComments = post.comments?.map { comment ->
+                                if (comment._id == commentId) {
+                                    response.data
+                                } else {
+                                    comment
+                                }
+                            } ?: emptyList()
+                            post.copy(comments = updatedComments)
+                        } else {
+                            post
+                        }
+                    }
+                    _uiState.value = CommunityUiState.Success(updatedPosts)
+                }
+            } else {
+                Log.e(TAG, "updateComment: Failed - ${response.message}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateComment: Exception occurred", e)
+        }
+    }
+
+    /**
+     * Delete a comment
+     */
+    fun deleteComment(authToken: String?, postId: String, commentId: String) = viewModelScope.launch {
+        Log.d(TAG, "deleteComment: Deleting comment $commentId from post $postId")
+
+        try {
+            val token = authToken
+            if (token == null) {
+                Log.e(TAG, "deleteComment: Not authenticated")
+                return@launch
+            }
+
+            val response = api.deleteComment(
+                bearer = "Bearer $token",
+                postId = postId,
+                commentId = commentId
+            )
+
+            if (response.success) {
+                Log.d(TAG, "deleteComment: Comment deleted successfully")
+                
+                // Update PostDetailState
+                val detailState = _postDetailState.value
+                if (detailState is PostDetailState.Success && detailState.post._id == postId) {
+                    val updatedComments = detailState.post.comments?.filter { it._id != commentId } ?: emptyList()
+                    _postDetailState.value = PostDetailState.Success(
+                        detailState.post.copy(
+                            comments = updatedComments,
+                            commentsCount = updatedComments.size
+                        )
+                    )
+                }
+                
+                // Also update the main UI state
+                val currentState = _uiState.value
+                if (currentState is CommunityUiState.Success) {
+                    val updatedPosts = currentState.posts.map { post ->
+                        if (post._id == postId) {
+                            val updatedComments = post.comments?.filter { it._id != commentId } ?: emptyList()
+                            post.copy(
+                                comments = updatedComments,
+                                commentsCount = updatedComments.size
+                            )
+                        } else {
+                            post
+                        }
+                    }
+                    _uiState.value = CommunityUiState.Success(updatedPosts)
+                }
+            } else {
+                Log.e(TAG, "deleteComment: Failed - ${response.message}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteComment: Exception occurred", e)
         }
     }
 

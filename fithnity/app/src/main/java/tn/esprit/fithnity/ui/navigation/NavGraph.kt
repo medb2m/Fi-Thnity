@@ -25,6 +25,8 @@ import tn.esprit.fithnity.ui.user.SettingsScreen
 import tn.esprit.fithnity.ui.user.EditProfileScreen
 import tn.esprit.fithnity.ui.community.CommunityScreen
 import tn.esprit.fithnity.ui.community.MyPostsScreen
+import tn.esprit.fithnity.ui.community.PostDetailScreen
+import tn.esprit.fithnity.ui.friends.MyFriendsScreen
 import tn.esprit.fithnity.ui.chat.ChatListScreen
 import tn.esprit.fithnity.ui.chat.ChatScreen
 import tn.esprit.fithnity.ui.chat.ChatUserProfileScreen
@@ -261,6 +263,13 @@ fun FiThnityNavGraph(
             )
         }
 
+        composable(Screen.MyFriends.route) {
+            MyFriendsScreen(
+                navController = navController,
+                userPreferences = userPreferences
+            )
+        }
+
         // Offer Ride Screen (placeholder for now)
         composable(Screen.OfferRide.route) {
             // TODO: Implement OfferRideScreen
@@ -284,7 +293,7 @@ fun FiThnityNavGraph(
         // New Post Screen - Now handled as dialog in CommunityScreen
         // Keeping route for backward compatibility but not used
 
-        // Post Detail Screen (placeholder for now)
+        // Post Detail Screen
         composable(
             route = Screen.PostDetail.route,
             arguments = listOf(
@@ -294,11 +303,10 @@ fun FiThnityNavGraph(
             )
         ) { backStackEntry ->
             val postId = backStackEntry.arguments?.getString("postId") ?: ""
-            // TODO: Implement PostDetailScreen
-            PlaceholderScreen(
-                title = "Post Details",
-                message = "Post detail feature coming soon!\nPost ID: $postId",
-                navController = navController
+            PostDetailScreen(
+                navController = navController,
+                postId = postId,
+                userPreferences = userPreferences
             )
         }
     }

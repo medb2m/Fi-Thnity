@@ -184,6 +184,9 @@ fun MainAppScreen(
     // Check if current route is a chat user profile screen (dynamic route)
     val isChatUserProfileScreen = currentRoute?.startsWith("chat_user_profile/") == true
     
+    // Check if current route is a post detail screen (dynamic route)
+    val isPostDetailScreen = currentRoute?.startsWith("post_detail/") == true
+    
     // Routes that should NOT show the top bar (they have their own back buttons)
     val routesWithoutTopBar = listOf(
         Screen.Profile.route,
@@ -192,7 +195,8 @@ fun MainAppScreen(
         Screen.Notifications.route,
         Screen.MyPosts.route,
         Screen.MyOffers.route,
-        Screen.MyRequests.route
+        Screen.MyRequests.route,
+        Screen.MyFriends.route
     )
     
     // Routes that should NOT show the bottom navigation (full-screen views)
@@ -201,8 +205,8 @@ fun MainAppScreen(
         Screen.Settings.route
     )
     
-    val showTopBar = currentRoute !in routesWithoutTopBar && !isChatDetailScreen && !isChatUserProfileScreen
-    val showBottomNavigation = currentRoute !in routesWithoutBottomNav && !isChatDetailScreen && !isChatUserProfileScreen
+    val showTopBar = currentRoute !in routesWithoutTopBar && !isChatDetailScreen && !isChatUserProfileScreen && !isPostDetailScreen
+    val showBottomNavigation = currentRoute !in routesWithoutBottomNav && !isChatDetailScreen && !isChatUserProfileScreen && !isPostDetailScreen
     var showQuickActionsSheet by remember { mutableStateOf(false) }
     
     // Use Background color for MyOffers and MyRequests screens to match their theme

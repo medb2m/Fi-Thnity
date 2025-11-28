@@ -64,15 +64,19 @@ fun CommunityScreen(
     // State for showing new post dialog
     var showNewPostDialog by remember { mutableStateOf(false) }
 
+    // Track if posts need to be refreshed after creating a new post
+    var shouldRefresh by remember { mutableStateOf(false) }
+    
     // Load posts on first composition
     LaunchedEffect(Unit) {
         viewModel.loadPosts(authToken = authToken, sort = "score")
     }
     
-    // Reload posts when dialog closes (in case a post was created)
+    // Reload posts only when dialog closes after creating a post
     LaunchedEffect(showNewPostDialog) {
-        if (!showNewPostDialog) {
+        if (!showNewPostDialog && shouldRefresh) {
             viewModel.loadPosts(authToken = authToken, sort = "score")
+            shouldRefresh = false
         }
     }
 
@@ -142,8 +146,10 @@ fun CommunityScreen(
                                 post = post,
                                 viewModel = viewModel,
                                 authToken = authToken,
+                                currentUserId = userPreferences.getUserId(),
+                                navController = navController,
                                 onCommentClick = { postId ->
-                                    // TODO: Navigate to comments screen or show dialog
+                                    navController.navigate(Screen.PostDetail.createRoute(postId))
                                 }
                             )
                         }
@@ -174,7 +180,8 @@ fun CommunityScreen(
             NewPostDialog(
                 onDismiss = { showNewPostDialog = false },
                 onPostCreated = {
-                    // Post was created, dialog will close automatically
+                    // Post was created, mark for refresh when dialog closes
+                    shouldRefresh = true
                 },
                 userPreferences = userPreferences,
                 viewModel = viewModel
@@ -229,15 +236,19 @@ internal fun PostCard(
     post: CommunityPostResponse,
     viewModel: CommunityViewModel,
     authToken: String?,
+    currentUserId: String?,
+    navController: NavHostController,
     onCommentClick: (String) -> Unit
 ) {
-    var showComments by remember { mutableStateOf(false) }
-    var commentText by remember { mutableStateOf("") }
-
+    var showOptionsMenu by remember { mutableStateOf(false) }
+    val isOwnPost = post.user._id == currentUserId
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp)
+            .clickable {
+                navController.navigate(Screen.PostDetail.createRoute(post._id))
+            },
         shape = RoundedCornerShape(0.dp),
         colors = CardDefaults.cardColors(
             containerColor = Surface
@@ -300,14 +311,34 @@ internal fun PostCard(
                     )
                 }
 
-                // More Options
-                IconButton(onClick = { /* TODO: Show options */ }) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More",
-                        modifier = Modifier.size(20.dp),
-                        tint = TextHint
-                    )
+                // More Options (only show for posts that are not owned by current user)
+                if (!isOwnPost) {
+                    Box {
+                        IconButton(
+                            onClick = { showOptionsMenu = true },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More",
+                                modifier = Modifier.size(20.dp),
+                                tint = TextHint
+                            )
+                        }
+                        
+                        DropdownMenu(
+                            expanded = showOptionsMenu,
+                            onDismissRequest = { showOptionsMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Report") },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    // TODO: Implement report functionality
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -396,7 +427,7 @@ internal fun PostCard(
 
                 // Right: Comment button
                 Row(
-                    modifier = Modifier.clickable { showComments = !showComments },
+                    modifier = Modifier.clickable { onCommentClick(post._id) },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -411,53 +442,6 @@ internal fun PostCard(
                         fontSize = 14.sp,
                         color = TextHint
                     )
-                }
-            }
-
-            // Comments Section
-            if (showComments) {
-                Spacer(Modifier.height(12.dp))
-                Divider()
-                Spacer(Modifier.height(12.dp))
-
-                // Existing comments
-                post.comments?.forEach { comment ->
-                    CommentItem(comment = comment)
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                // Add comment input
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = commentText,
-                        onValueChange = { commentText = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Write a comment...", fontSize = 14.sp) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        )
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(
-                        onClick = {
-                            if (commentText.isNotBlank()) {
-                                viewModel.addComment(authToken = authToken, postId = post._id, content = commentText)
-                                commentText = ""
-                            }
-                        },
-                        enabled = commentText.isNotBlank()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Send,
-                            contentDescription = "Send comment",
-                            tint = if (commentText.isNotBlank()) Primary else TextHint
-                        )
-                    }
                 }
             }
         }

@@ -8,6 +8,8 @@ import {
   toggleLike,
   votePost,
   addComment,
+  updateComment,
+  deleteComment,
   deletePost,
   updatePost,
   getMyPosts
@@ -116,6 +118,24 @@ router.post(
     handleValidationErrors
   ],
   addComment
+);
+
+// Update a comment
+router.put(
+  '/posts/:postId/comments/:commentId',
+  authenticate,
+  [
+    body('content').notEmpty().trim().isLength({ min: 1, max: 200 }),
+    handleValidationErrors
+  ],
+  updateComment
+);
+
+// Delete a comment
+router.delete(
+  '/posts/:postId/comments/:commentId',
+  authenticate,
+  deleteComment
 );
 
 // Update a post

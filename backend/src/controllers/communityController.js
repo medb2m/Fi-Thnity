@@ -382,6 +382,120 @@ export const addComment = async (req, res) => {
 };
 
 /**
+ * Update a comment
+ * PUT /api/community/posts/:postId/comments/:commentId
+ */
+export const updateComment = async (req, res) => {
+  try {
+    const { content } = req.body;
+    const { postId, commentId } = req.params;
+
+    const post = await CommunityPost.findById(postId);
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: 'Post not found'
+      });
+    }
+
+    const comment = post.comments.id(commentId);
+
+    if (!comment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Comment not found'
+      });
+    }
+
+    // Check if user is the comment owner
+    if (comment.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only edit your own comments'
+      });
+    }
+
+    comment.content = content;
+    await post.save();
+    await post.populate('comments.user', 'name photoUrl');
+
+    res.json({
+      success: true,
+      message: 'Comment updated successfully',
+      data: {
+        _id: comment._id,
+        user: {
+          _id: comment.user._id,
+          name: comment.user.name,
+          photoUrl: comment.user.photoUrl
+        },
+        content: comment.content,
+        createdAt: comment.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Update comment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating comment',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Delete a comment
+ * DELETE /api/community/posts/:postId/comments/:commentId
+ */
+export const deleteComment = async (req, res) => {
+  try {
+    const { postId, commentId } = req.params;
+
+    const post = await CommunityPost.findById(postId);
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: 'Post not found'
+      });
+    }
+
+    const comment = post.comments.id(commentId);
+
+    if (!comment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Comment not found'
+      });
+    }
+
+    // Check if user is the comment owner
+    if (comment.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only delete your own comments'
+      });
+    }
+
+    post.comments.pull(commentId);
+    await post.save();
+
+    res.json({
+      success: true,
+      message: 'Comment deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete comment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting comment',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Delete a post
  * DELETE /api/community/posts/:postId
  */

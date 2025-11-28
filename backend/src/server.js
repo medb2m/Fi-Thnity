@@ -31,6 +31,7 @@ import rideRoutes from './routes/rideRoutes.js';
 import communityRoutes from './routes/communityRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import friendRoutes from './routes/friendRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 
 // Initialize Express app
@@ -188,6 +189,7 @@ app.use('/api/rides', rideRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/friends', friendRoutes);
 
 // Debug: Log registered routes
 console.log('📋 Registered API routes:');

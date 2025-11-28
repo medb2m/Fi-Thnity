@@ -89,6 +89,8 @@ fun FiThnityTopBar(
             stringResource(R.string.search_rides)
         currentRoute?.startsWith(Screen.Community.route) == true -> 
             stringResource(R.string.search_posts)
+        currentRoute?.startsWith(Screen.Chat.route) == true -> 
+            stringResource(R.string.search_users)
         else -> stringResource(R.string.search_placeholder)
     }
     
@@ -492,7 +494,7 @@ fun BoxScope.MenuDropdown(
         MenuItem("Profile", Icons.Default.Person, Screen.Profile.route),
         MenuItem("My offers", Icons.Default.DirectionsCar, Screen.MyOffers.route),
         MenuItem("My requests", Icons.Default.Assignment, Screen.MyRequests.route),
-        MenuItem("My friends", Icons.Default.People, null), // TODO: Add route
+        MenuItem("My friends", Icons.Default.People, Screen.MyFriends.route),
         MenuItem("My posts", Icons.Default.Article, Screen.MyPosts.route)
     )
 
