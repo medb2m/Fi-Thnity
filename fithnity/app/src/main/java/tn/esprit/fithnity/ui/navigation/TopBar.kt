@@ -286,17 +286,18 @@ fun FiThnityTopBar(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .offset(x = 4.dp, y = (-4).dp)
-                            .size(20.dp)
+                            .size(22.dp) // Increased size
                             .zIndex(1f)
                             .clip(CircleShape)
                             .background(Color(0xFFEF4444)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                            text = if (unreadCount > 9) "9+" else unreadCount.toString(),
                             color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                 }

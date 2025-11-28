@@ -56,7 +56,6 @@ fun FiThnityBottomNavigation(
             .fillMaxWidth()
             .height(129.dp)
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .background(Color.White)
     ) {
         // White spacing area at the bottom (24.dp) - drawn first so it's behind
         Box(
@@ -114,18 +113,11 @@ fun FiThnityBottomNavigation(
                 // Last two items - independent, aligned to bottom
                 items.takeLast(2).forEachIndexed { index, screen ->
                     val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                    val badgeCount = if (screen.route == Screen.Chat.route && unreadConversationCount > 0) {
-                        android.util.Log.d("BottomNav", "Chat route matched! Badge count: $unreadConversationCount")
-                        unreadConversationCount
-                    } else {
-                        android.util.Log.d("BottomNav", "Screen: ${screen.route}, Chat route: ${Screen.Chat.route}, unreadCount: $unreadConversationCount")
-                        null
-                    }
                     BottomNavItem(
                         icon = screen.icon!!,
                         label = screen.title,
                         selected = isSelected,
-                        badgeCount = badgeCount,
+                        badgeCount = null, // Don't render badge here, will render at root level
                         onClick = {
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
@@ -170,6 +162,28 @@ fun FiThnityBottomNavigation(
                 tint = Color.White
             )
         }
+        
+        // Badge for chat icon - rendered at root level to be above all other layers
+        if (unreadConversationCount > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = (-28).dp, y = (-75).dp) // Position relative to bottom-end to align with chat icon
+                    .size(22.dp) // Increased size
+                    .zIndex(100f) // Above FAB
+                    .clip(CircleShape)
+                    .background(Color(0xFFEF4444)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (unreadConversationCount > 9) "9+" else unreadConversationCount.toString(),
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
     }
 }
 
@@ -196,27 +210,7 @@ private fun BottomNavItem(
             tint = if (selected) Primary else TextSecondary
         )
         
-        // Badge for unread conversation count
-        badgeCount?.let { count ->
-            android.util.Log.d("BottomNav", "Rendering badge with count: $count")
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 6.dp, y = (-6).dp)
-                    .size(20.dp)
-                    .zIndex(1f)
-                    .clip(CircleShape)
-                    .background(Color(0xFFEF4444)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (count > 99) "99+" else count.toString(),
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        // Badge removed from here - now rendered at root level for proper z-index
     }
 }
 
