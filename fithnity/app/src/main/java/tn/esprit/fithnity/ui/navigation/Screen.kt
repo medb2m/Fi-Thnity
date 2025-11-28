@@ -65,6 +65,16 @@ sealed class Screen(
         title = "Need a Ride"
     )
 
+    object MyOffers : Screen(
+        route = "my_offers",
+        title = "My Offers"
+    )
+
+    object MyRequests : Screen(
+        route = "my_requests",
+        title = "My Requests"
+    )
+
     object RideDetail : Screen(
         route = "ride_detail/{rideId}",
         title = "Ride Details"

@@ -39,6 +39,8 @@ data class RideItem(
     val origin: String,
     val destination: String,
     val userName: String,
+    val userId: String? = null, // User ID who created the ride
+    val userPhoto: String? = null, // User photo URL
     val time: String,
     val price: String? = null,
     val seatsAvailable: Int? = null, // For offers

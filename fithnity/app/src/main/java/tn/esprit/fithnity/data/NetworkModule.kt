@@ -1,6 +1,8 @@
 package tn.esprit.fithnity.data
 
 import android.util.Log
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -27,10 +29,15 @@ object NetworkModule {
         .retryOnConnectionFailure(true)         // Enable retry on connection failure
         .build()
 
+    // Create Gson with custom deserializer for UserInfo
+    private val gson: Gson = GsonBuilder()
+        .registerTypeAdapter(UserInfo::class.java, UserInfoDeserializer())
+        .create()
+
     val retrofit: Retrofit = Retrofit.Builder()
         .baseUrl(BASE_URL)
         .client(okHttpClient)
-        .addConverterFactory(GsonConverterFactory.create())
+        .addConverterFactory(GsonConverterFactory.create(gson))
         .build()
 
     val authApi: AuthApiService get() = retrofit.create(AuthApiService::class.java)

@@ -19,6 +19,7 @@ import androidx.navigation.navArgument
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.home.HomeScreen
 import tn.esprit.fithnity.ui.rides.RidesScreen
+import tn.esprit.fithnity.ui.rides.MyRidesScreen
 import tn.esprit.fithnity.ui.user.ProfileScreen
 import tn.esprit.fithnity.ui.user.SettingsScreen
 import tn.esprit.fithnity.ui.user.EditProfileScreen
@@ -187,6 +188,24 @@ fun FiThnityNavGraph(
                 navController = navController,
                 userPreferences = userPreferences,
                 languageViewModel = languageViewModel
+            )
+        }
+
+        // My Offers Screen
+        composable(Screen.MyOffers.route) {
+            MyRidesScreen(
+                navController = navController,
+                userPreferences = userPreferences,
+                rideType = "OFFER"
+            )
+        }
+
+        // My Requests Screen
+        composable(Screen.MyRequests.route) {
+            MyRidesScreen(
+                navController = navController,
+                userPreferences = userPreferences,
+                rideType = "REQUEST"
             )
         }
 

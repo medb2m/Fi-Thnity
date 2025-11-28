@@ -122,6 +122,41 @@ class RideViewModel : ViewModel() {
     }
 
     /**
+     * Load user's own rides
+     */
+    fun loadMyRides(
+        authToken: String?,
+        status: String? = null // "ACTIVE", "MATCHED", "COMPLETED", "CANCELLED", "EXPIRED"
+    ) = viewModelScope.launch {
+        Log.d(TAG, "loadMyRides: Loading user's rides")
+        _uiState.value = RideUiState.Loading
+
+        try {
+            val token = authToken
+            if (token == null) {
+                _uiState.value = RideUiState.Error("Not authenticated. Please sign in.")
+                return@launch
+            }
+
+            val response = api.getMyRides(bearer = "Bearer $token", status = status)
+            Log.d(TAG, "loadMyRides: Response received - success: ${response.success}")
+
+            if (response.success && response.data != null) {
+                val rides = response.data
+                Log.d(TAG, "loadMyRides: Loaded ${rides.size} rides")
+                _uiState.value = RideUiState.Success(rides)
+            } else {
+                val errorMsg = response.message ?: response.error ?: "Failed to load your rides"
+                Log.e(TAG, "loadMyRides: Failed - $errorMsg")
+                _uiState.value = RideUiState.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "loadMyRides: Exception occurred", e)
+            _uiState.value = RideUiState.Error(e.message ?: "Unknown error occurred")
+        }
+    }
+
+    /**
      * Reset create ride state
      */
     fun resetCreateRideState() {

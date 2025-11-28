@@ -484,8 +484,8 @@ fun BoxScope.MenuDropdown(
 ) {
     val menuItems = listOf(
         MenuItem("Profile", Icons.Default.Person, Screen.Profile.route),
-        MenuItem("My offers", Icons.Default.DirectionsCar, null), // TODO: Add route
-        MenuItem("My requests", Icons.Default.Assignment, null), // TODO: Add route
+        MenuItem("My offers", Icons.Default.DirectionsCar, Screen.MyOffers.route),
+        MenuItem("My requests", Icons.Default.Assignment, Screen.MyRequests.route),
         MenuItem("My friends", Icons.Default.People, null), // TODO: Add route
         MenuItem("My posts", Icons.Default.Article, null) // TODO: Add route
     )
