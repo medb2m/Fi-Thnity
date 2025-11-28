@@ -83,7 +83,8 @@ fun ChatListScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = "Messages",
@@ -91,6 +92,24 @@ fun ChatListScreen(
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
+                    
+                    // Circular yellow + button
+                    IconButton(
+                        onClick = { showNewChatDialog = true },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = Color(0xFFFFC107), // Yellow color
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "New Chat",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
 
@@ -244,21 +263,6 @@ fun ChatListScreen(
         }
 
         // Floating Action Button for New Chat
-        FloatingActionButton(
-            onClick = { showNewChatDialog = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 24.dp)
-                .padding(bottom = UiConstants.BottomNavigationHeight + 16.dp),
-            containerColor = Primary,
-            contentColor = Color.White
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "New Chat"
-            )
-        }
-
         // New Chat Dialog
         if (showNewChatDialog) {
             UserSelectionDialog(
