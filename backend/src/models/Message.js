@@ -14,9 +14,13 @@ const messageSchema = new mongoose.Schema({
   },
   content: {
     type: String,
-    required: true,
+    required: function() {
+      // Content is required for TEXT and LOCATION messages, optional for IMAGE messages
+      return this.messageType !== 'IMAGE';
+    },
     trim: true,
-    maxlength: 5000
+    maxlength: 5000,
+    default: ''
   },
   messageType: {
     type: String,
