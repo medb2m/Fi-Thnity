@@ -155,7 +155,8 @@ fun RideDetailsDialog(
     ride: RideItem,
     onDismiss: () -> Unit,
     onApplyToOffer: () -> Unit,
-    onReplyToRequest: () -> Unit
+    onReplyToRequest: () -> Unit,
+    currentUserId: String? = null
 ) {
     val (dateText, timeText) = formatDateTime(ride.time)
     
@@ -339,49 +340,62 @@ fun RideDetailsDialog(
                 }
                 
                 // Additional Info
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Vehicle Type
+                    // First row: Vehicle Type and Seats
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Icon(
-                            imageVector = if (ride.vehicleType == VehicleType.TAXI) Icons.Default.LocalTaxi 
-                                         else Icons.Default.DirectionsCar,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = TextSecondary
-                        )
-                        Text(
-                            text = if (ride.vehicleType == VehicleType.TAXI) "Taxi" else "Personal Car",
-                            fontSize = 14.sp,
-                            color = TextSecondary
-                        )
-                    }
-                    
-                    // Seats or Price
-                    if (ride.isOffer && ride.seatsAvailable != null) {
+                        // Vehicle Type
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Person,
+                                imageVector = if (ride.vehicleType == VehicleType.TAXI) Icons.Default.LocalTaxi 
+                                             else Icons.Default.DirectionsCar,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
-                                tint = Secondary
+                                tint = TextSecondary
                             )
                             Text(
-                                text = "${ride.seatsAvailable} seats available",
+                                text = if (ride.vehicleType == VehicleType.TAXI) "Taxi" else "Personal Car",
                                 fontSize = 14.sp,
-                                color = Secondary,
-                                fontWeight = FontWeight.Medium
+                                color = TextSecondary
                             )
                         }
-                    } else if (ride.vehicleType == VehicleType.TAXI && ride.price != null) {
+                        
+                        // Seats
+                        if (ride.seatsAvailable != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = Secondary
+                                )
+                                Text(
+                                    text = if (ride.isOffer) {
+                                        "${ride.seatsAvailable} seats available"
+                                    } else {
+                                        "${ride.seatsAvailable} passenger${if (ride.seatsAvailable > 1) "s" else ""}"
+                                    },
+                                    fontSize = 14.sp,
+                                    color = Secondary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Second row: Price (for taxis) - on a new line
+                    if (ride.vehicleType == VehicleType.TAXI && ride.price != null) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -404,22 +418,10 @@ fun RideDetailsDialog(
             }
         },
         confirmButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Cancel Button
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Cancel")
-                }
-                
-                // Action Button (Apply/Reply)
+            // Only show button if the ride is not owned by the current user
+            if (ride.userId != null && ride.userId != currentUserId) {
                 Button(
                     onClick = if (ride.isOffer) onApplyToOffer else onReplyToRequest,
-                    modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (ride.isOffer) Accent else Primary
                     )
@@ -428,9 +430,23 @@ fun RideDetailsDialog(
                         text = if (ride.isOffer) "Apply to Offer" else "Reply to Request"
                     )
                 }
+            } else {
+                // Show a close button if it's the user's own ride
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = TextSecondary
+                    )
+                ) {
+                    Text("Close")
+                }
             }
         },
-        dismissButton = {}
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
     )
 }
 

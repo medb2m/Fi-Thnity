@@ -288,6 +288,7 @@ export const getMyRides = async (req, res) => {
     if (status) query.status = status;
 
     const rides = await Ride.find(query)
+      .populate('user', 'name photoUrl rating')
       .populate('matchedWith', 'name photoUrl rating')
       .sort({ createdAt: -1 });
 

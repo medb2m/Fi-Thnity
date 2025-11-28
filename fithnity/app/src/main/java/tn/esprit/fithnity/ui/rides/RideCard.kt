@@ -155,7 +155,7 @@ fun RideCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    if (ride.isOffer && ride.seatsAvailable != null) {
+                    if (ride.seatsAvailable != null) {
                         Icon(
                             imageVector = Icons.Default.Person,
                             contentDescription = null,

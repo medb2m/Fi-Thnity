@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -57,6 +58,9 @@ import tn.esprit.fithnity.data.Location
 import androidx.lifecycle.viewmodel.compose.viewModel
 import tn.esprit.fithnity.ui.navigation.SearchState
 import tn.esprit.fithnity.data.UserPreferences
+import android.app.DatePickerDialog
+import kotlinx.coroutines.delay
+import tn.esprit.fithnity.ui.chat.ChatViewModel
 
 /**
  * Rides Screen showing list of offers and demands
@@ -68,9 +72,11 @@ fun RidesScreen(
     modifier: Modifier = Modifier,
     userPreferences: UserPreferences,
     viewModel: RideViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    chatViewModel: ChatViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     autoOpenRideType: String? = null
 ) {
     val authToken = userPreferences.getAuthToken()
+    val currentUserId = userPreferences.getUserId()
     var selectedFilter by remember { mutableStateOf(RideFilter.ALL) }
     var selectedVehicleType by remember { mutableStateOf(VehicleType.ALL) }
     var showRideTypeSelection by remember { mutableStateOf(false) }
@@ -241,6 +247,8 @@ fun RidesScreen(
                         origin = ride.origin.address,
                         destination = ride.destination.address,
                         userName = ride.user?.name ?: "Unknown",
+                        userId = ride.user?._id,
+                        userPhoto = ride.user?.photoUrl,
                         time = ride.departureDate, // ISO format, will be formatted in UI if needed
                         price = ride.price?.toString(),
                         seatsAvailable = ride.availableSeats
@@ -347,13 +355,66 @@ fun RidesScreen(
         RideDetailsDialog(
             ride = ride,
             onDismiss = { selectedRide = null },
+            currentUserId = currentUserId,
             onApplyToOffer = {
-                // TODO: Implement apply to offer logic
-                selectedRide = null
+                // Navigate to chat with the user who created the offer
+                val otherUserId = ride.userId
+                if (otherUserId != null && otherUserId != currentUserId) {
+                    chatViewModel.getOrCreateConversation(authToken, otherUserId) { conversation ->
+                        val userName = conversation.otherUser.name ?: ride.userName
+                        val userPhoto = conversation.otherUser.photoUrl
+                        
+                        // Extract relative path from full URL if needed
+                        val photoPath = if (userPhoto != null && userPhoto.isNotEmpty()) {
+                            if (userPhoto.startsWith("http://72.61.145.239:9090")) {
+                                userPhoto.substring("http://72.61.145.239:9090".length)
+                            } else if (userPhoto.startsWith("http")) {
+                                "none" // External URL, use placeholder
+                            } else {
+                                userPhoto // Already a relative path
+                            }
+                        } else {
+                            "none" // Placeholder for null/empty
+                        }
+                        
+                        val encodedName = java.net.URLEncoder.encode(userName, "UTF-8")
+                        val encodedPhoto = java.net.URLEncoder.encode(photoPath, "UTF-8")
+                        selectedRide = null
+                        navController.navigate("chat_detail/${conversation._id}/${conversation.otherUser._id}/$encodedName/$encodedPhoto")
+                    }
+                } else {
+                    selectedRide = null
+                }
             },
             onReplyToRequest = {
-                // TODO: Implement reply to request logic
-                selectedRide = null
+                // Navigate to chat with the user who created the request
+                val otherUserId = ride.userId
+                if (otherUserId != null && otherUserId != currentUserId) {
+                    chatViewModel.getOrCreateConversation(authToken, otherUserId) { conversation ->
+                        val userName = conversation.otherUser.name ?: ride.userName
+                        val userPhoto = conversation.otherUser.photoUrl
+                        
+                        // Extract relative path from full URL if needed
+                        val photoPath = if (userPhoto != null && userPhoto.isNotEmpty()) {
+                            if (userPhoto.startsWith("http://72.61.145.239:9090")) {
+                                userPhoto.substring("http://72.61.145.239:9090".length)
+                            } else if (userPhoto.startsWith("http")) {
+                                "none" // External URL, use placeholder
+                            } else {
+                                userPhoto // Already a relative path
+                            }
+                        } else {
+                            "none" // Placeholder for null/empty
+                        }
+                        
+                        val encodedName = java.net.URLEncoder.encode(userName, "UTF-8")
+                        val encodedPhoto = java.net.URLEncoder.encode(photoPath, "UTF-8")
+                        selectedRide = null
+                        navController.navigate("chat_detail/${conversation._id}/${conversation.otherUser._id}/$encodedName/$encodedPhoto")
+                    }
+                } else {
+                    selectedRide = null
+                }
             }
         )
     }
@@ -390,14 +451,16 @@ private fun AddRideFormDialog(
     
     var selectedVehicleType by remember { mutableStateOf(VehicleType.PERSONAL_CAR) }
     
-    // Origin from current location
+    // Origin selection
+    var useCurrentLocation by remember { mutableStateOf(true) } // Checkbox state - checked by default
     val originLocation = locationState.location
     var origin by remember { mutableStateOf("") }
     var originLatLng by remember { mutableStateOf<LatLng?>(null) }
+    var showOriginMap by remember { mutableStateOf(false) }
     
-    // Update origin when location is available
-    LaunchedEffect(originLocation) {
-        if (originLocation != null) {
+    // Update origin when location is available (only if useCurrentLocation is true)
+    LaunchedEffect(originLocation, useCurrentLocation) {
+        if (useCurrentLocation && originLocation != null) {
             originLatLng = LatLng(originLocation.latitude, originLocation.longitude)
             // Try to get address from coordinates
             try {
@@ -411,10 +474,12 @@ private fun AddRideFormDialog(
             } catch (e: IOException) {
                 origin = "${String.format("%.4f", originLocation.latitude)}, ${String.format("%.4f", originLocation.longitude)}"
             }
-        } else if (locationState.isLoading) {
-            origin = "Getting your location..."
-        } else {
-            origin = "Location not available"
+        } else if (useCurrentLocation) {
+            if (locationState.isLoading) {
+                origin = "Getting your location..."
+            } else {
+                origin = "Location not available"
+            }
         }
     }
     
@@ -426,12 +491,53 @@ private fun AddRideFormDialog(
     // Date picker state
     var showDatePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf<Long?>(null) }
+    var datePickerDialogShown by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val dateDisplay = remember(selectedDate) {
         selectedDate?.let { dateFormatter.format(Date(it)) } ?: ""
     }
     
     var time by remember { mutableStateOf("") }
+    
+    // Function to format time input automatically
+    fun formatTimeInput(input: String): String {
+        // If input already contains ":" and AM/PM, preserve them
+        val hasColon = input.contains(":")
+        val hasAmPm = input.uppercase().contains("AM") || input.uppercase().contains("PM")
+        
+        // Extract digits only
+        val digitsOnly = input.filter { it.isDigit() }
+        
+        if (digitsOnly.isEmpty()) {
+            // If user is deleting, allow partial deletion but preserve AM/PM if present
+            if (hasAmPm) {
+                val amPmPart = if (input.uppercase().contains("AM")) " AM" else if (input.uppercase().contains("PM")) " PM" else ""
+                return input.filter { it.isDigit() || it == ':' } + amPmPart
+            }
+            return ""
+        }
+        
+        // Limit to 4 digits for time (HHMM)
+        val limitedDigits = digitsOnly.take(4)
+        
+        // Format the time part
+        val timePart = when (limitedDigits.length) {
+            1 -> limitedDigits // Just one digit: "8"
+            2 -> limitedDigits // Two digits: "83"
+            3 -> "${limitedDigits[0]}:${limitedDigits.substring(1)}" // "8:30"
+            4 -> "${limitedDigits.substring(0, 2)}:${limitedDigits.substring(2)}" // "08:30"
+            else -> ""
+        }
+        
+        // Preserve AM/PM if user typed it
+        val amPmPart = when {
+            input.uppercase().contains("AM") -> " AM"
+            input.uppercase().contains("PM") -> " PM"
+            else -> ""
+        }
+        
+        return timePart + amPmPart
+    }
     var seatsAvailable by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
     
@@ -568,83 +674,134 @@ private fun AddRideFormDialog(
                     )
                 }
                 
-                // Origin - Current Location (Read-only)
+                // Origin - Current Location or Map Selection
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedTextField(
-                        value = origin,
-                        onValueChange = { }, // Read-only
-                        label = { Text("Origin * (Your Current Location)") },
-                        placeholder = { Text("Getting your location...") },
-                        leadingIcon = {
-                            if (locationState.isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = Primary
-                                )
-                            } else {
-                                Icon(Icons.Default.MyLocation, null, tint = Primary)
-                            }
-                        },
-                        trailingIcon = {
-                            if (originLocation != null) {
-                                Icon(
-                                    Icons.Default.CheckCircle,
-                                    "Location found",
-                                    tint = Primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        },
+                    // Checkbox for using current location
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        readOnly = true,
-                        enabled = true,
-                        singleLine = true,
-                        isError = originError != null || (originLocation == null && !locationState.isLoading && !locationState.hasPermission),
-                        supportingText = {
-                            when {
-                                originError != null -> Text(originError!!, color = Error)
-                                locationState.isLoading -> Text("Getting your location...", color = TextSecondary)
-                                !locationState.hasPermission -> Text("Location permission required", color = Error)
-                                originLocation == null && locationState.hasPermission -> Text("Unable to get location. Tap button to retry.", color = Error)
-                                originLocation == null -> Text("Please enable location permission", color = Error)
-                                else -> Text("Using your current location", color = Primary)
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = useCurrentLocation,
+                            onCheckedChange = { 
+                                useCurrentLocation = it
+                                if (!it) {
+                                    // Clear origin when unchecking
+                                    origin = ""
+                                    originLatLng = null
+                                }
                             }
-                        }
-                    )
+                        )
+                        Text(
+                            text = "Use current location",
+                            fontSize = 14.sp,
+                            modifier = Modifier.clickable { useCurrentLocation = !useCurrentLocation }
+                        )
+                    }
                     
-                    // Button to request location/permission if not available
-                    if (originLocation == null) {
-                        Button(
-                            onClick = { locationState.requestLocation() },
+                    if (useCurrentLocation) {
+                        // Show current location field
+                        OutlinedTextField(
+                            value = origin,
+                            onValueChange = { }, // Read-only
+                            label = { Text("Origin * (Your Current Location)") },
+                            placeholder = { Text("Getting your location...") },
+                            leadingIcon = {
+                                if (locationState.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Primary
+                                    )
+                                } else {
+                                    Icon(Icons.Default.MyLocation, null, tint = Primary)
+                                }
+                            },
+                            trailingIcon = {
+                                if (originLocation != null) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        "Location found",
+                                        tint = Primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (locationState.hasPermission) Secondary else Primary
-                            ),
-                            enabled = !locationState.isLoading
-                        ) {
-                            if (locationState.isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = Color.White
+                            readOnly = true,
+                            enabled = true,
+                            singleLine = true,
+                            isError = originError != null || (originLocation == null && !locationState.isLoading && !locationState.hasPermission),
+                            supportingText = {
+                                when {
+                                    originError != null -> Text(originError!!, color = Error)
+                                    locationState.isLoading -> Text("Getting your location...", color = TextSecondary)
+                                    !locationState.hasPermission -> Text("Location permission required", color = Error)
+                                    originLocation == null && locationState.hasPermission -> Text("Unable to get location. Tap button to retry.", color = Error)
+                                    originLocation == null -> Text("Please enable location permission", color = Error)
+                                    else -> Text("Using your current location", color = Primary)
+                                }
+                            }
+                        )
+                        
+                        // Button to request location/permission if not available
+                        if (originLocation == null) {
+                            Button(
+                                onClick = { locationState.requestLocation() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (locationState.hasPermission) Secondary else Primary
+                                ),
+                                enabled = !locationState.isLoading
+                            ) {
+                                if (locationState.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color.White
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                Icon(
+                                    imageVector = if (locationState.hasPermission) Icons.Default.Refresh else Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = if (locationState.hasPermission) "Retry Location" else "Enable Location",
+                                    fontSize = 14.sp
+                                )
                             }
-                            Icon(
-                                imageVector = if (locationState.hasPermission) Icons.Default.Refresh else Icons.Default.LocationOn,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = if (locationState.hasPermission) "Retry Location" else "Enable Location",
-                                fontSize = 14.sp
-                            )
                         }
+                    } else {
+                        // Show map selection field (similar to destination)
+                        OutlinedTextField(
+                            value = origin,
+                            onValueChange = { }, // Read-only, opens map
+                            label = { Text("Origin *") },
+                            placeholder = { Text("Tap to select on map") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Place, null)
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { showOriginMap = true }) {
+                                    Icon(Icons.Default.Map, "Select on Map", modifier = Modifier.size(20.dp))
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showOriginMap = true },
+                            readOnly = true,
+                            enabled = true,
+                            singleLine = true,
+                            isError = originError != null,
+                            supportingText = originError?.let { { Text(it, color = Error, fontSize = 11.sp) } }
+                        )
                     }
                 }
                 
@@ -669,7 +826,7 @@ private fun AddRideFormDialog(
                     enabled = true,
                     singleLine = true,
                     isError = destinationError != null,
-                    supportingText = destinationError?.let { { Text(it, color = Error) } }
+                    supportingText = destinationError?.let { { Text(it, color = Error, fontSize = 11.sp) } }
                 )
                 
                 // Date and Time Row
@@ -701,56 +858,84 @@ private fun AddRideFormDialog(
                         supportingText = dateError?.let { { Text(it, color = Error, fontSize = 11.sp) } }
                     )
                     
-                    // Time Picker
+                    // Time Picker with automatic formatting
                     OutlinedTextField(
                         value = time,
-                        onValueChange = { 
-                            time = it
-                            timeError = validateTime(it)
+                        onValueChange = { newValue ->
+                            // Format the input automatically
+                            val formatted = formatTimeInput(newValue)
+                            time = formatted
+                            timeError = validateTime(formatted)
                         },
                         label = { Text("Time *") },
-                        placeholder = { Text("8:30 AM") },
+                        placeholder = { Text("8:30 AM or 14:30") },
                         leadingIcon = {
                             Icon(Icons.Default.Schedule, null, modifier = Modifier.size(18.dp))
                         },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text // Allow text for AM/PM
+                        ),
                         isError = timeError != null,
-                        supportingText = timeError?.let { { Text(it, color = Error, fontSize = 11.sp) } }
-                    )
-                }
-                
-                // Date Picker Dialog
-                if (showDatePicker) {
-                    val datePickerState = rememberDatePickerState(
-                        initialSelectedDateMillis = selectedDate ?: System.currentTimeMillis()
-                    )
-                    
-                    AlertDialog(
-                        onDismissRequest = { showDatePicker = false },
-                        title = { Text("Select Date") },
-                        text = {
-                            DatePicker(state = datePickerState)
-                        },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    datePickerState.selectedDateMillis?.let {
-                                        selectedDate = it
-                                        dateError = validateDate(it)
-                                    }
-                                    showDatePicker = false
-                                }
-                            ) {
-                                Text("OK")
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showDatePicker = false }) {
-                                Text("Cancel")
+                        supportingText = {
+                            when {
+                                timeError != null -> Text(timeError!!, color = Error, fontSize = 11.sp)
+                                time.isNotEmpty() && time.length >= 4 -> Text("Use 12h format (e.g., 8:30 AM) or 24h format (e.g., 14:30)", color = TextSecondary, fontSize = 11.sp)
+                                else -> Text("Type time (e.g., 830 becomes 8:30)", color = TextSecondary, fontSize = 11.sp)
                             }
                         }
                     )
+                }
+                
+                // Date Picker Dialog - Using native Android DatePickerDialog for better mobile compatibility
+                // This provides better screen size adaptation than Material3 DatePicker
+                LaunchedEffect(showDatePicker) {
+                    if (showDatePicker && !datePickerDialogShown) {
+                        datePickerDialogShown = true
+                        val calendar = Calendar.getInstance()
+                        selectedDate?.let {
+                            calendar.timeInMillis = it
+                        }
+                        val year = calendar.get(Calendar.YEAR)
+                        val month = calendar.get(Calendar.MONTH)
+                        val day = calendar.get(Calendar.DAY_OF_MONTH)
+                        
+                        val datePickerDialog = DatePickerDialog(
+                            context,
+                            R.style.DatePickerDialogTheme, // Use custom theme with primary blue color
+                            { _, selectedYear, selectedMonth, selectedDay ->
+                                val newCalendar = Calendar.getInstance()
+                                newCalendar.set(selectedYear, selectedMonth, selectedDay)
+                                selectedDate = newCalendar.timeInMillis
+                                dateError = validateDate(newCalendar.timeInMillis)
+                                showDatePicker = false
+                                datePickerDialogShown = false
+                            },
+                            year,
+                            month,
+                            day
+                        )
+                        
+                        // Set minimum date to today
+                        datePickerDialog.datePicker.minDate = System.currentTimeMillis() - 86400000 // Allow today
+                        
+                        // Handle dialog cancellation
+                        datePickerDialog.setOnCancelListener {
+                            showDatePicker = false
+                            datePickerDialogShown = false
+                        }
+                        
+                        // Handle dialog dismissal (back button)
+                        datePickerDialog.setOnDismissListener {
+                            showDatePicker = false
+                            datePickerDialogShown = false
+                        }
+                        
+                        datePickerDialog.show()
+                    } else if (!showDatePicker) {
+                        datePickerDialogShown = false
+                    }
                 }
                 
                 // Seats Available (for offers) or Number of Passengers (for requests)
@@ -900,6 +1085,22 @@ private fun AddRideFormDialog(
         }
     }
     
+    // Origin Map Selection Dialog
+    if (showOriginMap) {
+        val defaultLocation = LatLng(36.8065, 10.1815) // Default to Tunis
+        DestinationMapDialog(
+            onDismiss = { showOriginMap = false },
+            onLocationSelected = { latLng, address ->
+                originLatLng = latLng
+                origin = address
+                originError = validateOrigin(address)
+                showOriginMap = false
+            },
+            initialLocation = originLatLng ?: originLocation?.let { LatLng(it.latitude, it.longitude) } ?: defaultLocation,
+            dialogTitle = "Select Origin"
+        )
+    }
+    
     // Destination Map Selection Dialog
     if (showDestinationMap) {
         val defaultLocation = LatLng(36.8065, 10.1815) // Default to Tunis
@@ -919,12 +1120,16 @@ private fun AddRideFormDialog(
 /**
  * Dialog for selecting destination on map
  */
+/**
+ * Dialog for selecting destination on map
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DestinationMapDialog(
     onDismiss: () -> Unit,
     onLocationSelected: (LatLng, String) -> Unit,
-    initialLocation: LatLng
+    initialLocation: LatLng,
+    dialogTitle: String = "Select Destination"
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -934,6 +1139,11 @@ private fun DestinationMapDialog(
     var isLoadingAddress by remember { mutableStateOf(false) }
     var shouldCreateMapView by remember { mutableStateOf(false) }
     var mapView by remember { mutableStateOf<MapView?>(null) }
+    
+    // Search functionality
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearching by remember { mutableStateOf(false) }
+    var searchResults by remember { mutableStateOf<List<android.location.Address>>(emptyList()) }
     
     // Ensure MapLibre is initialized before creating MapView
     LaunchedEffect(Unit) {
@@ -982,8 +1192,108 @@ private fun DestinationMapDialog(
         }
     }
     
+    // Search for address - Limited to Tunisia only
+    fun searchAddress(query: String) {
+        if (query.isBlank() || query.length < 3) {
+            searchResults = emptyList()
+            return
+        }
+        
+        isSearching = true
+        try {
+            val geocoder = Geocoder(context, Locale.getDefault())
+            
+            // Tunisia geographic bounds
+            // North: ~37.5°N, South: ~30.2°N, East: ~11.6°E, West: ~7.5°E
+            val tunisiaNorthEast = android.location.Location("").apply {
+                latitude = 37.5
+                longitude = 11.6
+            }
+            val tunisiaSouthWest = android.location.Location("").apply {
+                latitude = 30.2
+                longitude = 7.5
+            }
+            
+            // Get more results to filter (get 20, filter to 5)
+            val allAddresses = geocoder.getFromLocationName(
+                query, 
+                20, // Get more results for better filtering
+                tunisiaSouthWest.latitude,
+                tunisiaSouthWest.longitude,
+                tunisiaNorthEast.latitude,
+                tunisiaNorthEast.longitude
+            ) ?: emptyList()
+            
+            // Filter to only include addresses in Tunisia
+            val tunisiaAddresses = allAddresses.filter { address ->
+                address.countryName?.equals("Tunisia", ignoreCase = true) == true ||
+                address.countryCode?.equals("TN", ignoreCase = true) == true ||
+                address.countryName?.equals("Tunisie", ignoreCase = true) == true ||
+                // Also check if coordinates are within Tunisia bounds
+                (address.latitude >= 30.2 && address.latitude <= 37.5 &&
+                 address.longitude >= 7.5 && address.longitude <= 11.6)
+            }
+            
+            // Limit to 5 best results
+            searchResults = tunisiaAddresses.take(5)
+        } catch (e: Exception) {
+            // Fallback: try without bounds and filter by country
+            try {
+                val geocoder = Geocoder(context, Locale.getDefault())
+                val allAddresses = geocoder.getFromLocationName(query, 20) ?: emptyList()
+                val tunisiaAddresses = allAddresses.filter { address ->
+                    address.countryName?.equals("Tunisia", ignoreCase = true) == true ||
+                    address.countryCode?.equals("TN", ignoreCase = true) == true ||
+                    address.countryName?.equals("Tunisie", ignoreCase = true) == true
+                }
+                searchResults = tunisiaAddresses.take(5)
+            } catch (e2: Exception) {
+                searchResults = emptyList()
+            }
+        } finally {
+            isSearching = false
+        }
+    }
+    
+    // Handle search with debounce
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.length >= 3) {
+            delay(500) // Wait 500ms after last keystroke
+            if (searchQuery.length >= 3) {
+                searchAddress(searchQuery)
+            }
+        } else {
+            searchResults = emptyList()
+        }
+    }
+    
+    // Function to display search result on map (without selecting)
+    fun selectSearchResult(address: android.location.Address) {
+        val latLng = org.maplibre.android.geometry.LatLng(address.latitude, address.longitude)
+        val addressText = address.getAddressLine(0) ?: "${address.latitude}, ${address.longitude}"
+        
+        // Update selected location and address
+        selectedLocation = latLng
+        selectedAddress = addressText
+        searchQuery = addressText
+        searchResults = emptyList()
+        
+        // Move map to selected location and add marker
+        mapLibreMap?.let { map ->
+            map.animateCamera(
+                org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(
+                    latLng,
+                    15.0
+                )
+            )
+            map.getStyle { style ->
+                addDestinationMarker(style, latLng)
+            }
+        }
+    }
+    
     // Get address from coordinates
-    fun getAddressFromLocation(latLng: LatLng) {
+    fun getAddressFromLocation(latLng: org.maplibre.android.geometry.LatLng) {
         isLoadingAddress = true
         try {
             val geocoder = Geocoder(context, Locale.getDefault())
@@ -1005,7 +1315,7 @@ private fun DestinationMapDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Select Destination",
+                text = dialogTitle,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -1017,6 +1327,93 @@ private fun DestinationMapDialog(
                     .height(500.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Search Bar
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Search address") },
+                    placeholder = { Text("Type address to search...") },
+                    leadingIcon = {
+                        if (isSearching) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Primary
+                            )
+                        } else {
+                            Icon(Icons.Default.Search, null)
+                        }
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { 
+                                searchQuery = ""
+                                searchResults = emptyList()
+                            }) {
+                                Icon(Icons.Default.Clear, "Clear")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                // Search Results - Dynamic height based on number of results
+                if (searchResults.isNotEmpty()) {
+                    // Calculate dynamic height: min 60dp per item, max 200dp total
+                    val itemHeight = 60.dp // Approximate height per item (with padding)
+                    val calculatedHeight = (searchResults.size * itemHeight.value).dp.coerceAtMost(200.dp)
+                    val finalHeight = calculatedHeight.coerceAtLeast(60.dp) // Minimum height for 1 item
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(finalHeight),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Surface
+                        )
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(searchResults) { address ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { selectSearchResult(address) }
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Place,
+                                        null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = Primary
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = address.getAddressLine(0) ?: "Unknown address",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        if (address.getAddressLine(1) != null) {
+                                            Text(
+                                                text = address.getAddressLine(1) ?: "",
+                                                fontSize = 12.sp,
+                                                color = TextSecondary
+                                            )
+                                        }
+                                    }
+                                }
+                                Divider()
+                            }
+                        }
+                    }
+                }
+                
                 // Map View - created after MapLibre initialization
                 Box(
                     modifier = Modifier
@@ -1039,13 +1436,13 @@ private fun DestinationMapDialog(
                                     getMapAsync { map ->
                                         try {
                                             mapLibreMap = map
-                                            setupDestinationMapStyle(map, initialLocation) { success ->
+                                            setupDestinationMapStyle(map, org.maplibre.android.geometry.LatLng(initialLocation.latitude, initialLocation.longitude)) { success ->
                                                 if (success && mapLibreMap != null && mapView != null) {
                                                     try {
                                                         // Add marker at center
                                                         map.getStyle { style ->
                                                             try {
-                                                                addDestinationMarker(style, initialLocation)
+                                                                addDestinationMarker(style, org.maplibre.android.geometry.LatLng(initialLocation.latitude, initialLocation.longitude))
                                                             } catch (e: Exception) {
                                                                 android.util.Log.e("RidesScreen", "Error adding destination marker", e)
                                                             }
@@ -1209,7 +1606,7 @@ private fun DestinationMapDialog(
 /**
  * Setup map style for destination selection
  */
-private fun setupDestinationMapStyle(map: MapLibreMap, initialLocation: LatLng, onResult: (Boolean) -> Unit) {
+private fun setupDestinationMapStyle(map: MapLibreMap, initialLocation: org.maplibre.android.geometry.LatLng, onResult: (Boolean) -> Unit) {
     val apiKey = BuildConfig.MAPTILER_API_KEY
     val mapId = "streets-v2"
     val styleUrl = "https://api.maptiler.com/maps/$mapId/style.json?key=$apiKey"
@@ -1217,8 +1614,9 @@ private fun setupDestinationMapStyle(map: MapLibreMap, initialLocation: LatLng, 
     try {
         map.setStyle(Style.Builder().fromUri(styleUrl)) { style ->
             // Set initial camera position
+            val mapLibreLatLng = org.maplibre.android.geometry.LatLng(initialLocation.latitude, initialLocation.longitude)
             map.cameraPosition = CameraPosition.Builder()
-                .target(initialLocation)
+                .target(mapLibreLatLng)
                 .zoom(14.0)
                 .build()
             onResult(true)
@@ -1232,7 +1630,7 @@ private fun setupDestinationMapStyle(map: MapLibreMap, initialLocation: LatLng, 
 /**
  * Add destination marker on map
  */
-private fun addDestinationMarker(mapStyle: Style, location: LatLng) {
+private fun addDestinationMarker(mapStyle: Style, location: org.maplibre.android.geometry.LatLng) {
     try {
         // Remove existing marker
         mapStyle.getLayer("destination-marker-layer")?.let {
