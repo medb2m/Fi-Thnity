@@ -33,6 +33,7 @@ import chatRoutes from './routes/chatRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import friendRoutes from './routes/friendRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import supportRoutes from './routes/supportRoutes.js';
 
 // Initialize Express app
 const app = express();
@@ -190,6 +191,7 @@ app.use('/api/community', communityRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/friends', friendRoutes);
+app.use('/api/support', supportRoutes);
 
 // Debug: Log registered routes
 console.log('📋 Registered API routes:');
@@ -238,8 +240,27 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Import WebSocket servers
+import VehicleLocationServer from './websocket/vehicleLocationServer.js';
+import NotificationServer from './websocket/notificationServer.js';
+import { createServer } from 'http';
+
+// Create HTTP server for WebSocket support
+const httpServer = createServer(app);
+
+// Initialize WebSocket server for vehicle location tracking
+const vehicleLocationServer = new VehicleLocationServer(httpServer);
+vehicleLocationServer.startCleanupTimer(); // Start cleanup timer for inactive vehicles
+
+// Initialize WebSocket server for real-time notifications
+const notificationServer = new NotificationServer(httpServer);
+
+// Make notification server available globally (for controllers to use)
+// This avoids circular dependency issues
+global.notificationServer = notificationServer;
+
 // Start server - explicitly bind to 0.0.0.0 for IPv4 support
-app.listen(PORT, '0.0.0.0', () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`
 ╔═══════════════════════════════════════════════╗
 ║                                               ║
@@ -249,6 +270,8 @@ app.listen(PORT, '0.0.0.0', () => {
 ║   🚀 Server running on port ${PORT.toString().padEnd(14)}    ║
 ║   📍 URL: http://localhost:${PORT}              ║
 ║   🔧 Admin Panel: http://localhost:${PORT}/admin  ║
+║   📡 WebSocket: ws://localhost:${PORT}/ws/vehicle-location ║
+║   🔔 WebSocket: ws://localhost:${PORT}/ws/notifications ║
 ║                                               ║
 ╚═══════════════════════════════════════════════╝
   `);

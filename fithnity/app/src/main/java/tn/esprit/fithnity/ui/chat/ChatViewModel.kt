@@ -171,7 +171,15 @@ class ChatViewModel : ViewModel() {
     /**
      * Send a message
      */
-    fun sendMessage(authToken: String?, conversationId: String, content: String, imageUrl: String? = null, audioUrl: String? = null, audioDuration: Int? = null) = viewModelScope.launch {
+    fun sendMessage(
+        authToken: String?, 
+        conversationId: String, 
+        content: String, 
+        imageUrl: String? = null, 
+        audioUrl: String? = null, 
+        audioDuration: Int? = null,
+        location: LocationData? = null
+    ) = viewModelScope.launch {
         Log.d(TAG, "sendMessage: Sending message to conversation $conversationId")
         _sendMessageState.value = SendMessageUiState.Sending
 
@@ -183,11 +191,12 @@ class ChatViewModel : ViewModel() {
             }
 
             val messageType = when {
+                location != null -> "LOCATION"
                 audioUrl != null -> "AUDIO"
                 imageUrl != null -> "IMAGE"
                 else -> "TEXT"
             }
-            val messageContent = if ((imageUrl != null || audioUrl != null) && content.isBlank()) "" else content
+            val messageContent = if ((imageUrl != null || audioUrl != null || location != null) && content.isBlank()) "" else content
 
             val response = api.sendMessage(
                 bearer = "Bearer $token",
@@ -197,7 +206,8 @@ class ChatViewModel : ViewModel() {
                     messageType = messageType,
                     imageUrl = imageUrl,
                     audioUrl = audioUrl,
-                    audioDuration = audioDuration
+                    audioDuration = audioDuration,
+                    location = location
                 )
             )
 

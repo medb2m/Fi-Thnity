@@ -48,7 +48,9 @@ fun FiThnityNavGraph(
     isFirstHomeVisit: Boolean = true,
     onFirstHomeVisitComplete: () -> Unit = {},
     userPreferences: UserPreferences,
-    languageViewModel: LanguageViewModel
+    languageViewModel: LanguageViewModel,
+    showPublicTransportDialog: Boolean = false,
+    onPublicTransportDialogShown: () -> Unit = {}
 ) {
     NavHost(
         navController = navController,
@@ -79,12 +81,99 @@ fun FiThnityNavGraph(
             ) + fadeOut(animationSpec = tween(300))
         }
     ) {
-        // Home Screen
+        // Home Screen (base route without parameters)
         composable(Screen.Home.route) {
             HomeScreen(
                 navController = navController,
                 showWelcomeBanner = isFirstHomeVisit,
-                onWelcomeBannerDismissed = onFirstHomeVisitComplete
+                onWelcomeBannerDismissed = onFirstHomeVisitComplete,
+                showPublicTransportDialog = showPublicTransportDialog,
+                onPublicTransportDialogShown = onPublicTransportDialogShown,
+                showPublicTransportConfirmationDialog = false
+            )
+        }
+        
+        // Home Screen with public transport dialog parameter (for backward compatibility)
+        composable(
+            route = Screen.Home.route + "?showPublicTransport={showPublicTransport}",
+            arguments = listOf(
+                navArgument("showPublicTransport") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
+            val showPublicTransport = backStackEntry.arguments?.getBoolean("showPublicTransport") ?: false
+            HomeScreen(
+                navController = navController,
+                showWelcomeBanner = isFirstHomeVisit,
+                onWelcomeBannerDismissed = onFirstHomeVisitComplete,
+                showPublicTransportDialog = showPublicTransport || showPublicTransportDialog,
+                onPublicTransportDialogShown = onPublicTransportDialogShown,
+                showPublicTransportConfirmationDialog = false
+            )
+        }
+        
+        // Home Screen with public transport confirmation dialog (from notification)
+        composable(
+            route = Screen.Home.route + "?showPublicTransportConfirmation={showPublicTransportConfirmation}",
+            arguments = listOf(
+                navArgument("showPublicTransportConfirmation") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
+            val showConfirmation = backStackEntry.arguments?.getBoolean("showPublicTransportConfirmation") ?: false
+            HomeScreen(
+                navController = navController,
+                showWelcomeBanner = isFirstHomeVisit,
+                onWelcomeBannerDismissed = onFirstHomeVisitComplete,
+                showPublicTransportDialog = false,
+                onPublicTransportDialogShown = onPublicTransportDialogShown,
+                showPublicTransportConfirmationDialog = showConfirmation
+            )
+        }
+        
+        // Home Screen with shared location parameters
+        composable(
+            route = Screen.Home.route + "?lat={lat}&lng={lng}&userName={userName}&userPhoto={userPhoto}",
+            arguments = listOf(
+                navArgument("lat") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("lng") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("userName") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("userPhoto") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            val lat = backStackEntry.arguments?.getString("lat")?.toDoubleOrNull()
+            val lng = backStackEntry.arguments?.getString("lng")?.toDoubleOrNull()
+            val userName = backStackEntry.arguments?.getString("userName")
+            val userPhoto = backStackEntry.arguments?.getString("userPhoto")
+            
+            HomeScreen(
+                navController = navController,
+                showWelcomeBanner = isFirstHomeVisit,
+                onWelcomeBannerDismissed = onFirstHomeVisitComplete,
+                sharedLocationLat = lat,
+                sharedLocationLng = lng,
+                sharedLocationUserName = userName,
+                sharedLocationUserPhoto = userPhoto
             )
         }
 
@@ -246,6 +335,14 @@ fun FiThnityNavGraph(
                 navController = navController,
                 userPreferences = userPreferences,
                 languageViewModel = languageViewModel
+            )
+        }
+
+        // Help & Support Screen
+        composable(Screen.HelpSupport.route) {
+            tn.esprit.fithnity.ui.support.HelpSupportScreen(
+                navController = navController,
+                userPreferences = userPreferences
             )
         }
 

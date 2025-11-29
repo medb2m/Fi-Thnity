@@ -33,7 +33,8 @@
     "multer": "^2.0.2",
     "node-cron": "^3.0.3",
     "nodemailer": "^7.0.9",
-    "twilio": "^4.19.0"
+    "twilio": "^4.19.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

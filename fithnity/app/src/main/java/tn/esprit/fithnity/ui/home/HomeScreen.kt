@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +35,7 @@ import tn.esprit.fithnity.BuildConfig
 import tn.esprit.fithnity.ui.components.GlassCard
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.navigation.SearchState
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import tn.esprit.fithnity.ui.theme.*
 import androidx.compose.ui.res.stringResource
 import tn.esprit.fithnity.R
@@ -47,6 +49,30 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import coil.ImageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
+import android.graphics.RectF
+import tn.esprit.fithnity.ui.home.VehicleTrackingFAB
+import tn.esprit.fithnity.ui.home.PublicTransportManager
+import tn.esprit.fithnity.ui.home.PublicTransportSearchDialog
+import tn.esprit.fithnity.ui.home.MetroLineSelectionDialog
+import tn.esprit.fithnity.ui.home.BusNumberInputDialog
+import tn.esprit.fithnity.ui.home.PublicTransportConfirmationDialog
+import tn.esprit.fithnity.ui.home.MetroLineConfirmationDialog
+import tn.esprit.fithnity.ui.home.BusNumberConfirmationDialog
+import tn.esprit.fithnity.services.VehicleWebSocketClient
+import tn.esprit.fithnity.data.NetworkModule
+import tn.esprit.fithnity.data.BroadcastNotificationRequest
 
 /**
  * Modern Home Screen with MapLibre
@@ -57,7 +83,14 @@ fun HomeScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     showWelcomeBanner: Boolean = false,
-    onWelcomeBannerDismissed: () -> Unit = {}
+    onWelcomeBannerDismissed: () -> Unit = {},
+    sharedLocationLat: Double? = null,
+    sharedLocationLng: Double? = null,
+    sharedLocationUserName: String? = null,
+    sharedLocationUserPhoto: String? = null,
+    showPublicTransportDialog: Boolean = false,
+    onPublicTransportDialogShown: () -> Unit = {},
+    showPublicTransportConfirmationDialog: Boolean = false
 ) {
     // Track if map is loading
     var mapLoadError by remember { mutableStateOf(false) }
@@ -73,6 +106,45 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     // Track if we should follow user location
     var isFollowingLocation by remember { mutableStateOf(false) }
+    
+    // Get auth token for API calls
+    val userPreferences = remember { tn.esprit.fithnity.data.UserPreferences(context) }
+    val authToken = remember { userPreferences.getAuthToken() }
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Public Transport State - use state-based approach (no navigation)
+    var showPublicTransportSearchDialog by remember { 
+        mutableStateOf(false) 
+    }
+    var showPublicTransportConfirmationDialogState by remember { 
+        mutableStateOf(false) 
+    }
+    
+    // Show dialog when state changes (no navigation involved)
+    LaunchedEffect(showPublicTransportDialog) {
+        if (showPublicTransportDialog) {
+            showPublicTransportSearchDialog = true
+            // Notify that dialog has been shown
+            onPublicTransportDialogShown()
+        }
+    }
+    
+    // Show confirmation dialog when coming from notification
+    LaunchedEffect(showPublicTransportConfirmationDialog) {
+        if (showPublicTransportConfirmationDialog) {
+            showPublicTransportConfirmationDialogState = true
+        }
+    }
+    
+    var showMetroLineSelectionDialog by remember { mutableStateOf(false) }
+    var showBusNumberInputDialog by remember { mutableStateOf(false) }
+    var showMetroLineConfirmationDialog by remember { mutableStateOf(false) }
+    var showBusNumberConfirmationDialog by remember { mutableStateOf(false) }
+    
+    // Public Transport Manager
+    val webSocketClient = remember { VehicleWebSocketClient() }
+    var publicTransportManager by remember { mutableStateOf<PublicTransportManager?>(null) }
+    var markerManager by remember { mutableStateOf<VehicleMarkerManager?>(null) }
     // Track last location update time
     var lastLocationUpdate by remember { mutableStateOf<Long?>(null) }
     // Track if this is the first location update
@@ -85,6 +157,8 @@ fun HomeScreen(
     
     // Store MapView reference for lifecycle management
     var mapView by remember { mutableStateOf<MapView?>(null) }
+    // Store map style for vehicle markers
+    var mapStyle by remember { mutableStateOf<Style?>(null) }
     
     // Listen to search state changes for map location search
     LaunchedEffect(Unit) {
@@ -259,6 +333,22 @@ fun HomeScreen(
                                 mapLibreMap = map
                                 setupMapStyle(map) { success ->
                                     mapLoadError = !success
+                                    if (success) {
+                                        map.getStyle { style ->
+                                            mapStyle = style
+                                            // Initialize marker manager and public transport manager
+                                            markerManager = VehicleMarkerManager(style, context)
+                                            publicTransportManager = PublicTransportManager(
+                                                context = context,
+                                                mapLibreMap = map,
+                                                mapStyle = style,
+                                                webSocketClient = webSocketClient,
+                                                markerManager = markerManager
+                                            )
+                                            // Connect WebSocket
+                                            webSocketClient.connect()
+                                        }
+                                    }
                                 }
                             } catch (e: Exception) {
                                 android.util.Log.e("HomeScreen", "Error in getMapAsync callback", e)
@@ -406,7 +496,7 @@ fun HomeScreen(
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 180.dp, end = 20.dp),
+                .padding(bottom = 250.dp, end = 20.dp),
             containerColor = if (isFollowingLocation && locationState.location != null) Primary else Surface,
             contentColor = if (isFollowingLocation && locationState.location != null) Color.White else Primary
         ) {
@@ -423,6 +513,18 @@ fun HomeScreen(
                 )
             }
         }
+        
+        // Layer 4: Vehicle Tracking FAB (below location FAB)
+        VehicleTrackingFAB(
+            context = context,
+            mapLibreMap = mapLibreMap,
+            mapStyle = mapStyle,
+            userLocationLat = locationState.location?.latitude,
+            userLocationLng = locationState.location?.longitude,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 180.dp, end = 20.dp)
+        )
         
         // Handle location updates and center map
         LaunchedEffect(locationState.location, mapLibreMap, shouldCenterOnLocation) {
@@ -524,6 +626,192 @@ fun HomeScreen(
                 isFollowingLocation = false
                 Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
             }
+        }
+        
+        // Handle shared location from chat
+        LaunchedEffect(sharedLocationLat, sharedLocationLng, mapLibreMap) {
+            if (sharedLocationLat != null && sharedLocationLng != null && mapLibreMap != null && mapView != null) {
+                // Check if lifecycle is in a valid state
+                if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    return@LaunchedEffect
+                }
+                
+                // Use let to ensure map is not null
+                mapLibreMap?.let { map ->
+                    // Load profile picture in background and add marker
+                    withContext(Dispatchers.IO) {
+                        val profileBitmap = if (!sharedLocationUserPhoto.isNullOrEmpty() && sharedLocationUserPhoto != "none") {
+                            loadProfilePictureBitmap(context, sharedLocationUserPhoto)
+                        } else {
+                            null
+                        }
+                        
+                        // Switch back to main thread to update map
+                        withContext(Dispatchers.Main) {
+                            try {
+                                val sharedLocation = LatLng(sharedLocationLat, sharedLocationLng)
+                                
+                                // Center map on shared location
+                                val cameraUpdate = org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(
+                                    CameraPosition.Builder()
+                                        .target(sharedLocation)
+                                        .zoom(16.0)
+                                        .build()
+                                )
+                                map.animateCamera(cameraUpdate, 1000)
+                                
+                                // Add shared location marker
+                                map.getStyle { style ->
+                                    try {
+                                        addSharedLocationMarker(
+                                            style, 
+                                            sharedLocation, 
+                                            sharedLocationUserName ?: "User",
+                                            profileBitmap
+                                        )
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("HomeScreen", "Error adding shared location marker", e)
+                                    }
+                                }
+                                
+                                // Show toast
+                                Toast.makeText(
+                                    context,
+                                    "${sharedLocationUserName ?: "User"}'s location",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } catch (e: Exception) {
+                                android.util.Log.e("HomeScreen", "Error displaying shared location", e)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Public Transport Dialogs
+        if (showPublicTransportSearchDialog) {
+            PublicTransportSearchDialog(
+                onDismiss = { 
+                    showPublicTransportSearchDialog = false
+                },
+                onMetroSelected = { showMetroLineSelectionDialog = true },
+                onBusSelected = { showBusNumberInputDialog = true }
+            )
+        }
+        
+        if (showMetroLineSelectionDialog) {
+            MetroLineSelectionDialog(
+                onDismiss = { showMetroLineSelectionDialog = false },
+                onLineSelected = { lineNumber ->
+                    // Send notification to all users
+                    android.util.Log.d("HomeScreen", "User searching for Metro Line $lineNumber")
+                    Toast.makeText(context, "Searching for Metro Line $lineNumber", Toast.LENGTH_SHORT).show()
+                    
+                    // Broadcast notification to all users
+                    if (authToken != null) {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                val response = NetworkModule.notificationApi.broadcastNotification(
+                                    bearer = "Bearer $authToken",
+                                    request = BroadcastNotificationRequest(
+                                        type = "PUBLIC_TRANSPORT_SEARCH",
+                                        title = "Someone is looking for Metro Line $lineNumber",
+                                        message = "Are you on your way today?",
+                                        data = mapOf(
+                                            "transportType" to "METRO",
+                                            "lineNumber" to lineNumber.toString(),
+                                            "searchType" to "METRO_LINE"
+                                        )
+                                    )
+                                )
+                                android.util.Log.d("HomeScreen", "Broadcast notification sent: ${response.data?.notifiedCount} users notified")
+                            } catch (e: Exception) {
+                                android.util.Log.e("HomeScreen", "Error broadcasting notification", e)
+                            }
+                        }
+                    }
+                }
+            )
+        }
+        
+        if (showBusNumberInputDialog) {
+            BusNumberInputDialog(
+                onDismiss = { showBusNumberInputDialog = false },
+                onBusSelected = { busNumber ->
+                    // Send notification to all users
+                    android.util.Log.d("HomeScreen", "User searching for Bus $busNumber")
+                    Toast.makeText(context, "Searching for Bus $busNumber", Toast.LENGTH_SHORT).show()
+                    
+                    // Broadcast notification to all users
+                    if (authToken != null) {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                val response = NetworkModule.notificationApi.broadcastNotification(
+                                    bearer = "Bearer $authToken",
+                                    request = BroadcastNotificationRequest(
+                                        type = "PUBLIC_TRANSPORT_SEARCH",
+                                        title = "Someone is looking for Bus $busNumber",
+                                        message = "Are you on your way today?",
+                                        data = mapOf(
+                                            "transportType" to "BUS",
+                                            "busNumber" to busNumber,
+                                            "searchType" to "BUS_NUMBER"
+                                        )
+                                    )
+                                )
+                                android.util.Log.d("HomeScreen", "Broadcast notification sent: ${response.data?.notifiedCount} users notified")
+                            } catch (e: Exception) {
+                                android.util.Log.e("HomeScreen", "Error broadcasting notification", e)
+                            }
+                        }
+                    }
+                }
+            )
+        }
+        
+        if (showPublicTransportConfirmationDialogState) {
+            PublicTransportConfirmationDialog(
+                onDismiss = { showPublicTransportConfirmationDialogState = false },
+                onMetroSelected = { showMetroLineConfirmationDialog = true },
+                onBusSelected = { showBusNumberConfirmationDialog = true }
+            )
+        }
+        
+        if (showMetroLineConfirmationDialog) {
+            MetroLineConfirmationDialog(
+                onDismiss = { showMetroLineConfirmationDialog = false },
+                onLineConfirmed = { lineNumber ->
+                    // Start metro simulation
+                    publicTransportManager?.startMetroSimulation(
+                        metroLine = lineNumber,
+                        userLocationLat = locationState.location?.latitude,
+                        userLocationLng = locationState.location?.longitude,
+                        onStatusUpdate = { status ->
+                            android.util.Log.d("HomeScreen", "Metro simulation: $status")
+                        }
+                    )
+                    Toast.makeText(context, "Sharing Metro Line $lineNumber location", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+        
+        if (showBusNumberConfirmationDialog) {
+            BusNumberConfirmationDialog(
+                onDismiss = { showBusNumberConfirmationDialog = false },
+                onBusConfirmed = { busNumber ->
+                    // Start bus simulation
+                    publicTransportManager?.startBusSimulation(
+                        busNumber = busNumber,
+                        userLocationLat = locationState.location?.latitude,
+                        userLocationLng = locationState.location?.longitude,
+                        onStatusUpdate = { status ->
+                            android.util.Log.d("HomeScreen", "Bus simulation: $status")
+                        }
+                    )
+                    Toast.makeText(context, "Sharing Bus $busNumber location", Toast.LENGTH_SHORT).show()
+                }
+            )
         }
     }
 }
@@ -725,6 +1013,265 @@ private fun addSelectedLocationMarker(mapStyle: Style, location: LatLng) {
     } catch (e: Exception) {
         android.util.Log.e("HomeScreen", "Error adding selected location marker", e)
     }
+}
+
+/**
+ * Load profile picture from URL and convert to circular bitmap
+ */
+private suspend fun loadProfilePictureBitmap(context: android.content.Context, photoUrl: String): Bitmap? {
+    return withContext(Dispatchers.IO) {
+        try {
+            val fullPhotoUrl = if (photoUrl.startsWith("http")) {
+                photoUrl
+            } else {
+                "http://72.61.145.239:9090$photoUrl"
+            }
+            
+            val imageLoader = ImageLoader(context)
+            val request = ImageRequest.Builder(context)
+                .data(fullPhotoUrl)
+                .allowHardware(false) // Disable hardware bitmaps for manipulation
+                .build()
+            
+            val result = imageLoader.execute(request)
+            if (result is SuccessResult) {
+                val bitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                bitmap?.let { makeCircularBitmap(it, 64) } // 64px circular profile picture
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("HomeScreen", "Error loading profile picture", e)
+            null
+        }
+    }
+}
+
+/**
+ * Convert bitmap to circular shape
+ */
+private fun makeCircularBitmap(bitmap: Bitmap, size: Int): Bitmap {
+    val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(output)
+    
+    val paint = Paint().apply {
+        isAntiAlias = true
+        isFilterBitmap = true
+        isDither = true
+    }
+    
+    // Draw circle
+    canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+    
+    // Apply source-in mode to clip the bitmap to the circle
+    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+    
+    // Scale and center the bitmap
+    val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
+    val dstRect = Rect(0, 0, size, size)
+    canvas.drawBitmap(bitmap, srcRect, dstRect, paint)
+    
+    return output
+}
+
+/**
+ * Add or update shared location marker on the map (from chat)
+ * Shows the user's profile picture and name
+ */
+private fun addSharedLocationMarker(
+    mapStyle: Style, 
+    location: LatLng, 
+    userName: String,
+    profileBitmap: Bitmap?
+) {
+    try {
+        // Create GeoJSON point for shared location
+        val pointJson = JSONObject().apply {
+            put("type", "Point")
+            put("coordinates", JSONArray().apply {
+                put(location.longitude)
+                put(location.latitude)
+            })
+        }
+        
+        val featureJson = JSONObject().apply {
+            put("type", "Feature")
+            put("geometry", pointJson)
+            put("properties", JSONObject().apply {
+                put("userName", userName)
+            })
+        }
+        
+        // Remove existing shared location layer and source
+        mapStyle.getLayer("shared-location-layer")?.let {
+            mapStyle.removeLayer(it)
+        }
+        mapStyle.getSourceAs<GeoJsonSource>("shared-location-source")?.let {
+            mapStyle.removeSource(it)
+        }
+        
+        // Add source for shared location
+        val source = GeoJsonSource("shared-location-source", featureJson.toString())
+        mapStyle.addSource(source)
+        
+        // Add symbol layer for shared location icon
+        val symbolLayer = SymbolLayer("shared-location-layer", "shared-location-source")
+            .withProperties(
+                org.maplibre.android.style.layers.PropertyFactory.iconImage("shared-location-icon"),
+                org.maplibre.android.style.layers.PropertyFactory.iconSize(1.0f),
+                org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap(true),
+                org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement(true),
+                org.maplibre.android.style.layers.PropertyFactory.iconAnchor(org.maplibre.android.style.layers.Property.ICON_ANCHOR_BOTTOM)
+            )
+        
+        // Create custom marker with name drawn directly into bitmap (no MapLibre text layer needed!)
+        val bitmap = createSharedLocationMarkerBitmap(profileBitmap, userName)
+        
+        mapStyle.addImage("shared-location-icon", bitmap)
+        mapStyle.addLayer(symbolLayer)
+        
+    } catch (e: Exception) {
+        android.util.Log.e("HomeScreen", "Error adding shared location marker", e)
+    }
+}
+
+/**
+ * Create marker bitmap with profile picture and NAME DRAWN DIRECTLY INTO BITMAP
+ * Optimized for performance - GREEN marker for shared location (vs blue for user location)
+ * NO dependency on MapLibre text layers - works even when MapTiler fonts fail!
+ */
+private fun createSharedLocationMarkerBitmap(profileBitmap: Bitmap?, userName: String): Bitmap {
+    // Create larger bitmap to include name label above marker
+    val bitmap = Bitmap.createBitmap(120, 150, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    
+    // Use GREEN color for shared location (different from user's blue)
+    val markerColor = android.graphics.Color.parseColor("#22C55E") // Green
+    
+    // Draw pulsing circle background
+    val pulsePaint = Paint().apply {
+        isAntiAlias = true
+        color = markerColor
+        alpha = 60
+        this.style = Paint.Style.FILL
+    }
+    canvas.drawCircle(60f, 60f, 38f, pulsePaint)
+    
+    // Draw main pin background circle
+    val pinPaint = Paint().apply {
+        isAntiAlias = true
+        color = markerColor
+        this.style = Paint.Style.FILL
+    }
+    val strokePaint = Paint().apply {
+        isAntiAlias = true
+        color = android.graphics.Color.WHITE
+        this.style = Paint.Style.STROKE
+        strokeWidth = 5f
+    }
+    
+    // Draw circular head of pin
+    canvas.drawCircle(60f, 60f, 28f, pinPaint)
+    canvas.drawCircle(60f, 60f, 28f, strokePaint)
+    
+    // Draw profile picture if available, otherwise draw person icon
+    if (profileBitmap != null) {
+        // Create a smaller white background circle for the profile picture
+        val innerCirclePaint = Paint().apply {
+            isAntiAlias = true
+            color = android.graphics.Color.WHITE
+            this.style = Paint.Style.FILL
+        }
+        canvas.drawCircle(60f, 60f, 22f, innerCirclePaint)
+        
+        // Draw the profile picture as a circle
+        val profilePaint = Paint().apply {
+            isAntiAlias = true
+            isFilterBitmap = true
+        }
+        
+        // Save layer for circular clip
+        val saveCount = canvas.saveLayer(0f, 0f, 120f, 150f, null)
+        
+        // Create circular clip for profile picture
+        val clipPaint = Paint().apply {
+            isAntiAlias = true
+        }
+        canvas.drawCircle(60f, 60f, 20f, clipPaint)
+        
+        // Apply source-in mode
+        profilePaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+        
+        // Draw profile picture centered
+        val left = 60f - 20f
+        val top = 60f - 20f
+        val right = 60f + 20f
+        val bottom = 60f + 20f
+        canvas.drawBitmap(
+            profileBitmap,
+            null,
+            RectF(left, top, right, bottom),
+            profilePaint
+        )
+        
+        canvas.restoreToCount(saveCount)
+    } else {
+        // Draw inner white circle for default icon
+        val innerPaint = Paint().apply {
+            isAntiAlias = true
+            color = android.graphics.Color.WHITE
+            this.style = Paint.Style.FILL
+        }
+        canvas.drawCircle(60f, 60f, 20f, innerPaint)
+        
+        // Draw person icon in the center
+        val iconPaint = Paint().apply {
+            isAntiAlias = true
+            color = markerColor
+            this.style = Paint.Style.FILL
+        }
+        // Simple person icon - head
+        canvas.drawCircle(60f, 55f, 7f, iconPaint)
+        // Body (simplified)
+        val bodyPath = android.graphics.Path()
+        bodyPath.moveTo(52f, 68f)
+        bodyPath.lineTo(60f, 60f)
+        bodyPath.lineTo(68f, 68f)
+        bodyPath.close()
+        canvas.drawPath(bodyPath, iconPaint)
+    }
+    
+    // Draw pin point (triangle at bottom)
+    val pinPath = android.graphics.Path()
+    pinPath.moveTo(60f, 88f)
+    pinPath.lineTo(52f, 108f)
+    pinPath.lineTo(68f, 108f)
+    pinPath.close()
+    canvas.drawPath(pinPath, pinPaint)
+    canvas.drawPath(pinPath, strokePaint)
+    
+    // ===== DRAW NAME LABEL ABOVE THE PIN =====
+    // This is the KEY FIX - name drawn directly into bitmap!
+    val textPaint = Paint().apply {
+        isAntiAlias = true
+        color = android.graphics.Color.WHITE
+        textSize = 28f
+        textAlign = Paint.Align.CENTER
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        setShadowLayer(4f, 0f, 0f, markerColor) // Green shadow/halo effect
+    }
+    
+    // Truncate name if too long (max 10 chars)
+    val displayName = if (userName.length > 10) {
+        userName.substring(0, 9) + "…"
+    } else {
+        userName
+    }
+    
+    // Draw name label above the marker
+    canvas.drawText(displayName, 60f, 28f, textPaint)
+    
+    return bitmap
 }
 
 /**

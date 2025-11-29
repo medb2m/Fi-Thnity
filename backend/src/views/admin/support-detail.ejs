@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - Fi Thnity Admin</title>
+    <%- include('./styles.ejs') %>
+    <style>
+        .ticket-header {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .ticket-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .info-label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 0.25rem;
+        }
+        .info-value {
+            font-weight: 600;
+            color: #333;
+        }
+        .messages-container {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .message {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .message.user {
+            background: #e3f2fd;
+            margin-left: 2rem;
+        }
+        .message.admin {
+            background: #fff3e0;
+            margin-right: 2rem;
+        }
+        .message.bot {
+            background: #f1f8e9;
+        }
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .message-sender {
+            font-weight: 600;
+            color: #006D9C;
+        }
+        .message-time {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        .message-content {
+            color: #333;
+            line-height: 1.6;
+        }
+        .reply-form {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .actions-bar {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 style="display: flex; align-items: center; gap: 0.75rem;">
+            <img src="/fithnity_logo.png" alt="Fi Thnity Logo" style="width: 40px; height: 40px; border-radius: 50%;">
+            Fi Thnity Admin Panel
+        </h1>
+        <div class="subtitle">Save Time, Save Tunisia</div>
+    </div>
+
+    <nav class="nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/users">Users</a>
+        <a href="/admin/rides">Rides</a>
+        <a href="/admin/posts">Community Posts</a>
+        <a href="/admin/support" class="active">Support Tickets</a>
+        <a href="/admin/logout" style="margin-left: auto;">Logout</a>
+    </nav>
+
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h2 style="color: #006D9C; margin: 0;"><%= title %></h2>
+            <a href="/admin/support" class="btn">← Back to Tickets</a>
+        </div>
+
+        <!-- Success/Error Messages -->
+        <% if (typeof message !== 'undefined' && message) { %>
+            <div class="alert alert-success"><%= message %></div>
+        <% } %>
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+
+        <!-- Ticket Header -->
+        <div class="ticket-header">
+            <h3 style="margin: 0 0 1rem 0; color: #006D9C;"><%= ticket.subject %></h3>
+            <div class="ticket-info">
+                <div class="info-item">
+                    <span class="info-label">Status</span>
+                    <% const statusColors = { open: 'badge-warning', in_progress: 'badge-info', resolved: 'badge-success', closed: 'badge-secondary' }; %>
+                    <span class="badge <%= statusColors[ticket.status] || 'badge-warning' %>">
+                        <%= ticket.status || 'open' %>
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Priority</span>
+                    <% const priorityColors = { low: 'badge-info', medium: 'badge-warning', high: 'badge-danger', urgent: 'badge-danger' }; %>
+                    <span class="badge <%= priorityColors[ticket.priority] || 'badge-warning' %>">
+                        <%= ticket.priority || 'medium' %>
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Category</span>
+                    <span class="badge badge-info"><%= ticket.category || 'other' %></span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">User</span>
+                    <span class="info-value"><%= ticket.user?.name || 'N/A' %></span>
+                    <small style="color: #666;"><%= ticket.user?.email || ticket.user?.phoneNumber || '' %></small>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Assigned To</span>
+                    <span class="info-value"><%= ticket.assignedTo?.name || 'Unassigned' %></span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Created</span>
+                    <span class="info-value"><%= new Date(ticket.createdAt).toLocaleString() %></span>
+                </div>
+                <% if (ticket.resolvedAt) { %>
+                <div class="info-item">
+                    <span class="info-label">Resolved</span>
+                    <span class="info-value"><%= new Date(ticket.resolvedAt).toLocaleString() %></span>
+                </div>
+                <% } %>
+            </div>
+        </div>
+
+        <!-- Description -->
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <h4 style="margin-top: 0; color: #006D9C;">Description</h4>
+            <p style="line-height: 1.6; color: #333;"><%= ticket.description %></p>
+        </div>
+
+        <!-- Messages -->
+        <div class="messages-container">
+            <h4 style="margin-top: 0; color: #006D9C; margin-bottom: 1rem;">Conversation (<%= ticket.messages?.length || 0 %> messages)</h4>
+            <% if (ticket.messages && ticket.messages.length > 0) { %>
+                <% ticket.messages.forEach(msg => { %>
+                    <div class="message <%= msg.sender %>">
+                        <div class="message-header">
+                            <span class="message-sender">
+                                <% if (msg.sender === 'user') { %>
+                                    👤 <%= ticket.user?.name || 'User' %>
+                                <% } else if (msg.sender === 'admin') { %>
+                                    🛡️ Admin
+                                <% } else { %>
+                                    🤖 Bot
+                                <% } %>
+                            </span>
+                            <span class="message-time"><%= new Date(msg.createdAt).toLocaleString() %></span>
+                        </div>
+                        <div class="message-content"><%= msg.content %></div>
+                    </div>
+                <% }); %>
+            <% } else { %>
+                <p style="color: #999; text-align: center; padding: 2rem;">No messages yet.</p>
+            <% } %>
+        </div>
+
+        <!-- Reply Form -->
+        <div class="reply-form">
+            <h4 style="margin-top: 0; color: #006D9C; margin-bottom: 1rem;">Reply to Ticket</h4>
+            <form method="POST" action="/admin/support/<%= ticket._id %>/message">
+                <div class="form-group">
+                    <label for="content">Your Message</label>
+                    <textarea id="content" name="content" class="form-control" rows="4" required placeholder="Type your response here..."></textarea>
+                </div>
+                <div class="actions-bar">
+                    <button type="submit" class="btn btn-primary">Send Message</button>
+                    <% if (ticket.status !== 'resolved') { %>
+                        <form method="POST" action="/admin/support/<%= ticket._id %>/resolve" style="display: inline;">
+                            <button type="submit" class="btn btn-success">Mark as Resolved</button>
+                        </form>
+                    <% } %>
+                    <form method="POST" action="/admin/support/<%= ticket._id %>/status" style="display: inline;">
+                        <select name="status" class="form-control" style="display: inline-block; width: auto;" onchange="this.form.submit()">
+                            <option value="open" <%= ticket.status === 'open' ? 'selected' : '' %>>Open</option>
+                            <option value="in_progress" <%= ticket.status === 'in_progress' ? 'selected' : '' %>>In Progress</option>
+                            <option value="resolved" <%= ticket.status === 'resolved' ? 'selected' : '' %>>Resolved</option>
+                            <option value="closed" <%= ticket.status === 'closed' ? 'selected' : '' %>>Closed</option>
+                        </select>
+                    </form>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Auto-hide alerts after 5 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 5000);
+
+        // Scroll to bottom of messages
+        const messagesContainer = document.querySelector('.messages-container');
+        if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>
+

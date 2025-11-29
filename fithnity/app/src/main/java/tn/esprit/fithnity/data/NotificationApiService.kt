@@ -52,5 +52,15 @@ interface NotificationApiService {
         @Header("Authorization") bearer: String,
         @Path("notificationId") notificationId: String
     ): ApiResponse<Unit>
+    
+    /**
+     * Broadcast notification to all users (for public transport searches)
+     * POST /api/notifications/broadcast
+     */
+    @POST("/api/notifications/broadcast")
+    suspend fun broadcastNotification(
+        @Header("Authorization") bearer: String,
+        @Body request: BroadcastNotificationRequest
+    ): ApiResponse<BroadcastNotificationResponse>
 }
 

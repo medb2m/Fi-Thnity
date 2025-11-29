@@ -200,6 +200,7 @@ export const deleteNotification = async (req, res) => {
 
 /**
  * Helper function to create a notification (used by other controllers)
+ * Also sends real-time notification via WebSocket if available
  */
 export const createNotification = async (userId, type, title, message, data = {}) => {
   try {
@@ -210,11 +211,123 @@ export const createNotification = async (userId, type, title, message, data = {}
       message,
       data
     });
+
+    // Send real-time notification via WebSocket
+    try {
+      // Access notification server from global (set in server.js)
+      const notificationServer = global.notificationServer;
+      if (notificationServer) {
+        // Convert notification to plain object for WebSocket
+        const notificationData = {
+          _id: notification._id,
+          user: notification.user.toString(),
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          data: notification.data,
+          read: notification.read,
+          createdAt: notification.createdAt,
+          updatedAt: notification.updatedAt
+        };
+        
+        notificationServer.sendNotificationToUser(userId.toString(), notificationData);
+      }
+    } catch (wsError) {
+      // WebSocket error is not critical, just log it
+      console.error('Error sending notification via WebSocket:', wsError);
+    }
+
     return notification;
   } catch (error) {
     console.error('Create notification error:', error);
     // Don't throw - notifications are not critical
     return null;
+  }
+};
+
+/**
+ * Broadcast notification to all users (for public transport searches)
+ * POST /api/notifications/broadcast
+ */
+export const broadcastNotification = async (req, res) => {
+  try {
+    const { type, title, message, data = {} } = req.body;
+    const senderId = req.user._id;
+    const senderName = req.user.name || 'Someone';
+
+    if (!type || !title || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'type, title, and message are required'
+      });
+    }
+
+    // Get all active users (excluding the sender)
+    const User = (await import('../models/User.js')).default;
+    const allUsers = await User.find({ _id: { $ne: senderId } }).select('_id');
+
+    if (allUsers.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No users to notify',
+        data: { notifiedCount: 0 }
+      });
+    }
+
+    // Create notifications for all users
+    const notificationPromises = allUsers.map(async (user) => {
+      const notification = await Notification.createNotification({
+        user: user._id,
+        type,
+        title,
+        message,
+        data: {
+          ...data,
+          senderId: senderId.toString(),
+          senderName: senderName
+        }
+      });
+
+      // Send real-time notification via WebSocket
+      try {
+        const notificationServer = global.notificationServer;
+        if (notificationServer) {
+          const notificationData = {
+            _id: notification._id,
+            user: notification.user.toString(),
+            type: notification.type,
+            title: notification.title,
+            message: notification.message,
+            data: notification.data,
+            read: notification.read,
+            createdAt: notification.createdAt,
+            updatedAt: notification.updatedAt
+          };
+          notificationServer.sendNotificationToUser(user._id.toString(), notificationData);
+        }
+      } catch (wsError) {
+        console.error('Error sending broadcast notification via WebSocket:', wsError);
+      }
+
+      return notification;
+    });
+
+    await Promise.all(notificationPromises);
+
+    console.log(`✅ Broadcast notification sent to ${allUsers.length} users`);
+
+    res.json({
+      success: true,
+      message: `Notification broadcasted to ${allUsers.length} users`,
+      data: { notifiedCount: allUsers.length }
+    });
+  } catch (error) {
+    console.error('Broadcast notification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error broadcasting notification',
+      error: error.message
+    });
   }
 };
 

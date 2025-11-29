@@ -33,3 +33,20 @@ data class UnreadCountResponse(
     val unreadCount: Int
 )
 
+/**
+ * Broadcast notification request
+ */
+data class BroadcastNotificationRequest(
+    val type: String,
+    val title: String,
+    val message: String,
+    val data: Map<String, Any> = emptyMap()
+)
+
+/**
+ * Broadcast notification response
+ */
+data class BroadcastNotificationResponse(
+    val notifiedCount: Int
+)
+

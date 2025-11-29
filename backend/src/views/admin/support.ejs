@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - Fi Thnity Admin</title>
+    <%- include('./styles.ejs') %>
+</head>
+<body>
+    <div class="header">
+        <h1 style="display: flex; align-items: center; gap: 0.75rem;">
+            <img src="/fithnity_logo.png" alt="Fi Thnity Logo" style="width: 40px; height: 40px; border-radius: 50%;">
+            Fi Thnity Admin Panel
+        </h1>
+        <div class="subtitle">Save Time, Save Tunisia</div>
+    </div>
+
+    <nav class="nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/users">Users</a>
+        <a href="/admin/rides">Rides</a>
+        <a href="/admin/posts">Community Posts</a>
+        <a href="/admin/support" class="active">Support Tickets</a>
+        <a href="/admin/logout" style="margin-left: auto;">Logout</a>
+    </nav>
+
+    <div class="container">
+        <h2 style="color: #006D9C; margin-bottom: 1.5rem;">Support Tickets Management</h2>
+
+        <!-- Success/Error Messages -->
+        <% if (typeof message !== 'undefined' && message) { %>
+            <div class="alert alert-success"><%= message %></div>
+        <% } %>
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+        <% } %>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid" style="margin-bottom: 2rem;">
+            <div class="stat-card">
+                <h3><%= stats.open %></h3>
+                <p>Open Tickets</p>
+            </div>
+            <div class="stat-card">
+                <h3><%= stats.inProgress %></h3>
+                <p>In Progress</p>
+            </div>
+            <div class="stat-card">
+                <h3><%= stats.resolved %></h3>
+                <p>Resolved</p>
+            </div>
+            <div class="stat-card">
+                <h3><%= stats.total %></h3>
+                <p>Total Tickets</p>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <form method="GET" action="/admin/support" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <div>
+                    <label for="status" style="margin-right: 0.5rem;">Status:</label>
+                    <select name="status" id="status" class="form-control" style="display: inline-block; width: auto;">
+                        <option value="">All</option>
+                        <option value="open" <%= currentStatus === 'open' ? 'selected' : '' %>>Open</option>
+                        <option value="in_progress" <%= currentStatus === 'in_progress' ? 'selected' : '' %>>In Progress</option>
+                        <option value="resolved" <%= currentStatus === 'resolved' ? 'selected' : '' %>>Resolved</option>
+                        <option value="closed" <%= currentStatus === 'closed' ? 'selected' : '' %>>Closed</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="priority" style="margin-right: 0.5rem;">Priority:</label>
+                    <select name="priority" id="priority" class="form-control" style="display: inline-block; width: auto;">
+                        <option value="">All</option>
+                        <option value="low" <%= currentPriority === 'low' ? 'selected' : '' %>>Low</option>
+                        <option value="medium" <%= currentPriority === 'medium' ? 'selected' : '' %>>Medium</option>
+                        <option value="high" <%= currentPriority === 'high' ? 'selected' : '' %>>High</option>
+                        <option value="urgent" <%= currentPriority === 'urgent' ? 'selected' : '' %>>Urgent</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Filter</button>
+                <a href="/admin/support" class="btn">Clear Filters</a>
+            </form>
+        </div>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>User</th>
+                        <th>Subject</th>
+                        <th>Category</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Messages</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (tickets.length === 0) { %>
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: #999; padding: 2rem;">
+                                No support tickets found.
+                            </td>
+                        </tr>
+                    <% } else { %>
+                        <% tickets.forEach(ticket => { %>
+                            <tr>
+                                <td><code>#<%= ticket._id.toString().substring(0, 8) %></code></td>
+                                <td>
+                                    <div><%= ticket.user?.name || 'N/A' %></div>
+                                    <small style="color: #666;"><%= ticket.user?.email || ticket.user?.phoneNumber || '' %></small>
+                                </td>
+                                <td><%= ticket.subject %></td>
+                                <td>
+                                    <span class="badge badge-info"><%= ticket.category || 'other' %></span>
+                                </td>
+                                <td>
+                                    <% const priorityColors = { low: 'badge-info', medium: 'badge-warning', high: 'badge-danger', urgent: 'badge-danger' }; %>
+                                    <span class="badge <%= priorityColors[ticket.priority] || 'badge-warning' %>">
+                                        <%= ticket.priority || 'medium' %>
+                                    </span>
+                                </td>
+                                <td>
+                                    <% const statusColors = { open: 'badge-warning', in_progress: 'badge-info', resolved: 'badge-success', closed: 'badge-secondary' }; %>
+                                    <span class="badge <%= statusColors[ticket.status] || 'badge-warning' %>">
+                                        <%= ticket.status || 'open' %>
+                                    </span>
+                                </td>
+                                <td><%= ticket.messages?.length || 0 %></td>
+                                <td><%= new Date(ticket.createdAt).toLocaleDateString() %></td>
+                                <td>
+                                    <a href="/admin/support/<%= ticket._id %>" class="btn btn-primary btn-sm">View</a>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    <% } %>
+                </tbody>
+            </table>
+
+            <% if (pagination.pages > 1) { %>
+                <div class="pagination">
+                    <% for (let i = 1; i <= pagination.pages; i++) { %>
+                        <a href="?page=<%= i %>&status=<%= currentStatus === 'all' ? '' : currentStatus %>&priority=<%= currentPriority === 'all' ? '' : currentPriority %>" 
+                           class="<%= i === pagination.page ? 'active' : '' %>"><%= i %></a>
+                    <% } %>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <script>
+        // Auto-hide alerts after 5 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>
+

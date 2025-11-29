@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.compose.runtime.DisposableEffect
 import tn.esprit.fithnity.data.*
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
@@ -39,7 +40,7 @@ fun NotificationScreen(
     val authToken = remember { userPreferences.getAuthToken() }
     val uiState by viewModel.uiState.collectAsState()
 
-    // Load notifications on mount
+    // Load notifications on mount (WebSocket is already connected in MainActivity)
     LaunchedEffect(Unit) {
         if (authToken != null) {
             viewModel.loadNotifications(authToken)
@@ -206,7 +207,18 @@ private fun NotificationItem(
                             )
                         }
                     }
-                    // TODO: Handle other notification types (RIDE_REQUEST, COMMENT, etc.)
+                    "COMMENT" -> {
+                        // Navigate to community post
+                        val postId = notification.data?.get("postId") as? String
+                        if (postId != null) {
+                            navController.navigate("community/post/$postId")
+                        }
+                    }
+                    "PUBLIC_TRANSPORT_SEARCH" -> {
+                        // Navigate to home with public transport confirmation dialog
+                        navController.navigate("home?showPublicTransportConfirmation=true")
+                    }
+                    // TODO: Handle other notification types (RIDE_REQUEST, etc.)
                     else -> {
                         // No navigation for other types yet
                     }

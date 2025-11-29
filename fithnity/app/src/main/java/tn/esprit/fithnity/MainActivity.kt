@@ -47,6 +47,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import tn.esprit.fithnity.ui.theme.Background
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
     
@@ -162,6 +167,97 @@ fun MainAppScreen(
     onLogout: () -> Unit
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    
+    // In-app notification banner state
+    val inAppNotificationState = tn.esprit.fithnity.ui.components.rememberInAppNotificationState()
+    
+    // Notification WebSocket client (app-wide connection)
+    val notificationWebSocket = remember { 
+        val token = userPreferences.getAuthToken()
+        // Pass token as-is, let NotificationWebSocketClient handle cleaning
+        tn.esprit.fithnity.services.NotificationWebSocketClient(token)
+    }
+    
+    // Connect notification WebSocket when app starts
+    LaunchedEffect(Unit) {
+        val authToken = userPreferences.getAuthToken()
+        if (authToken != null && authToken.isNotBlank()) {
+            Log.d("MainActivity", "Connecting notification WebSocket with token length: ${authToken.length}")
+            notificationWebSocket.connect()
+        } else {
+            Log.w("MainActivity", "Cannot connect notification WebSocket: No auth token")
+        }
+    }
+    
+    // Disconnect WebSocket when app is disposed
+    DisposableEffect(Unit) {
+        onDispose {
+            Log.d("MainActivity", "Disconnecting notification WebSocket...")
+            notificationWebSocket.disconnect()
+        }
+    }
+    
+    // Listen for new notifications and show both in-app banner and Android notification
+    LaunchedEffect(Unit) {
+        notificationWebSocket.newNotification.collect { notification ->
+            if (notification != null) {
+                Log.d("MainActivity", "Received notification: ${notification.title}")
+                
+                // Show in-app banner
+                inAppNotificationState.showNotification(notification)
+                
+                // Show Android system notification
+                try {
+                    tn.esprit.fithnity.utils.NotificationHelper.showNotification(
+                        context = context,
+                        title = notification.title,
+                        message = notification.message,
+                        notificationId = notification._id.hashCode(),
+                        type = notification.type,
+                        data = notification.data
+                    )
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error showing notification", e)
+                }
+            }
+        }
+    }
+    
+    // Monitor WebSocket connection status
+    LaunchedEffect(Unit) {
+        notificationWebSocket.isConnected.collect { connected ->
+            Log.d("MainActivity", "Notification WebSocket connected: $connected")
+            if (!connected) {
+                Log.d("MainActivity", "Notification WebSocket disconnected, error: ${notificationWebSocket.connectionError.value}")
+            }
+        }
+    }
+    
+    // Request notification permission for Android 13+ (API 33+)
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Log.d("MainActivity", "Notification permission granted")
+        } else {
+            Log.d("MainActivity", "Notification permission denied")
+        }
+    }
+    
+    // Check and request notification permission on first launch (Android 13+)
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            
+            if (!hasPermission) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
     
     // Track if user has visited home screen for the first time
     var isFirstHomeVisit by remember { mutableStateOf(true) }
@@ -262,10 +358,16 @@ fun MainAppScreen(
         }
     }
 
+    // Shared state for public transport dialog
+    var showPublicTransportDialog by remember { mutableStateOf(false) }
+    
     if (showQuickActionsSheet) {
         QuickActionsSheet(
             navController = navController,
-            onDismiss = { showQuickActionsSheet = false }
+            onDismiss = { showQuickActionsSheet = false },
+            onPublicTransportClick = {
+                showPublicTransportDialog = true
+            }
         )
     }
 
@@ -301,9 +403,30 @@ fun MainAppScreen(
                     navController = navController,
                     onLogout = onLogout,
                     isFirstHomeVisit = isFirstHomeVisit,
+                    showPublicTransportDialog = showPublicTransportDialog,
+                    onPublicTransportDialogShown = { showPublicTransportDialog = false },
                     onFirstHomeVisitComplete = { isFirstHomeVisit = false },
                     userPreferences = userPreferences,
                     languageViewModel = languageViewModel
+                )
+
+                // In-app notification banner (appears at the top)
+                tn.esprit.fithnity.ui.components.NotificationBanner(
+                    notification = inAppNotificationState.currentNotification.value,
+                    onDismiss = { inAppNotificationState.dismissNotification() },
+                    onClick = {
+                        // Navigate to notifications screen
+                        navController.navigate(Screen.Notifications.route) {
+                            popUpTo(Screen.Home.route) {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .zIndex(1000f) // Ensure it's above all other content
                 )
 
                 // Toast Host - Global toast notifications

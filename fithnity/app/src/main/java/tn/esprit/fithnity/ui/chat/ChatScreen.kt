@@ -39,6 +39,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tn.esprit.fithnity.data.MessageResponse
+import tn.esprit.fithnity.data.LocationData
 import tn.esprit.fithnity.data.UserPreferences
 import tn.esprit.fithnity.ui.components.ToastManager
 import tn.esprit.fithnity.ui.navigation.Screen
@@ -49,6 +50,10 @@ import java.io.InputStream
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import android.util.Log
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import java.net.URLEncoder
 
 /**
  * Helper function to convert URI to File
@@ -167,9 +172,18 @@ fun ChatScreen(
     var audioFile by remember { mutableStateOf<File?>(null) }
     var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
     
+    // Location sharing states
+    var isGettingLocation by remember { mutableStateOf(false) }
+    var fusedLocationClient by remember { mutableStateOf<FusedLocationProviderClient?>(null) }
+    
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    
+    // Initialize location client
+    LaunchedEffect(Unit) {
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+    }
     
     // Function to create camera file URI
     val createCameraFile: () -> Uri? = remember {
@@ -265,6 +279,98 @@ fun ChatScreen(
                 else -> {
                     audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 }
+            }
+        }
+    }
+    
+    // Function to get current location and share
+    fun getCurrentLocationAndShare() {
+        if (fusedLocationClient != null && authToken != null) {
+            isGettingLocation = true
+            try {
+                if (ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED ||
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    fusedLocationClient!!.getCurrentLocation(
+                        Priority.PRIORITY_HIGH_ACCURACY,
+                        null
+                    ).addOnSuccessListener { location ->
+                        if (location != null) {
+                            // Send location message
+                            val locationData = LocationData(
+                                latitude = location.latitude,
+                                longitude = location.longitude,
+                                address = null
+                            )
+                            viewModel.sendMessage(
+                                authToken,
+                                conversationId,
+                                "Shared live location",
+                                location = locationData
+                            )
+                            ToastManager.showSuccess("Location shared")
+                        } else {
+                            ToastManager.showError("Could not get current location")
+                        }
+                        isGettingLocation = false
+                    }.addOnFailureListener { e ->
+                        Log.e("ChatScreen", "Failed to get location", e)
+                        ToastManager.showError("Failed to get location: ${e.message}")
+                        isGettingLocation = false
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ChatScreen", "Error getting location", e)
+                ToastManager.showError("Error getting location")
+                isGettingLocation = false
+            }
+        }
+    }
+    
+    // Location permission launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        
+        if (fineLocationGranted || coarseLocationGranted) {
+            // Permission granted, get location
+            getCurrentLocationAndShare()
+        } else {
+            ToastManager.showError("Location permission is required to share location")
+            isGettingLocation = false
+        }
+    }
+    
+    // Function to request location permission
+    val requestLocationPermission: () -> Unit = remember {
+        {
+            val fineLocationGranted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            
+            val coarseLocationGranted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            
+            if (fineLocationGranted || coarseLocationGranted) {
+                getCurrentLocationAndShare()
+            } else {
+                locationPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
             }
         }
     }
@@ -756,6 +862,27 @@ fun ChatScreen(
                                             requestAudioPermission()
                                         }
                                     )
+                                    
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.LocationOn,
+                                                    contentDescription = null,
+                                                    tint = Primary,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                                Text("Share Live Location", fontSize = 15.sp, color = TextPrimary)
+                                            }
+                                        },
+                                        onClick = {
+                                            showImageOptionsMenu = false
+                                            requestLocationPermission()
+                                        }
+                                    )
                                 }
                             }
                             
@@ -878,7 +1005,20 @@ fun ChatScreen(
                             items(state.messages) { message ->
                                 MessageBubble(
                                     message = message,
-                                    isOwnMessage = message.sender._id == currentUserId
+                                    isOwnMessage = message.sender._id == currentUserId,
+                                    onLocationClick = { locationData ->
+                                        // Navigate to home screen with location - ENCODE parameters properly
+                                        val encodedUserName = URLEncoder.encode(message.sender.name ?: "User", "UTF-8")
+                                        val encodedUserPhoto = URLEncoder.encode(message.sender.photoUrl ?: "none", "UTF-8")
+                                        
+                                        navController.navigate(
+                                            Screen.Home.route +
+                                            "?lat=${locationData.latitude}" +
+                                            "&lng=${locationData.longitude}" +
+                                            "&userName=$encodedUserName" +
+                                            "&userPhoto=$encodedUserPhoto"
+                                        )
+                                    }
                                 )
                             }
                         }
@@ -921,7 +1061,8 @@ fun ChatScreen(
 @Composable
 fun MessageBubble(
     message: MessageResponse,
-    isOwnMessage: Boolean
+    isOwnMessage: Boolean,
+    onLocationClick: ((LocationData) -> Unit)? = null
 ) {
     val context = LocalContext.current
     
@@ -1206,6 +1347,102 @@ fun MessageBubble(
                                 color = if (isOwnMessage) Color.White.copy(alpha = 0.8f) else TextSecondary
                             )
                         }
+                    }
+                }
+                
+                // Location if message type is LOCATION
+                if (message.messageType == "LOCATION" && message.location != null) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                onLocationClick?.invoke(message.location)
+                            }
+                            .background(
+                                if (isOwnMessage) Color.White.copy(alpha = 0.1f)
+                                else Color(0xFFF0F0F0)
+                            )
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Location icon and label
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isOwnMessage) Color.White.copy(alpha = 0.2f)
+                                        else Primary.copy(alpha = 0.1f)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.LocationOn,
+                                    contentDescription = "Location",
+                                    tint = if (isOwnMessage) Color.White else Primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            
+                            Column {
+                                Text(
+                                    text = "Live Location",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isOwnMessage) Color.White else TextPrimary
+                                )
+                                Text(
+                                    text = "${message.sender.name ?: "User"} shared their location",
+                                    fontSize = 12.sp,
+                                    color = if (isOwnMessage) Color.White.copy(alpha = 0.8f) else TextSecondary
+                                )
+                            }
+                        }
+                        
+                        // Coordinates
+                        Text(
+                            text = "Lat: ${String.format("%.4f", message.location.latitude)}, " +
+                                   "Lng: ${String.format("%.4f", message.location.longitude)}",
+                            fontSize = 11.sp,
+                            color = if (isOwnMessage) Color.White.copy(alpha = 0.7f) else TextHint,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                        
+                        // View on map button
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(
+                                    if (isOwnMessage) Color.White.copy(alpha = 0.2f)
+                                    else Primary.copy(alpha = 0.1f)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Map,
+                                contentDescription = null,
+                                tint = if (isOwnMessage) Color.White else Primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Tap to view on map",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (isOwnMessage) Color.White else Primary
+                            )
+                        }
+                    }
+                    
+                    if (message.content.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
                 

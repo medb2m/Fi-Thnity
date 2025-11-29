@@ -549,7 +549,7 @@ fun ProfileScreen(
         MenuOption(
             icon = Icons.Default.Help,
             title = stringResource(R.string.help_support),
-            onClick = { /* TODO: Open help */ }
+            onClick = { navController.navigate(Screen.HelpSupport.route) }
         )
 
         Spacer(Modifier.height(24.dp))

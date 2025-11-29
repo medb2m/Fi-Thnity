@@ -4,7 +4,8 @@ import {
   getUnreadCount,
   markAsRead,
   markAllAsRead,
-  deleteNotification
+  deleteNotification,
+  broadcastNotification
 } from '../controllers/notificationController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -27,6 +28,9 @@ router.put('/read-all', markAllAsRead);
 
 // Delete notification
 router.delete('/:notificationId', deleteNotification);
+
+// Broadcast notification to all users (for public transport searches)
+router.post('/broadcast', broadcastNotification);
 
 export default router;
 
