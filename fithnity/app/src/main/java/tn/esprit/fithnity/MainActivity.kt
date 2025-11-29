@@ -169,6 +169,53 @@ fun MainAppScreen(
     val navController = rememberNavController()
     val context = LocalContext.current
     
+    // In-app notification banner state
+    val inAppNotificationState = tn.esprit.fithnity.ui.components.rememberInAppNotificationState()
+    
+    // Notification WebSocket client (app-wide connection)
+    val notificationWebSocket = remember { 
+        tn.esprit.fithnity.services.NotificationWebSocketClient(userPreferences.getAuthToken())
+    }
+    
+    // Connect notification WebSocket when app starts
+    LaunchedEffect(Unit) {
+        val authToken = userPreferences.getAuthToken()
+        if (authToken != null) {
+            Log.d("MainActivity", "Connecting notification WebSocket...")
+            notificationWebSocket.connect()
+        }
+    }
+    
+    // Disconnect WebSocket when app is disposed
+    DisposableEffect(Unit) {
+        onDispose {
+            Log.d("MainActivity", "Disconnecting notification WebSocket...")
+            notificationWebSocket.disconnect()
+        }
+    }
+    
+    // Listen for new notifications and show both in-app banner and Android notification
+    LaunchedEffect(Unit) {
+        notificationWebSocket.newNotification.collect { notification ->
+            if (notification != null) {
+                Log.d("MainActivity", "Received notification: ${notification.title}")
+                
+                // Show in-app banner
+                inAppNotificationState.showNotification(notification)
+                
+                // Show Android system notification
+                tn.esprit.fithnity.utils.NotificationHelper.showNotification(
+                    context = context,
+                    title = notification.title,
+                    message = notification.message,
+                    notificationId = notification._id.hashCode(),
+                    type = notification.type,
+                    data = notification.data
+                )
+            }
+        }
+    }
+    
     // Request notification permission for Android 13+ (API 33+)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()

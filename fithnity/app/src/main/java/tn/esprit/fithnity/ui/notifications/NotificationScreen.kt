@@ -40,18 +40,10 @@ fun NotificationScreen(
     val authToken = remember { userPreferences.getAuthToken() }
     val uiState by viewModel.uiState.collectAsState()
 
-    // Load notifications and connect WebSocket on mount
+    // Load notifications on mount (WebSocket is already connected in MainActivity)
     LaunchedEffect(Unit) {
         if (authToken != null) {
             viewModel.loadNotifications(authToken)
-            viewModel.connectWebSocket(authToken)
-        }
-    }
-    
-    // Disconnect WebSocket on unmount
-    DisposableEffect(Unit) {
-        onDispose {
-            viewModel.disconnectWebSocket()
         }
     }
 
