@@ -651,7 +651,7 @@ private fun AddRideFormDialog(
                     FilterChip(
                         selected = selectedVehicleType == VehicleType.PERSONAL_CAR,
                         onClick = { selectedVehicleType = VehicleType.PERSONAL_CAR },
-                        label = { Text("Personal Car") },
+                        label = { Text("Car") },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.DirectionsCar,
@@ -783,7 +783,7 @@ private fun AddRideFormDialog(
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = if (locationState.hasPermission) "Retry Location" else "Enable Location",
+                                    text = if (locationState.hasPermission) "Retry" else "Enable",
                                     fontSize = 14.sp
                                 )
                             }
@@ -1067,11 +1067,13 @@ private fun AddRideFormDialog(
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(if (createRideState is CreateRideUiState.Loading) {
-                    if (isOffer) "Publishing..." else "Submitting..."
-                } else {
-                    if (isOffer) "Publish" else "Submit Request"
-                })
+                Text(
+                    text = if (createRideState is CreateRideUiState.Loading) {
+                        if (isOffer) "Publishing..." else "Submitting..."
+                    } else {
+                        if (isOffer) "Publish" else "Submit"
+                    }
+                )
             }
         },
         dismissButton = {
