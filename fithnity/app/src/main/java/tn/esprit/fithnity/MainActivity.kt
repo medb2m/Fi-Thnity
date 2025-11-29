@@ -174,7 +174,10 @@ fun MainAppScreen(
     
     // Notification WebSocket client (app-wide connection)
     val notificationWebSocket = remember { 
-        tn.esprit.fithnity.services.NotificationWebSocketClient(userPreferences.getAuthToken())
+        val token = userPreferences.getAuthToken()
+        // Remove "Bearer " prefix if present
+        val cleanToken = token?.replace("Bearer ", "")?.trim()
+        tn.esprit.fithnity.services.NotificationWebSocketClient(cleanToken)
     }
     
     // Connect notification WebSocket when app starts
@@ -390,6 +393,25 @@ fun MainAppScreen(
                     onFirstHomeVisitComplete = { isFirstHomeVisit = false },
                     userPreferences = userPreferences,
                     languageViewModel = languageViewModel
+                )
+
+                // In-app notification banner (appears at the top)
+                tn.esprit.fithnity.ui.components.NotificationBanner(
+                    notification = inAppNotificationState.currentNotification.value,
+                    onDismiss = { inAppNotificationState.dismissNotification() },
+                    onClick = {
+                        // Navigate to notifications screen
+                        navController.navigate(Screen.Notifications.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .zIndex(1000f) // Ensure it's above all other content
                 )
 
                 // Toast Host - Global toast notifications

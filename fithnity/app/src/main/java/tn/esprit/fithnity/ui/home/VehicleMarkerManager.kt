@@ -52,23 +52,24 @@ class VehicleMarkerManager(
     }
     
     /**
-     * Create a bitmap icon for vehicle type using vector drawable resources
+     * Create a bitmap icon for vehicle type using drawable resources
      */
     private fun createVehicleIcon(type: VehicleType): Bitmap {
         val size = 64
         
         // Get drawable resource ID based on vehicle type
+        // For PNG files, use R.drawable directly
         val drawableResId = when (type) {
-            VehicleType.CAR -> context.resources.getIdentifier("ic_vehicle_car", "drawable", context.packageName)
-            VehicleType.BUS -> context.resources.getIdentifier("ic_vehicle_bus", "drawable", context.packageName)
-            VehicleType.MINIBUS -> context.resources.getIdentifier("ic_vehicle_minibus", "drawable", context.packageName)
-            VehicleType.METRO -> context.resources.getIdentifier("ic_vehicle_metro", "drawable", context.packageName)
-            VehicleType.TAXI -> context.resources.getIdentifier("ic_vehicle_taxi", "drawable", context.packageName)
-            VehicleType.MOTORCYCLE -> context.resources.getIdentifier("ic_vehicle_motorcycle", "drawable", context.packageName)
+            VehicleType.CAR -> tn.esprit.fithnity.R.drawable.ic_vehicle_car
+            VehicleType.BUS -> tn.esprit.fithnity.R.drawable.ic_vehicle_bus
+            VehicleType.MINIBUS -> tn.esprit.fithnity.R.drawable.ic_vehicle_minibus
+            VehicleType.METRO -> tn.esprit.fithnity.R.drawable.ic_vehicle_metro
+            VehicleType.TAXI -> tn.esprit.fithnity.R.drawable.ic_vehicle_taxi
+            VehicleType.MOTORCYCLE -> tn.esprit.fithnity.R.drawable.ic_vehicle_motorcycle
         }
         
         return try {
-            // Load vector drawable using ContextCompat for better compatibility
+            // Load drawable (works for both PNG and XML vector drawables)
             val drawable = ContextCompat.getDrawable(context, drawableResId)
                 ?: throw IllegalArgumentException("Drawable not found for ${type.name}")
             

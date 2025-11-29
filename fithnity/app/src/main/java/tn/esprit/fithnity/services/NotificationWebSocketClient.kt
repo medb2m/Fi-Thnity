@@ -43,8 +43,11 @@ class NotificationWebSocketClient(private val authToken: String?) {
             .pingInterval(30, TimeUnit.SECONDS)
             .build()
         
+        // Token should already be clean (no "Bearer " prefix)
         // Add token as query parameter for authentication
-        val wsUrl = "$WS_BASE_URL?token=$authToken"
+        val wsUrl = "$WS_BASE_URL?token=${authToken}"
+        Log.d(TAG, "Connecting to notification WebSocket...")
+        
         val request = Request.Builder()
             .url(wsUrl)
             .build()

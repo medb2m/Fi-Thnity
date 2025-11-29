@@ -35,14 +35,18 @@ class NotificationServer {
 
       // Verify JWT token
       try {
+        console.log('Notification WebSocket: Verifying token...');
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret-change-in-production');
+        console.log('Notification WebSocket: Token decoded:', decoded);
         const userId = decoded.userId || decoded.id;
         
         if (!userId) {
-          console.log('Notification WebSocket: Invalid token, no userId');
+          console.log('Notification WebSocket: Invalid token, no userId found in decoded token');
           ws.close(1008, 'Invalid token');
           return;
         }
+        
+        console.log('Notification WebSocket: Authenticated user ID:', userId);
 
         // Add connection to user's connection set
         if (!this.userConnections.has(userId)) {
