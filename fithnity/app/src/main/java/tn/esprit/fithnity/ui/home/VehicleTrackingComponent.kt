@@ -208,6 +208,19 @@ fun VehicleTrackingFAB(
                 val startLat = userLocationLat ?: 36.8065
                 val startLng = userLocationLng ?: 10.1815
                 
+                // Center map on simulation starting point
+                mapLibreMap?.let { map ->
+                    val simulationLocation = org.maplibre.android.geometry.LatLng(startLat, startLng)
+                    val cameraUpdate = org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(
+                        org.maplibre.android.camera.CameraPosition.Builder()
+                            .target(simulationLocation)
+                            .zoom(15.0)
+                            .build()
+                    )
+                    map.animateCamera(cameraUpdate, 1000)
+                    android.util.Log.d("VehicleTracking", "Centered map on simulation start point: $startLat, $startLng")
+                }
+                
                 simulator.startSimulation(
                     vehicleType = type,
                     speedKmh = speed,
