@@ -8,7 +8,10 @@ class VehicleLocationServer {
   constructor(server) {
     this.wss = new WebSocketServer({ 
       server,
-      path: '/ws/vehicle-location'
+      path: '/ws/vehicle-location',
+      perMessageDeflate: false, // Disable compression to avoid protocol issues
+      clientTracking: true,
+      maxPayload: 100 * 1024 * 1024 // 100MB max payload
     });
     
     // Store active vehicle positions in memory
@@ -23,6 +26,12 @@ class VehicleLocationServer {
   setupWebSocket() {
     this.wss.on('connection', (ws, req) => {
       console.log('New WebSocket connection for vehicle location');
+      
+      // Set up ping/pong for connection keep-alive
+      ws.isAlive = true;
+      ws.on('pong', () => {
+        ws.isAlive = true;
+      });
       
       ws.on('message', (message) => {
         try {
@@ -50,6 +59,18 @@ class VehicleLocationServer {
       // Send current vehicle positions to new client
       this.sendCurrentPositions(ws);
     });
+    
+    // Set up heartbeat interval to check for dead connections
+    this.heartbeatInterval = setInterval(() => {
+      this.wss.clients.forEach((ws) => {
+        if (ws.isAlive === false) {
+          console.log('Terminating dead WebSocket connection');
+          return ws.terminate();
+        }
+        ws.isAlive = false;
+        ws.ping();
+      });
+    }, 30000); // Every 30 seconds
     
     console.log('Vehicle Location WebSocket server started on /ws/vehicle-location');
   }

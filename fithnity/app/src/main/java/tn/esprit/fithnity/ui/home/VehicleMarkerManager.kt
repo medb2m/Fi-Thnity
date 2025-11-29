@@ -45,9 +45,26 @@ class VehicleMarkerManager(
      * Create icons for different vehicle types
      */
     private fun createVehicleIcons() {
-        VehicleType.values().forEach { type ->
-            val bitmap = createVehicleIcon(type)
-            mapStyle.addImage("vehicle_${type.iconName}", bitmap)
+        try {
+            VehicleType.values().forEach { type ->
+                try {
+                    val bitmap = createVehicleIcon(type)
+                    val iconName = "vehicle_${type.iconName}"
+                    
+                    // Remove existing icon if it exists
+                    if (mapStyle.getImage(iconName) != null) {
+                        mapStyle.removeImage(iconName)
+                    }
+                    
+                    mapStyle.addImage(iconName, bitmap)
+                    Log.d(TAG, "Created vehicle icon: $iconName")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error creating icon for ${type.name}", e)
+                }
+            }
+            Log.d(TAG, "All vehicle icons created successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating vehicle icons", e)
         }
     }
     
@@ -121,9 +138,12 @@ class VehicleMarkerManager(
      */
     fun updateVehiclePosition(position: VehiclePosition) {
         try {
+            Log.d(TAG, "updateVehiclePosition called for ${position.vehicleId}: ${position.lat}, ${position.lng}")
+            
             val vehicleType = try {
                 VehicleType.valueOf(position.type)
             } catch (e: Exception) {
+                Log.w(TAG, "Unknown vehicle type: ${position.type}, defaulting to CAR")
                 VehicleType.CAR
             }
             
@@ -143,6 +163,7 @@ class VehicleMarkerManager(
                     }
                 )
                 vehicleMarkers[position.vehicleId] = updated
+                Log.d(TAG, "Updated existing marker for ${position.vehicleId}")
             } else {
                 // Create new marker
                 vehicleMarkers[position.vehicleId] = VehicleMarkerData(
@@ -153,11 +174,13 @@ class VehicleMarkerManager(
                     type = vehicleType,
                     pathPoints = mutableListOf(newLocation)
                 )
+                Log.d(TAG, "Created new marker for ${position.vehicleId}")
             }
             
             updateMapMarkers()
         } catch (e: Exception) {
             Log.e(TAG, "Error updating vehicle position", e)
+            e.printStackTrace()
         }
     }
     
@@ -190,6 +213,13 @@ class VehicleMarkerManager(
         try {
             val sourceId = "vehicle_source_${marker.vehicleId}"
             val layerId = "vehicle_layer_${marker.vehicleId}"
+            val iconName = "vehicle_${marker.type.iconName}"
+            
+            // Ensure icon exists
+            if (mapStyle.getImage(iconName) == null) {
+                Log.w(TAG, "Icon $iconName not found, recreating icons")
+                createVehicleIcons()
+            }
             
             // Remove existing
             mapStyle.getLayer(layerId)?.let { mapStyle.removeLayer(it) }

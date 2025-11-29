@@ -10,7 +10,10 @@ class NotificationServer {
   constructor(httpServer) {
     this.wss = new WebSocketServer({ 
       server: httpServer, 
-      path: '/ws/notifications' 
+      path: '/ws/notifications',
+      perMessageDeflate: false, // Disable compression to avoid protocol issues
+      clientTracking: true,
+      maxPayload: 100 * 1024 * 1024 // 100MB max payload
     });
     
     // Map of userId -> Set of WebSocket connections for that user
@@ -24,6 +27,12 @@ class NotificationServer {
       console.log('New WebSocket connection for notifications');
       console.log('Request URL:', req.url);
       console.log('Request headers:', JSON.stringify(req.headers, null, 2));
+      
+      // Set up ping/pong for connection keep-alive
+      ws.isAlive = true;
+      ws.on('pong', () => {
+        ws.isAlive = true;
+      });
       
       // Authenticate connection using JWT token from query params
       let token = null;
@@ -99,6 +108,18 @@ class NotificationServer {
         ws.close(1008, 'Invalid token');
       }
     });
+
+    // Set up heartbeat interval to check for dead connections
+    this.heartbeatInterval = setInterval(() => {
+      this.wss.clients.forEach((ws) => {
+        if (ws.isAlive === false) {
+          console.log('Terminating dead notification WebSocket connection');
+          return ws.terminate();
+        }
+        ws.isAlive = false;
+        ws.ping();
+      });
+    }, 30000); // Every 30 seconds
 
     console.log('Notification WebSocket server started on /ws/notifications');
   }

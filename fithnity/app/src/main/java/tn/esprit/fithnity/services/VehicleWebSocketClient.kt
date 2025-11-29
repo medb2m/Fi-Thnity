@@ -54,8 +54,10 @@ class VehicleWebSocketClient {
             
             override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
                 try {
+                    Log.d(TAG, "Received WebSocket message: $text")
                     val json = JSONObject(text)
                     val event = json.optString("event")
+                    Log.d(TAG, "WebSocket event: $event")
                     
                     when (event) {
                         "vehicle_position" -> {
@@ -72,14 +74,22 @@ class VehicleWebSocketClient {
                                 driverPhoto = data.optString("driverPhoto", null)
                             )
                             
+                            Log.d(TAG, "Parsed vehicle position: ${position.vehicleId} at ${position.lat}, ${position.lng}")
+                            
                             // Update vehicle positions map
                             val currentPositions = _vehiclePositions.value.toMutableMap()
                             currentPositions[position.vehicleId] = position
                             _vehiclePositions.value = currentPositions
+                            
+                            Log.d(TAG, "Updated vehicle positions map, total vehicles: ${_vehiclePositions.value.size}")
+                        }
+                        else -> {
+                            Log.d(TAG, "Unknown event type: $event")
                         }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error parsing WebSocket message", e)
+                    e.printStackTrace()
                 }
             }
             

@@ -58,8 +58,12 @@ fun VehicleTrackingFAB(
     
     // Initialize marker manager when map style is ready
     LaunchedEffect(mapStyle) {
-        mapStyle?.let {
-            markerManager = VehicleMarkerManager(it, context)
+        if (mapStyle != null) {
+            android.util.Log.d("VehicleTracking", "Initializing marker manager with map style")
+            markerManager = VehicleMarkerManager(mapStyle, context)
+            android.util.Log.d("VehicleTracking", "Marker manager initialized: ${markerManager != null}")
+        } else {
+            android.util.Log.w("VehicleTracking", "Map style is null, cannot initialize marker manager")
         }
     }
     
@@ -74,12 +78,15 @@ fun VehicleTrackingFAB(
     var hasCenteredOnVehicle by remember { mutableStateOf(false) }
     
     // Update vehicle markers when positions change (without moving camera)
-    LaunchedEffect(vehiclePositions) {
-        markerManager?.let { manager ->
-            vehiclePositions.values.forEach { position ->
-                android.util.Log.d("VehicleTracking", "Updating vehicle marker: ${position.vehicleId} at ${position.lat}, ${position.lng}")
-                manager.updateVehiclePosition(position)
-            }
+    LaunchedEffect(vehiclePositions, markerManager) {
+        if (markerManager == null) {
+            android.util.Log.w("VehicleTracking", "Marker manager is null, cannot update positions")
+            return@LaunchedEffect
+        }
+        
+        vehiclePositions.values.forEach { position ->
+            android.util.Log.d("VehicleTracking", "Updating vehicle marker: ${position.vehicleId} at ${position.lat}, ${position.lng}")
+            markerManager?.updateVehiclePosition(position)
         }
     }
     
