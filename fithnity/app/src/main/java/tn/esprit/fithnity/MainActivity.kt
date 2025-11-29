@@ -175,17 +175,18 @@ fun MainAppScreen(
     // Notification WebSocket client (app-wide connection)
     val notificationWebSocket = remember { 
         val token = userPreferences.getAuthToken()
-        // Remove "Bearer " prefix if present
-        val cleanToken = token?.replace("Bearer ", "")?.trim()
-        tn.esprit.fithnity.services.NotificationWebSocketClient(cleanToken)
+        // Pass token as-is, let NotificationWebSocketClient handle cleaning
+        tn.esprit.fithnity.services.NotificationWebSocketClient(token)
     }
     
     // Connect notification WebSocket when app starts
     LaunchedEffect(Unit) {
         val authToken = userPreferences.getAuthToken()
-        if (authToken != null) {
-            Log.d("MainActivity", "Connecting notification WebSocket...")
+        if (authToken != null && authToken.isNotBlank()) {
+            Log.d("MainActivity", "Connecting notification WebSocket with token length: ${authToken.length}")
             notificationWebSocket.connect()
+        } else {
+            Log.w("MainActivity", "Cannot connect notification WebSocket: No auth token")
         }
     }
     

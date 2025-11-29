@@ -29,7 +29,7 @@ class NotificationWebSocketClient(private val authToken: String?) {
     val connectionError: StateFlow<String?> = _connectionError
     
     fun connect() {
-        if (authToken == null) {
+        if (authToken == null || authToken.isBlank()) {
             Log.w(TAG, "Cannot connect: No auth token")
             _connectionError.value = "No authentication token"
             return
@@ -40,14 +40,25 @@ class NotificationWebSocketClient(private val authToken: String?) {
             return
         }
         
+        // Clean token: remove "Bearer " prefix if present, trim whitespace
+        val cleanToken = authToken.replace("Bearer ", "", ignoreCase = true).trim()
+        
+        if (cleanToken.isBlank()) {
+            Log.w(TAG, "Cannot connect: Token is blank after cleaning")
+            _connectionError.value = "Invalid authentication token"
+            return
+        }
+        
         okHttpClient = OkHttpClient.Builder()
             .pingInterval(30, TimeUnit.SECONDS)
             .build()
         
-        // Token should already be clean (no "Bearer " prefix)
-        // Add token as query parameter for authentication
-        val wsUrl = "$WS_BASE_URL?token=${authToken}"
+        // URL encode the token to handle special characters
+        val encodedToken = java.net.URLEncoder.encode(cleanToken, "UTF-8")
+        val wsUrl = "$WS_BASE_URL?token=$encodedToken"
+        
         Log.d(TAG, "Connecting to notification WebSocket...")
+        Log.d(TAG, "Token length: ${cleanToken.length}, starts with: ${cleanToken.take(20)}...")
         
         val request = Request.Builder()
             .url(wsUrl)
@@ -120,13 +131,17 @@ class NotificationWebSocketClient(private val authToken: String?) {
                     _connectionError.value = t.message ?: "Connection failed"
                 }
                 
-                // Try to reconnect after a delay
-                CoroutineScope(Dispatchers.IO).launch {
-                    delay(5000) // Wait 5 seconds before retry
-                    if (!_isConnected.value) {
-                        Log.d(TAG, "Attempting to reconnect notification WebSocket...")
-                        connect()
+                // Try to reconnect after a delay (only if we have a token)
+                if (authToken != null && authToken.isNotBlank()) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        delay(5000) // Wait 5 seconds before retry
+                        if (!_isConnected.value && authToken != null && authToken.isNotBlank()) {
+                            Log.d(TAG, "Attempting to reconnect notification WebSocket...")
+                            connect()
+                        }
                     }
+                } else {
+                    Log.w(TAG, "Cannot reconnect: No auth token available")
                 }
             }
         }

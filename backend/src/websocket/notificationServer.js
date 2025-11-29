@@ -22,12 +22,27 @@ class NotificationServer {
   setupWebSocket() {
     this.wss.on('connection', (ws, req) => {
       console.log('New WebSocket connection for notifications');
+      console.log('Request URL:', req.url);
+      console.log('Request headers:', JSON.stringify(req.headers, null, 2));
       
       // Authenticate connection using JWT token from query params
-      const url = new URL(req.url, `http://${req.headers.host}`);
-      const token = url.searchParams.get('token');
+      let token = null;
+      try {
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        token = url.searchParams.get('token');
+        console.log('Token from URL params:', token ? `${token.substring(0, 20)}...` : 'null');
+      } catch (error) {
+        console.error('Error parsing URL:', error);
+        // Fallback: try to extract token manually from query string
+        const queryString = req.url.split('?')[1];
+        if (queryString) {
+          const params = new URLSearchParams(queryString);
+          token = params.get('token');
+          console.log('Token from manual parsing:', token ? `${token.substring(0, 20)}...` : 'null');
+        }
+      }
       
-      if (!token) {
+      if (!token || token.trim() === '') {
         console.log('Notification WebSocket: No token provided, closing connection');
         ws.close(1008, 'Authentication required');
         return;
@@ -35,9 +50,10 @@ class NotificationServer {
 
       // Verify JWT token
       try {
-        console.log('Notification WebSocket: Verifying token...');
+        console.log('Notification WebSocket: Verifying token (length: ' + token.length + ')...');
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret-change-in-production');
-        console.log('Notification WebSocket: Token decoded:', decoded);
+        console.log('Notification WebSocket: Token decoded successfully');
+        console.log('Decoded token payload:', JSON.stringify(decoded, null, 2));
         const userId = decoded.userId || decoded.id;
         
         if (!userId) {
