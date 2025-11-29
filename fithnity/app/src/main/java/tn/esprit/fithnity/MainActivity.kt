@@ -47,6 +47,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import tn.esprit.fithnity.ui.theme.Background
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
     
@@ -162,6 +167,32 @@ fun MainAppScreen(
     onLogout: () -> Unit
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    
+    // Request notification permission for Android 13+ (API 33+)
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Log.d("MainActivity", "Notification permission granted")
+        } else {
+            Log.d("MainActivity", "Notification permission denied")
+        }
+    }
+    
+    // Check and request notification permission on first launch (Android 13+)
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            
+            if (!hasPermission) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
     
     // Track if user has visited home screen for the first time
     var isFirstHomeVisit by remember { mutableStateOf(true) }
