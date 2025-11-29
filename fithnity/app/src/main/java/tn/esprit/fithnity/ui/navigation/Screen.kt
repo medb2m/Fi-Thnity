@@ -54,6 +54,11 @@ sealed class Screen(
         title = "Settings"
     )
 
+    object HelpSupport : Screen(
+        route = "help_support",
+        title = "Help & Support"
+    )
+
     object Notifications : Screen(
         route = "notifications",
         title = "Notifications"

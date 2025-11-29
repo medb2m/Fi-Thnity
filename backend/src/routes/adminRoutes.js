@@ -10,7 +10,12 @@ import {
   createRide,
   updateRide,
   deleteRide,
-  deletePost
+  deletePost,
+  getSupportTickets,
+  getSupportTicketDetail,
+  addSupportMessage,
+  resolveSupportTicket,
+  updateTicketStatus
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -70,5 +75,12 @@ router.post('/rides/:rideId/delete', isAuthenticated, deleteRide);
 
 // Other delete operations
 router.post('/posts/:postId/delete', isAuthenticated, deletePost);
+
+// Support Tickets routes
+router.get('/support', isAuthenticated, getSupportTickets);
+router.get('/support/:ticketId', isAuthenticated, getSupportTicketDetail);
+router.post('/support/:ticketId/message', isAuthenticated, addSupportMessage);
+router.post('/support/:ticketId/resolve', isAuthenticated, resolveSupportTicket);
+router.post('/support/:ticketId/status', isAuthenticated, updateTicketStatus);
 
 export default router;

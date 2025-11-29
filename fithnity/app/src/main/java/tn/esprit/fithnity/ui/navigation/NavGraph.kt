@@ -338,6 +338,14 @@ fun FiThnityNavGraph(
             )
         }
 
+        // Help & Support Screen
+        composable(Screen.HelpSupport.route) {
+            tn.esprit.fithnity.ui.support.HelpSupportScreen(
+                navController = navController,
+                userPreferences = userPreferences
+            )
+        }
+
         // My Offers Screen
         composable(Screen.MyOffers.route) {
             MyRidesScreen(

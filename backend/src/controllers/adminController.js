@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import Ride from '../models/Ride.js';
 import CommunityPost from '../models/CommunityPost.js';
+import SupportTicket from '../models/SupportTicket.js';
 
 /**
  * Admin Dashboard Home
@@ -403,5 +404,181 @@ export const updateRide = async (req, res) => {
   } catch (error) {
     console.error('Update ride error:', error);
     res.redirect('/admin/rides?error=Failed to update ride');
+  }
+};
+
+/**
+ * Support Tickets Management
+ * GET /admin/support
+ */
+export const getSupportTickets = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = 20;
+    const skip = (page - 1) * limit;
+    const status = req.query.status;
+    const priority = req.query.priority;
+
+    const query = {};
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+
+    const tickets = await SupportTicket.find(query)
+      .sort({ createdAt: -1 })
+      .populate('user', 'name email phoneNumber')
+      .populate('assignedTo', 'name')
+      .populate('resolvedBy', 'name')
+      .skip(skip)
+      .limit(limit);
+
+    const total = await SupportTicket.countDocuments(query);
+    const openCount = await SupportTicket.countDocuments({ status: 'open' });
+    const inProgressCount = await SupportTicket.countDocuments({ status: 'in_progress' });
+    const resolvedCount = await SupportTicket.countDocuments({ status: 'resolved' });
+
+    res.render('admin/support', {
+      title: 'Support Tickets',
+      tickets,
+      pagination: {
+        page,
+        pages: Math.ceil(total / limit),
+        total
+      },
+      stats: {
+        open: openCount,
+        inProgress: inProgressCount,
+        resolved: resolvedCount,
+        total
+      },
+      currentStatus: status || 'all',
+      currentPriority: priority || 'all',
+      message: req.query.message,
+      error: req.query.error
+    });
+  } catch (error) {
+    console.error('Get support tickets error:', error);
+    res.status(500).json({ success: false, message: 'Error loading support tickets', stack: error.message });
+  }
+};
+
+/**
+ * Get Support Ticket Detail
+ * GET /admin/support/:ticketId
+ */
+export const getSupportTicketDetail = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await SupportTicket.findById(ticketId)
+      .populate('user', 'name email phoneNumber')
+      .populate('assignedTo', 'name')
+      .populate('resolvedBy', 'name')
+      .populate('messages.senderId', 'name');
+
+    if (!ticket) {
+      return res.redirect('/admin/support?error=Ticket not found');
+    }
+
+    res.render('admin/support-detail', {
+      title: `Support Ticket #${ticket._id.toString().substring(0, 8)}`,
+      ticket,
+      message: req.query.message,
+      error: req.query.error
+    });
+  } catch (error) {
+    console.error('Get support ticket detail error:', error);
+    res.redirect('/admin/support?error=Failed to load ticket');
+  }
+};
+
+/**
+ * Add message to support ticket (Admin)
+ * POST /admin/support/:ticketId/message
+ */
+export const addSupportMessage = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const { content } = req.body;
+
+    if (!content || content.trim().length === 0) {
+      return res.redirect(`/admin/support/${ticketId}?error=Message content is required`);
+    }
+
+    const ticket = await SupportTicket.findById(ticketId);
+    if (!ticket) {
+      return res.redirect('/admin/support?error=Ticket not found');
+    }
+
+    // Update status if needed
+    if (ticket.status === 'open') {
+      ticket.status = 'in_progress';
+    }
+    if (!ticket.assignedTo) {
+      // In a real app, you'd get the admin user ID from session
+      // For now, we'll leave it null or use a system admin ID
+    }
+
+    await ticket.addMessage('admin', null, content.trim(), false);
+    await ticket.save();
+
+    res.redirect(`/admin/support/${ticketId}?message=Message sent successfully`);
+  } catch (error) {
+    console.error('Add support message error:', error);
+    res.redirect(`/admin/support/${req.params.ticketId}?error=Failed to send message`);
+  }
+};
+
+/**
+ * Resolve support ticket
+ * POST /admin/support/:ticketId/resolve
+ */
+export const resolveSupportTicket = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await SupportTicket.findById(ticketId);
+    if (!ticket) {
+      return res.redirect('/admin/support?error=Ticket not found');
+    }
+
+    // In a real app, you'd get the admin user ID from session
+    await ticket.markAsResolved(null);
+    await ticket.save();
+
+    res.redirect(`/admin/support/${ticketId}?message=Ticket resolved successfully`);
+  } catch (error) {
+    console.error('Resolve support ticket error:', error);
+    res.redirect(`/admin/support/${req.params.ticketId}?error=Failed to resolve ticket`);
+  }
+};
+
+/**
+ * Update ticket status
+ * POST /admin/support/:ticketId/status
+ */
+export const updateTicketStatus = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const { status } = req.body;
+
+    if (!['open', 'in_progress', 'resolved', 'closed'].includes(status)) {
+      return res.redirect(`/admin/support/${ticketId}?error=Invalid status`);
+    }
+
+    const ticket = await SupportTicket.findById(ticketId);
+    if (!ticket) {
+      return res.redirect('/admin/support?error=Ticket not found');
+    }
+
+    ticket.status = status;
+    if (status === 'resolved') {
+      ticket.resolvedAt = new Date();
+    }
+    await ticket.save();
+
+    res.redirect(`/admin/support/${ticketId}?message=Status updated successfully`);
+  } catch (error) {
+    console.error('Update ticket status error:', error);
+    res.redirect(`/admin/support/${req.params.ticketId}?error=Failed to update status`);
   }
 };

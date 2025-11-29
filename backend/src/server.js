@@ -33,6 +33,7 @@ import chatRoutes from './routes/chatRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import friendRoutes from './routes/friendRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import supportRoutes from './routes/supportRoutes.js';
 
 // Initialize Express app
 const app = express();
@@ -190,6 +191,7 @@ app.use('/api/community', communityRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/friends', friendRoutes);
+app.use('/api/support', supportRoutes);
 
 // Debug: Log registered routes
 console.log('📋 Registered API routes:');
