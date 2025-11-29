@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.delay
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
 import tn.esprit.fithnity.data.VehicleType
@@ -242,8 +243,23 @@ fun VehicleTrackingFAB(
         }
     }
     
-    // Connection status indicator
-    if (!isConnected) {
+    // Connection status indicator (only show for a few seconds after connection attempt)
+    var showConnectionStatus by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(isConnected) {
+        if (!isConnected && mapLibreMap != null) {
+            showConnectionStatus = true
+            // Hide after 5 seconds if still not connected
+            delay(5000)
+            if (!isConnected) {
+                showConnectionStatus = false
+            }
+        } else if (isConnected) {
+            showConnectionStatus = false
+        }
+    }
+    
+    if (showConnectionStatus && !isConnected) {
         Surface(
             modifier = Modifier
                 .padding(bottom = 80.dp)

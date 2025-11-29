@@ -1,6 +1,7 @@
 package tn.esprit.fithnity.services
 
 import android.util.Log
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import okhttp3.*
@@ -110,7 +111,23 @@ class NotificationWebSocketClient(private val authToken: String?) {
                 Log.e(TAG, "Notification WebSocket failure", t)
                 this@NotificationWebSocketClient.webSocket = null
                 _isConnected.value = false
-                _connectionError.value = t.message ?: "Connection failed"
+                
+                // Log more details about the failure
+                if (response != null) {
+                    Log.e(TAG, "Response code: ${response.code}, message: ${response.message}")
+                    _connectionError.value = "HTTP ${response.code}: ${response.message}"
+                } else {
+                    _connectionError.value = t.message ?: "Connection failed"
+                }
+                
+                // Try to reconnect after a delay
+                CoroutineScope(Dispatchers.IO).launch {
+                    delay(5000) // Wait 5 seconds before retry
+                    if (!_isConnected.value) {
+                        Log.d(TAG, "Attempting to reconnect notification WebSocket...")
+                        connect()
+                    }
+                }
             }
         }
         

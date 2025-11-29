@@ -207,14 +207,28 @@ fun MainAppScreen(
                 inAppNotificationState.showNotification(notification)
                 
                 // Show Android system notification
-                tn.esprit.fithnity.utils.NotificationHelper.showNotification(
-                    context = context,
-                    title = notification.title,
-                    message = notification.message,
-                    notificationId = notification._id.hashCode(),
-                    type = notification.type,
-                    data = notification.data
-                )
+                try {
+                    tn.esprit.fithnity.utils.NotificationHelper.showNotification(
+                        context = context,
+                        title = notification.title,
+                        message = notification.message,
+                        notificationId = notification._id.hashCode(),
+                        type = notification.type,
+                        data = notification.data
+                    )
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error showing notification", e)
+                }
+            }
+        }
+    }
+    
+    // Monitor WebSocket connection status
+    LaunchedEffect(Unit) {
+        notificationWebSocket.isConnected.collect { connected ->
+            Log.d("MainActivity", "Notification WebSocket connected: $connected")
+            if (!connected) {
+                Log.d("MainActivity", "Notification WebSocket disconnected, error: ${notificationWebSocket.connectionError.value}")
             }
         }
     }

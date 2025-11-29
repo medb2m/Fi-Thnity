@@ -163,10 +163,12 @@ class InAppNotificationState {
     val currentNotification: State<NotificationResponse?> = _currentNotification
 
     fun showNotification(notification: NotificationResponse) {
+        android.util.Log.d("NotificationBanner", "Showing notification: ${notification.title}")
         _currentNotification.value = notification
     }
 
     fun dismissNotification() {
+        android.util.Log.d("NotificationBanner", "Dismissing notification")
         _currentNotification.value = null
     }
 }

@@ -23,6 +23,8 @@ class VehicleLocationSimulator {
     private var okHttpClient: OkHttpClient? = null
     private var simulationJob: Job? = null
     private var isSimulating = false
+    private val connectionLock = java.lang.Object()
+    private var isConnected = false
     
     /**
      * Generate a small circular route around a starting point
@@ -80,12 +82,22 @@ class VehicleLocationSimulator {
         val baseLng = startLng ?: 10.1815
         
         isSimulating = true
-        connectWebSocket()
         
         simulationJob = CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Wait for WebSocket connection
-                delay(1000)
+                // Connect WebSocket and wait for connection
+                onStatusUpdate?.invoke("Connecting to server...")
+                val connected = connectWebSocket()
+                
+                if (!connected || webSocket == null) {
+                    Log.e(TAG, "Failed to connect WebSocket")
+                    onStatusUpdate?.invoke("Error: Could not connect to server")
+                    isSimulating = false
+                    return@launch
+                }
+                
+                Log.d(TAG, "WebSocket connected, starting simulation")
+                onStatusUpdate?.invoke("Connected! Getting route...")
                 
                 // For METRO, use railway tracks; for others, use streets
                 val route = withContext(Dispatchers.IO) {
@@ -186,43 +198,83 @@ class VehicleLocationSimulator {
         disconnectWebSocket()
     }
     
-    private fun connectWebSocket() {
-        okHttpClient = OkHttpClient.Builder()
-            .pingInterval(30, TimeUnit.SECONDS)
-            .build()
-        
-        val request = Request.Builder()
-            .url(WS_URL)
-            .build()
-        
-        val listener = object : WebSocketListener() {
-            override fun onOpen(webSocket: okhttp3.WebSocket, response: Response) {
-                Log.d(TAG, "Simulator WebSocket connected successfully")
-                this@VehicleLocationSimulator.webSocket = webSocket
+    private suspend fun connectWebSocket(): Boolean {
+        synchronized(connectionLock) {
+            if (webSocket != null && isConnected) {
+                Log.d(TAG, "WebSocket already connected")
+                return true
             }
             
-            override fun onClosed(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
-                Log.d(TAG, "Simulator WebSocket closed: $reason")
-                this@VehicleLocationSimulator.webSocket = null
+            isConnected = false
+            webSocket = null
+            
+            okHttpClient = OkHttpClient.Builder()
+                .pingInterval(30, TimeUnit.SECONDS)
+                .build()
+            
+            val request = Request.Builder()
+                .url(WS_URL)
+                .build()
+            
+            val listener = object : WebSocketListener() {
+                override fun onOpen(webSocket: okhttp3.WebSocket, response: Response) {
+                    Log.d(TAG, "Simulator WebSocket connected successfully")
+                    synchronized(connectionLock) {
+                        this@VehicleLocationSimulator.webSocket = webSocket
+                        isConnected = true
+                        connectionLock.notifyAll()
+                    }
+                    
+                    // Subscribe to receive vehicle positions
+                    val subscribeMessage = JSONObject().apply {
+                        put("event", "subscribe")
+                    }
+                    webSocket.send(subscribeMessage.toString())
+                }
+                
+                override fun onClosed(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
+                    Log.d(TAG, "Simulator WebSocket closed: $reason")
+                    synchronized(connectionLock) {
+                        this@VehicleLocationSimulator.webSocket = null
+                        isConnected = false
+                        connectionLock.notifyAll()
+                    }
+                }
+                
+                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                    Log.d(TAG, "Simulator received: $text")
+                }
+                
+                override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: Response?) {
+                    Log.e(TAG, "Simulator WebSocket failure", t)
+                    synchronized(connectionLock) {
+                        this@VehicleLocationSimulator.webSocket = null
+                        isConnected = false
+                        connectionLock.notifyAll()
+                    }
+                }
             }
             
-            override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
-                Log.d(TAG, "Simulator received: $text")
+            webSocket = okHttpClient?.newWebSocket(request, listener)
+            
+            // Wait for connection with timeout
+            var waited = 0
+            while (!isConnected && waited < 5000) {
+                connectionLock.wait(500)
+                waited += 500
             }
             
-            override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: Response?) {
-                Log.e(TAG, "Simulator WebSocket failure", t)
-                this@VehicleLocationSimulator.webSocket = null
-            }
+            return isConnected
         }
-        
-        okHttpClient?.newWebSocket(request, listener)
     }
     
     private fun disconnectWebSocket() {
-        webSocket?.close(1000, "Simulation stopped")
-        webSocket = null
-        okHttpClient = null
+        synchronized(connectionLock) {
+            webSocket?.close(1000, "Simulation stopped")
+            webSocket = null
+            isConnected = false
+            okHttpClient = null
+        }
     }
     
     private fun sendLocationUpdate(
