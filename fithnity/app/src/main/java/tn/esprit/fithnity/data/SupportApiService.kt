@@ -121,9 +121,3 @@ data class TicketsListResponse(
     val pagination: PaginationInfo? = null
 )
 
-data class PaginationInfo(
-    val page: Int,
-    val limit: Int,
-    val total: Int
-)
-

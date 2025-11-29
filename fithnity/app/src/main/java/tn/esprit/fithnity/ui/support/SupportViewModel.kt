@@ -99,7 +99,7 @@ class SupportViewModel : ViewModel() {
                 subject = subject,
                 description = description,
                 category = category,
-                chatbotConversation = conversationHistory
+                chatbotConversation = _conversationHistory.value
             )
 
             val response = api.createTicket("Bearer $authToken", request)

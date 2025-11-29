@@ -49,7 +49,7 @@ data class PaginationInfo(
     val page: Int,
     val limit: Int,
     val total: Int,
-    val pages: Int
+    val pages: Int? = null // Optional, as some APIs don't return it
 )
 
 /**
