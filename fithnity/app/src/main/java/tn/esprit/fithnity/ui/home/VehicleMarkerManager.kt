@@ -3,7 +3,9 @@ package tn.esprit.fithnity.ui.home
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.drawable.Drawable
 import android.util.Log
+import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import org.maplibre.android.geometry.LatLng
@@ -19,7 +21,10 @@ import tn.esprit.fithnity.data.VehicleType
 /**
  * Manages vehicle markers on MapLibre map with smooth animation
  */
-class VehicleMarkerManager(private val mapStyle: Style) {
+class VehicleMarkerManager(
+    private val mapStyle: Style,
+    private val context: android.content.Context
+) {
     private val TAG = "VehicleMarkerManager"
     private val vehicleMarkers = mutableMapOf<String, VehicleMarkerData>()
     
@@ -47,21 +52,56 @@ class VehicleMarkerManager(private val mapStyle: Style) {
     }
     
     /**
-     * Create a bitmap icon for vehicle type
+     * Create a bitmap icon for vehicle type using vector drawable resources
      */
     private fun createVehicleIcon(type: VehicleType): Bitmap {
         val size = 64
+        
+        // Get drawable resource ID based on vehicle type
+        val drawableResId = when (type) {
+            VehicleType.CAR -> context.resources.getIdentifier("ic_vehicle_car", "drawable", context.packageName)
+            VehicleType.BUS -> context.resources.getIdentifier("ic_vehicle_bus", "drawable", context.packageName)
+            VehicleType.MINIBUS -> context.resources.getIdentifier("ic_vehicle_minibus", "drawable", context.packageName)
+            VehicleType.METRO -> context.resources.getIdentifier("ic_vehicle_metro", "drawable", context.packageName)
+            VehicleType.TAXI -> context.resources.getIdentifier("ic_vehicle_taxi", "drawable", context.packageName)
+            VehicleType.MOTORCYCLE -> context.resources.getIdentifier("ic_vehicle_motorcycle", "drawable", context.packageName)
+        }
+        
+        return try {
+            // Load vector drawable using ContextCompat for better compatibility
+            val drawable = ContextCompat.getDrawable(context, drawableResId)
+                ?: throw IllegalArgumentException("Drawable not found for ${type.name}")
+            
+            // Create bitmap from drawable
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            
+            // Set bounds and draw
+            drawable.setBounds(0, 0, size, size)
+            drawable.draw(canvas)
+            
+            bitmap
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading vehicle icon for ${type.name}, using fallback", e)
+            // Fallback: create simple colored circle
+            createFallbackIcon(type, size)
+        }
+    }
+    
+    /**
+     * Fallback icon creation if vector drawable fails
+     */
+    private fun createFallbackIcon(type: VehicleType, size: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         
-        // Base color based on vehicle type
         val color = when (type) {
-            VehicleType.CAR -> android.graphics.Color.parseColor("#3D8BFD") // Blue
-            VehicleType.BUS -> android.graphics.Color.parseColor("#FF6B6B") // Red
-            VehicleType.MINIBUS -> android.graphics.Color.parseColor("#FFA500") // Orange
-            VehicleType.METRO -> android.graphics.Color.parseColor("#9B59B6") // Purple
-            VehicleType.TAXI -> android.graphics.Color.parseColor("#F1C40F") // Yellow
-            VehicleType.MOTORCYCLE -> android.graphics.Color.parseColor("#E74C3C") // Dark Red
+            VehicleType.CAR -> android.graphics.Color.parseColor("#3D8BFD")
+            VehicleType.BUS -> android.graphics.Color.parseColor("#FF6B6B")
+            VehicleType.MINIBUS -> android.graphics.Color.parseColor("#FFA500")
+            VehicleType.METRO -> android.graphics.Color.parseColor("#9B59B6")
+            VehicleType.TAXI -> android.graphics.Color.parseColor("#F1C40F")
+            VehicleType.MOTORCYCLE -> android.graphics.Color.parseColor("#E74C3C")
         }
         
         val paint = Paint().apply {
@@ -70,39 +110,7 @@ class VehicleMarkerManager(private val mapStyle: Style) {
             this.style = Paint.Style.FILL
         }
         
-        val strokePaint = Paint().apply {
-            isAntiAlias = true
-            this.color = android.graphics.Color.WHITE
-            this.style = Paint.Style.STROKE
-            strokeWidth = 4f
-        }
-        
-        // Draw vehicle shape (simplified car icon)
-        val centerX = size / 2f
-        val centerY = size / 2f
-        
-        // Main body (rounded rectangle)
-        val bodyRect = android.graphics.RectF(centerX - 20f, centerY - 12f, centerX + 20f, centerY + 12f)
-        canvas.drawRoundRect(bodyRect, 8f, 8f, paint)
-        canvas.drawRoundRect(bodyRect, 8f, 8f, strokePaint)
-        
-        // Windows
-        val windowPaint = Paint().apply {
-            isAntiAlias = true
-            this.color = android.graphics.Color.parseColor("#87CEEB")
-            this.style = Paint.Style.FILL
-        }
-        canvas.drawRect(centerX - 15f, centerY - 8f, centerX - 5f, centerY + 2f, windowPaint)
-        canvas.drawRect(centerX + 5f, centerY - 8f, centerX + 15f, centerY + 2f, windowPaint)
-        
-        // Wheels
-        val wheelPaint = Paint().apply {
-            isAntiAlias = true
-            this.color = android.graphics.Color.BLACK
-            this.style = Paint.Style.FILL
-        }
-        canvas.drawCircle(centerX - 12f, centerY + 12f, 4f, wheelPaint)
-        canvas.drawCircle(centerX + 12f, centerY + 12f, 4f, wheelPaint)
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f - 4f, paint)
         
         return bitmap
     }
@@ -162,14 +170,16 @@ class VehicleMarkerManager(private val mapStyle: Style) {
     
     /**
      * Update all vehicle markers on map
+     * Path lines are added first (below), then markers (on top)
      */
     private fun updateMapMarkers() {
+        // Update path lines FIRST (so they appear below markers)
+        updatePathLines()
+        
+        // Then update markers (so they appear on top of path lines)
         vehicleMarkers.values.forEach { marker ->
             updateMapMarker(marker)
         }
-        
-        // Update path lines
-        updatePathLines()
     }
     
     /**
@@ -197,7 +207,12 @@ class VehicleMarkerManager(private val mapStyle: Style) {
                 put("type", "Feature")
                 put("geometry", pointJson)
                 put("properties", JSONObject().apply {
-                    put("bearing", marker.bearing)
+                    // CAR and METRO always point down (0 rotation), others rotate with bearing
+                    val rotation = when (marker.type) {
+                        VehicleType.CAR, VehicleType.METRO -> 0f
+                        else -> marker.bearing
+                    }
+                    put("bearing", rotation)
                 })
             }
             
@@ -216,7 +231,17 @@ class VehicleMarkerManager(private val mapStyle: Style) {
                     PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
                 )
             
-            mapStyle.addLayer(symbolLayer)
+            // Add marker layer ABOVE its corresponding path line (so icons appear on top)
+            val pathLayerId = "vehicle_path_layer_${marker.vehicleId}"
+            val pathLayer = mapStyle.getLayer(pathLayerId)
+            
+            if (pathLayer != null) {
+                // Add marker above its path line
+                mapStyle.addLayerAbove(symbolLayer, pathLayer.id)
+            } else {
+                // If no path line exists yet, add marker normally (it will be on top)
+                mapStyle.addLayer(symbolLayer)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error updating map marker for ${marker.vehicleId}", e)
         }
@@ -256,7 +281,7 @@ class VehicleMarkerManager(private val mapStyle: Style) {
             val pathSource = GeoJsonSource(pathSourceId, lineJson.toString())
             mapStyle.addSource(pathSource)
             
-            // Add line layer
+            // Add line layer (path lines should be below markers)
             val lineLayer = org.maplibre.android.style.layers.LineLayer(pathLayerId, pathSourceId)
                 .withProperties(
                     PropertyFactory.lineColor(android.graphics.Color.parseColor("#3D8BFD")),
@@ -264,6 +289,7 @@ class VehicleMarkerManager(private val mapStyle: Style) {
                     PropertyFactory.lineOpacity(0.6f)
                 )
             
+            // Always add path lines at the bottom (before any marker layers)
             mapStyle.addLayer(lineLayer)
         }
     }

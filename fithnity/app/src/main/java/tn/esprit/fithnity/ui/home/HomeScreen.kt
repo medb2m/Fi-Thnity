@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +35,7 @@ import tn.esprit.fithnity.BuildConfig
 import tn.esprit.fithnity.ui.components.GlassCard
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.navigation.SearchState
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import tn.esprit.fithnity.ui.theme.*
 import androidx.compose.ui.res.stringResource
 import tn.esprit.fithnity.R
@@ -52,6 +54,7 @@ import coil.request.ImageRequest
 import coil.request.SuccessResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -60,6 +63,16 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.RectF
 import tn.esprit.fithnity.ui.home.VehicleTrackingFAB
+import tn.esprit.fithnity.ui.home.PublicTransportManager
+import tn.esprit.fithnity.ui.home.PublicTransportSearchDialog
+import tn.esprit.fithnity.ui.home.MetroLineSelectionDialog
+import tn.esprit.fithnity.ui.home.BusNumberInputDialog
+import tn.esprit.fithnity.ui.home.PublicTransportConfirmationDialog
+import tn.esprit.fithnity.ui.home.MetroLineConfirmationDialog
+import tn.esprit.fithnity.ui.home.BusNumberConfirmationDialog
+import tn.esprit.fithnity.services.VehicleWebSocketClient
+import tn.esprit.fithnity.data.NetworkModule
+import tn.esprit.fithnity.data.BroadcastNotificationRequest
 
 /**
  * Modern Home Screen with MapLibre
@@ -74,7 +87,10 @@ fun HomeScreen(
     sharedLocationLat: Double? = null,
     sharedLocationLng: Double? = null,
     sharedLocationUserName: String? = null,
-    sharedLocationUserPhoto: String? = null
+    sharedLocationUserPhoto: String? = null,
+    showPublicTransportDialog: Boolean = false,
+    onPublicTransportDialogShown: () -> Unit = {},
+    showPublicTransportConfirmationDialog: Boolean = false
 ) {
     // Track if map is loading
     var mapLoadError by remember { mutableStateOf(false) }
@@ -90,6 +106,45 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     // Track if we should follow user location
     var isFollowingLocation by remember { mutableStateOf(false) }
+    
+    // Get auth token for API calls
+    val userPreferences = remember { tn.esprit.fithnity.data.UserPreferences(context) }
+    val authToken = remember { userPreferences.getAuthToken() }
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Public Transport State - use state-based approach (no navigation)
+    var showPublicTransportSearchDialog by remember { 
+        mutableStateOf(false) 
+    }
+    var showPublicTransportConfirmationDialogState by remember { 
+        mutableStateOf(false) 
+    }
+    
+    // Show dialog when state changes (no navigation involved)
+    LaunchedEffect(showPublicTransportDialog) {
+        if (showPublicTransportDialog) {
+            showPublicTransportSearchDialog = true
+            // Notify that dialog has been shown
+            onPublicTransportDialogShown()
+        }
+    }
+    
+    // Show confirmation dialog when coming from notification
+    LaunchedEffect(showPublicTransportConfirmationDialog) {
+        if (showPublicTransportConfirmationDialog) {
+            showPublicTransportConfirmationDialogState = true
+        }
+    }
+    
+    var showMetroLineSelectionDialog by remember { mutableStateOf(false) }
+    var showBusNumberInputDialog by remember { mutableStateOf(false) }
+    var showMetroLineConfirmationDialog by remember { mutableStateOf(false) }
+    var showBusNumberConfirmationDialog by remember { mutableStateOf(false) }
+    
+    // Public Transport Manager
+    val webSocketClient = remember { VehicleWebSocketClient() }
+    var publicTransportManager by remember { mutableStateOf<PublicTransportManager?>(null) }
+    var markerManager by remember { mutableStateOf<VehicleMarkerManager?>(null) }
     // Track last location update time
     var lastLocationUpdate by remember { mutableStateOf<Long?>(null) }
     // Track if this is the first location update
@@ -281,6 +336,17 @@ fun HomeScreen(
                                     if (success) {
                                         map.getStyle { style ->
                                             mapStyle = style
+                                            // Initialize marker manager and public transport manager
+                                            markerManager = VehicleMarkerManager(style, context)
+                                            publicTransportManager = PublicTransportManager(
+                                                context = context,
+                                                mapLibreMap = map,
+                                                mapStyle = style,
+                                                webSocketClient = webSocketClient,
+                                                markerManager = markerManager
+                                            )
+                                            // Connect WebSocket
+                                            webSocketClient.connect()
                                         }
                                     }
                                 }
@@ -453,6 +519,8 @@ fun HomeScreen(
             context = context,
             mapLibreMap = mapLibreMap,
             mapStyle = mapStyle,
+            userLocationLat = locationState.location?.latitude,
+            userLocationLng = locationState.location?.longitude,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 180.dp, end = 20.dp)
@@ -619,6 +687,131 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+        
+        // Public Transport Dialogs
+        if (showPublicTransportSearchDialog) {
+            PublicTransportSearchDialog(
+                onDismiss = { 
+                    showPublicTransportSearchDialog = false
+                },
+                onMetroSelected = { showMetroLineSelectionDialog = true },
+                onBusSelected = { showBusNumberInputDialog = true }
+            )
+        }
+        
+        if (showMetroLineSelectionDialog) {
+            MetroLineSelectionDialog(
+                onDismiss = { showMetroLineSelectionDialog = false },
+                onLineSelected = { lineNumber ->
+                    // Send notification to all users
+                    android.util.Log.d("HomeScreen", "User searching for Metro Line $lineNumber")
+                    Toast.makeText(context, "Searching for Metro Line $lineNumber", Toast.LENGTH_SHORT).show()
+                    
+                    // Broadcast notification to all users
+                    if (authToken != null) {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                val response = NetworkModule.notificationApi.broadcastNotification(
+                                    bearer = "Bearer $authToken",
+                                    request = BroadcastNotificationRequest(
+                                        type = "PUBLIC_TRANSPORT_SEARCH",
+                                        title = "Someone is looking for Metro Line $lineNumber",
+                                        message = "Are you on your way today?",
+                                        data = mapOf(
+                                            "transportType" to "METRO",
+                                            "lineNumber" to lineNumber.toString(),
+                                            "searchType" to "METRO_LINE"
+                                        )
+                                    )
+                                )
+                                android.util.Log.d("HomeScreen", "Broadcast notification sent: ${response.data?.notifiedCount} users notified")
+                            } catch (e: Exception) {
+                                android.util.Log.e("HomeScreen", "Error broadcasting notification", e)
+                            }
+                        }
+                    }
+                }
+            )
+        }
+        
+        if (showBusNumberInputDialog) {
+            BusNumberInputDialog(
+                onDismiss = { showBusNumberInputDialog = false },
+                onBusSelected = { busNumber ->
+                    // Send notification to all users
+                    android.util.Log.d("HomeScreen", "User searching for Bus $busNumber")
+                    Toast.makeText(context, "Searching for Bus $busNumber", Toast.LENGTH_SHORT).show()
+                    
+                    // Broadcast notification to all users
+                    if (authToken != null) {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                val response = NetworkModule.notificationApi.broadcastNotification(
+                                    bearer = "Bearer $authToken",
+                                    request = BroadcastNotificationRequest(
+                                        type = "PUBLIC_TRANSPORT_SEARCH",
+                                        title = "Someone is looking for Bus $busNumber",
+                                        message = "Are you on your way today?",
+                                        data = mapOf(
+                                            "transportType" to "BUS",
+                                            "busNumber" to busNumber,
+                                            "searchType" to "BUS_NUMBER"
+                                        )
+                                    )
+                                )
+                                android.util.Log.d("HomeScreen", "Broadcast notification sent: ${response.data?.notifiedCount} users notified")
+                            } catch (e: Exception) {
+                                android.util.Log.e("HomeScreen", "Error broadcasting notification", e)
+                            }
+                        }
+                    }
+                }
+            )
+        }
+        
+        if (showPublicTransportConfirmationDialogState) {
+            PublicTransportConfirmationDialog(
+                onDismiss = { showPublicTransportConfirmationDialogState = false },
+                onMetroSelected = { showMetroLineConfirmationDialog = true },
+                onBusSelected = { showBusNumberConfirmationDialog = true }
+            )
+        }
+        
+        if (showMetroLineConfirmationDialog) {
+            MetroLineConfirmationDialog(
+                onDismiss = { showMetroLineConfirmationDialog = false },
+                onLineConfirmed = { lineNumber ->
+                    // Start metro simulation
+                    publicTransportManager?.startMetroSimulation(
+                        metroLine = lineNumber,
+                        userLocationLat = locationState.location?.latitude,
+                        userLocationLng = locationState.location?.longitude,
+                        onStatusUpdate = { status ->
+                            android.util.Log.d("HomeScreen", "Metro simulation: $status")
+                        }
+                    )
+                    Toast.makeText(context, "Sharing Metro Line $lineNumber location", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+        
+        if (showBusNumberConfirmationDialog) {
+            BusNumberConfirmationDialog(
+                onDismiss = { showBusNumberConfirmationDialog = false },
+                onBusConfirmed = { busNumber ->
+                    // Start bus simulation
+                    publicTransportManager?.startBusSimulation(
+                        busNumber = busNumber,
+                        userLocationLat = locationState.location?.latitude,
+                        userLocationLng = locationState.location?.longitude,
+                        onStatusUpdate = { status ->
+                            android.util.Log.d("HomeScreen", "Bus simulation: $status")
+                        }
+                    )
+                    Toast.makeText(context, "Sharing Bus $busNumber location", Toast.LENGTH_SHORT).show()
+                }
+            )
         }
     }
 }

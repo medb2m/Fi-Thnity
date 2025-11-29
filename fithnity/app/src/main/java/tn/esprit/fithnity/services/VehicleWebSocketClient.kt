@@ -120,5 +120,25 @@ class VehicleWebSocketClient {
         currentPositions.remove(vehicleId)
         _vehiclePositions.value = currentPositions
     }
+    
+    /**
+     * Send a message to the WebSocket server
+     */
+    fun sendMessage(message: String): Boolean {
+        return try {
+            val ws = webSocket
+            if (ws != null && _isConnected.value) {
+                ws.send(message)
+                Log.d(TAG, "Sent message: $message")
+                true
+            } else {
+                Log.w(TAG, "Cannot send message: WebSocket not connected")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending message", e)
+            false
+        }
+    }
 }
 

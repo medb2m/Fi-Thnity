@@ -262,10 +262,16 @@ fun MainAppScreen(
         }
     }
 
+    // Shared state for public transport dialog
+    var showPublicTransportDialog by remember { mutableStateOf(false) }
+    
     if (showQuickActionsSheet) {
         QuickActionsSheet(
             navController = navController,
-            onDismiss = { showQuickActionsSheet = false }
+            onDismiss = { showQuickActionsSheet = false },
+            onPublicTransportClick = {
+                showPublicTransportDialog = true
+            }
         )
     }
 
@@ -301,6 +307,8 @@ fun MainAppScreen(
                     navController = navController,
                     onLogout = onLogout,
                     isFirstHomeVisit = isFirstHomeVisit,
+                    showPublicTransportDialog = showPublicTransportDialog,
+                    onPublicTransportDialogShown = { showPublicTransportDialog = false },
                     onFirstHomeVisitComplete = { isFirstHomeVisit = false },
                     userPreferences = userPreferences,
                     languageViewModel = languageViewModel

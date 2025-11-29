@@ -218,3 +218,64 @@ export const createNotification = async (userId, type, title, message, data = {}
   }
 };
 
+/**
+ * Broadcast notification to all users (for public transport searches)
+ * POST /api/notifications/broadcast
+ */
+export const broadcastNotification = async (req, res) => {
+  try {
+    const { type, title, message, data = {} } = req.body;
+    const senderId = req.user._id;
+    const senderName = req.user.name || 'Someone';
+
+    if (!type || !title || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'type, title, and message are required'
+      });
+    }
+
+    // Get all active users (excluding the sender)
+    const User = (await import('../models/User.js')).default;
+    const allUsers = await User.find({ _id: { $ne: senderId } }).select('_id');
+
+    if (allUsers.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No users to notify',
+        data: { notifiedCount: 0 }
+      });
+    }
+
+    // Create notifications for all users
+    const notifications = allUsers.map(user => ({
+      user: user._id,
+      type,
+      title,
+      message,
+      data: {
+        ...data,
+        senderId: senderId.toString(),
+        senderName: senderName
+      }
+    }));
+
+    await Notification.insertMany(notifications);
+
+    console.log(`✅ Broadcast notification sent to ${allUsers.length} users`);
+
+    res.json({
+      success: true,
+      message: `Notification broadcasted to ${allUsers.length} users`,
+      data: { notifiedCount: allUsers.length }
+    });
+  } catch (error) {
+    console.error('Broadcast notification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error broadcasting notification',
+      error: error.message
+    });
+  }
+};
+

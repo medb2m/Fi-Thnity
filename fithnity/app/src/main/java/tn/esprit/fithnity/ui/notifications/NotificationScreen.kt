@@ -206,7 +206,18 @@ private fun NotificationItem(
                             )
                         }
                     }
-                    // TODO: Handle other notification types (RIDE_REQUEST, COMMENT, etc.)
+                    "COMMENT" -> {
+                        // Navigate to community post
+                        val postId = notification.data?.get("postId") as? String
+                        if (postId != null) {
+                            navController.navigate("community/post/$postId")
+                        }
+                    }
+                    "PUBLIC_TRANSPORT_SEARCH" -> {
+                        // Navigate to home with public transport confirmation dialog
+                        navController.navigate("home?showPublicTransportConfirmation=true")
+                    }
+                    // TODO: Handle other notification types (RIDE_REQUEST, etc.)
                     else -> {
                         // No navigation for other types yet
                     }

@@ -48,7 +48,9 @@ fun FiThnityNavGraph(
     isFirstHomeVisit: Boolean = true,
     onFirstHomeVisitComplete: () -> Unit = {},
     userPreferences: UserPreferences,
-    languageViewModel: LanguageViewModel
+    languageViewModel: LanguageViewModel,
+    showPublicTransportDialog: Boolean = false,
+    onPublicTransportDialogShown: () -> Unit = {}
 ) {
     NavHost(
         navController = navController,
@@ -84,7 +86,52 @@ fun FiThnityNavGraph(
             HomeScreen(
                 navController = navController,
                 showWelcomeBanner = isFirstHomeVisit,
-                onWelcomeBannerDismissed = onFirstHomeVisitComplete
+                onWelcomeBannerDismissed = onFirstHomeVisitComplete,
+                showPublicTransportDialog = showPublicTransportDialog,
+                onPublicTransportDialogShown = onPublicTransportDialogShown,
+                showPublicTransportConfirmationDialog = false
+            )
+        }
+        
+        // Home Screen with public transport dialog parameter (for backward compatibility)
+        composable(
+            route = Screen.Home.route + "?showPublicTransport={showPublicTransport}",
+            arguments = listOf(
+                navArgument("showPublicTransport") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
+            val showPublicTransport = backStackEntry.arguments?.getBoolean("showPublicTransport") ?: false
+            HomeScreen(
+                navController = navController,
+                showWelcomeBanner = isFirstHomeVisit,
+                onWelcomeBannerDismissed = onFirstHomeVisitComplete,
+                showPublicTransportDialog = showPublicTransport || showPublicTransportDialog,
+                onPublicTransportDialogShown = onPublicTransportDialogShown,
+                showPublicTransportConfirmationDialog = false
+            )
+        }
+        
+        // Home Screen with public transport confirmation dialog (from notification)
+        composable(
+            route = Screen.Home.route + "?showPublicTransportConfirmation={showPublicTransportConfirmation}",
+            arguments = listOf(
+                navArgument("showPublicTransportConfirmation") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
+            val showConfirmation = backStackEntry.arguments?.getBoolean("showPublicTransportConfirmation") ?: false
+            HomeScreen(
+                navController = navController,
+                showWelcomeBanner = isFirstHomeVisit,
+                onWelcomeBannerDismissed = onFirstHomeVisitComplete,
+                showPublicTransportDialog = false,
+                onPublicTransportDialogShown = onPublicTransportDialogShown,
+                showPublicTransportConfirmationDialog = showConfirmation
             )
         }
         

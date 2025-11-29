@@ -218,7 +218,8 @@ private fun BottomNavItem(
 @Composable
 fun QuickActionsSheet(
     navController: NavHostController,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onPublicTransportClick: (() -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
@@ -283,6 +284,18 @@ fun QuickActionsSheet(
                 title = stringResource(R.string.post_an_accident),
                 subtitle = "Alert others about road incidents",
                 onClick = { /* TODO */ }
+            )
+            
+            QuickActionItem(
+                icon = Icons.Default.Train,
+                title = "Public Transport",
+                subtitle = "Track metro and bus in real-time",
+                onClick = {
+                    onDismiss()
+                    onPublicTransportClick?.invoke() ?: run {
+                        navController.navigate("${Screen.Home.route}?showPublicTransport=true")
+                    }
+                }
             )
         }
     }

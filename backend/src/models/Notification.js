@@ -9,7 +9,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['MESSAGE', 'RIDE_REQUEST', 'RIDE_ACCEPTED', 'COMMENT', 'LIKE', 'FRIEND_REQUEST', 'FRIEND_REQUEST_ACCEPTED', 'SYSTEM'],
+    enum: ['MESSAGE', 'RIDE_REQUEST', 'RIDE_ACCEPTED', 'COMMENT', 'LIKE', 'FRIEND_REQUEST', 'FRIEND_REQUEST_ACCEPTED', 'SYSTEM', 'PUBLIC_TRANSPORT_SEARCH'],
     required: true
   },
   title: {

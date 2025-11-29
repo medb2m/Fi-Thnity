@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    
+    <!-- Shadow -->
+    <path
+        android:pathData="M8,52 Q32,56 56,52"
+        android:fillAlpha="0.3">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="32"
+                android:startY="52"
+                android:endX="32"
+                android:endY="56"
+                android:startColor="#40000000"
+                android:endColor="#00000000"/>
+        </aapt:attr>
+    </path>
+    
+    <!-- Minibus Body with gradient -->
+    <path
+        android:pathData="M10,24 L10,44 L54,44 L54,24 L52,20 L12,20 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="32"
+                android:startY="20"
+                android:endX="32"
+                android:endY="44"
+                android:startColor="#FFB74D"
+                android:centerColor="#FF9800"
+                android:endColor="#F57C00"/>
+        </aapt:attr>
+    </path>
+    
+    <!-- Roof -->
+    <path
+        android:pathData="M12,16 L20,14 L44,14 L52,16 L52,20 L12,20 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="32"
+                android:startY="14"
+                android:endX="32"
+                android:endY="20"
+                android:startColor="#FFC266"
+                android:endColor="#FFB04D"/>
+        </aapt:attr>
+    </path>
+    
+    <!-- Windows with gradient -->
+    <path android:pathData="M14,22 L24,22 L24,34 L14,34 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startY="22" android:endY="34"
+                android:startColor="#B3E5FC" android:endColor="#4FC3F7"/>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M28,22 L40,22 L40,34 L28,34 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startY="22" android:endY="34"
+                android:startColor="#B3E5FC" android:endColor="#4FC3F7"/>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M44,22 L50,22 L50,34 L44,34 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startY="22" android:endY="34"
+                android:startColor="#B3E5FC" android:endColor="#4FC3F7"/>
+        </aapt:attr>
+    </path>
+    
+    <!-- Wheels with 3D effect -->
+    <path android:pathData="M16,44 A6,6 0 1,1 16,44 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="16" android:centerY="48"
+                android:gradientRadius="6" android:startColor="#424242"
+                android:centerColor="#212121" android:endColor="#000000"/>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M48,44 A6,6 0 1,1 48,44 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="48" android:centerY="48"
+                android:gradientRadius="6" android:startColor="#424242"
+                android:centerColor="#212121" android:endColor="#000000"/>
+        </aapt:attr>
+    </path>
+    
+    <!-- Wheel rims -->
+    <path android:pathData="M16,44 A3,3 0 1,1 16,44 Z" android:fillColor="#9E9E9E"/>
+    <path android:pathData="M48,44 A3,3 0 1,1 48,44 Z" android:fillColor="#9E9E9E"/>
+    
+    <!-- Headlight -->
+    <path android:pathData="M54,30 L56,30 L56,32 L54,32 Z" android:fillColor="#FFF9C4"/>
+</vector>
