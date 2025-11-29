@@ -30,6 +30,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.platform.LocalContext
 import android.location.Geocoder
 import android.location.Address
+import android.util.Log
+import tn.esprit.fithnity.BuildConfig
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.IOException
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -101,29 +107,226 @@ fun FiThnityTopBar(
         if (isHomeScreen && searchQuery.isNotBlank() && searchQuery.length >= 2) {
             SearchState.updateSuggestions(emptyList(), true, true)
             
-            // Debounce the geocoding call
-            delay(400)
+            // Debounce the geocoding call (reduced from 400ms to 300ms for faster response)
+            delay(300)
             
             try {
-                val geocoder = Geocoder(context, Locale.getDefault())
                 val addresses = withContext(Dispatchers.IO) {
                     try {
-                        // Get more suggestions (30) to have better results after filtering
-                        // Geocoder already does partial matching, so "tun" will find "Tunis", "Tunisia", etc.
-                        val allAddresses = geocoder.getFromLocationName(searchQuery, 30) ?: emptyList()
+                        val queryTrimmed = searchQuery.trim()
+                        val queryLower = queryTrimmed.lowercase()
                         
-                        // Filter to only include addresses in Tunisia
-                        // The Geocoder already does partial matching, so we just need to filter by country
-                        val tunisiaAddresses = allAddresses.filter { address ->
-                            address.countryName?.equals("Tunisia", ignoreCase = true) == true ||
-                            address.countryCode?.equals("TN", ignoreCase = true) == true ||
-                            address.countryName?.equals("Tunisie", ignoreCase = true) == true
+                        // Get current app language for Nominatim API
+                        val currentLocale = Locale.getDefault()
+                        val languageCode = when {
+                            currentLocale.language == "fr" -> "fr"
+                            currentLocale.language == "ar" -> "en" // Use English instead of Arabic
+                            else -> "en" // Default to English
                         }
                         
-                        // Limit to 10 best results
-                        tunisiaAddresses.take(10)
-                    } catch (e: IOException) {
-                        emptyList()
+                        // Use Nominatim (OpenStreetMap) API - free and works great for Tunisia
+                        val encodedQuery = java.net.URLEncoder.encode(queryTrimmed, "UTF-8")
+                        // Limit to Tunisia, return up to 20 results, format as JSON, specify language
+                        val url = "https://nominatim.openstreetmap.org/search?q=$encodedQuery&countrycodes=tn&limit=20&format=json&addressdetails=1&accept-language=$languageCode"
+                        
+                        val client = OkHttpClient.Builder()
+                            .addInterceptor { chain ->
+                                val request = chain.request().newBuilder()
+                                    .addHeader("User-Agent", "FiThnityApp/1.0") // Required by Nominatim
+                                    .addHeader("Accept-Language", languageCode) // Request results in app language
+                                    .build()
+                                chain.proceed(request)
+                            }
+                            .build()
+                        
+                        val request = Request.Builder()
+                            .url(url)
+                            .get()
+                            .build()
+                        
+                        val response = client.newCall(request).execute()
+                        val responseBody = response.body?.string()
+                        
+                        if (!response.isSuccessful || responseBody == null) {
+                            Log.e("TopBar", "Nominatim API error: ${response.code}, falling back to Geocoder")
+                            // Fallback to Android Geocoder
+                            return@withContext try {
+                                val geocoder = Geocoder(context, Locale.getDefault())
+                                val fallbackResults = geocoder.getFromLocationName(queryTrimmed, 10) ?: emptyList()
+                                fallbackResults.filter { address ->
+                                    address.countryName?.equals("Tunisia", ignoreCase = true) == true ||
+                                    address.countryCode?.equals("TN", ignoreCase = true) == true ||
+                                    address.countryName?.equals("Tunisie", ignoreCase = true) == true
+                                }
+                            } catch (e: Exception) {
+                                Log.e("TopBar", "Geocoder fallback also failed", e)
+                                emptyList<Address>()
+                            }
+                        }
+                        
+                        val jsonArray = JSONArray(responseBody)
+                        
+                        if (jsonArray.length() == 0) {
+                            // No results from Nominatim, try Geocoder as fallback
+                            Log.d("TopBar", "No Nominatim results, trying Geocoder fallback")
+                            return@withContext try {
+                                val geocoder = Geocoder(context, Locale.getDefault())
+                                val fallbackResults = geocoder.getFromLocationName(queryTrimmed, 10) ?: emptyList()
+                                fallbackResults.filter { address ->
+                                    address.countryName?.equals("Tunisia", ignoreCase = true) == true ||
+                                    address.countryCode?.equals("TN", ignoreCase = true) == true ||
+                                    address.countryName?.equals("Tunisie", ignoreCase = true) == true
+                                }
+                            } catch (e: Exception) {
+                                Log.e("TopBar", "Geocoder fallback failed", e)
+                                emptyList<Address>()
+                            }
+                        }
+                        
+                        val addressesList = mutableListOf<Address>()
+                        
+                        for (i in 0 until jsonArray.length()) {
+                            try {
+                                val item = jsonArray.getJSONObject(i)
+                                val addressDetails = item.optJSONObject("address") ?: JSONObject()
+                                
+                                // Create Address object from Nominatim response
+                                val address = Address(Locale.getDefault())
+                                
+                                // Set coordinates
+                                address.latitude = item.getDouble("lat")
+                                address.longitude = item.getDouble("lon")
+                                
+                                // Extract address components
+                                val displayName = item.optString("display_name", "")
+                                val name = item.optString("name", "")
+                                val city = addressDetails.optString("city", "")
+                                val town = addressDetails.optString("town", "")
+                                val village = addressDetails.optString("village", "")
+                                val municipality = addressDetails.optString("municipality", "")
+                                val state = addressDetails.optString("state", "")
+                                val district = addressDetails.optString("county", "")
+                                val postcode = addressDetails.optString("postcode", "")
+                                val road = addressDetails.optString("road", "")
+                                val houseNumber = addressDetails.optString("house_number", "")
+                                val country = addressDetails.optString("country", "")
+                                
+                                // Determine locality (city, town, village, or municipality)
+                                val locality = city.ifBlank { town.ifBlank { village.ifBlank { municipality } } }
+                                
+                                // Build address line
+                                val addressParts = mutableListOf<String>()
+                                if (houseNumber.isNotBlank()) addressParts.add(houseNumber)
+                                if (road.isNotBlank()) addressParts.add(road)
+                                if (addressParts.isEmpty() && name.isNotBlank()) {
+                                    addressParts.add(name)
+                                } else if (addressParts.isEmpty() && displayName.isNotBlank()) {
+                                    // Use display_name but take only the first part (before comma)
+                                    val firstPart = displayName.split(",").firstOrNull()?.trim() ?: displayName
+                                    addressParts.add(firstPart)
+                                }
+                                
+                                if (addressParts.isNotEmpty()) {
+                                    address.setAddressLine(0, addressParts.joinToString(" "))
+                                } else if (name.isNotBlank()) {
+                                    address.setAddressLine(0, name)
+                                } else if (displayName.isNotBlank()) {
+                                    // Use first part of display_name
+                                    val firstPart = displayName.split(",").firstOrNull()?.trim() ?: displayName
+                                    address.setAddressLine(0, firstPart)
+                                } else {
+                                    address.setAddressLine(0, locality.ifBlank { state })
+                                }
+                                
+                                // Set locality and other fields
+                                address.locality = locality.ifBlank { null }
+                                address.subLocality = district.ifBlank { null }
+                                address.postalCode = postcode.ifBlank { null }
+                                address.adminArea = state.ifBlank { null }
+                                address.countryName = country.ifBlank { "Tunisia" }
+                                address.countryCode = "TN"
+                                address.featureName = name.ifBlank { null }
+                                address.thoroughfare = road.ifBlank { null }
+                                
+                                addressesList.add(address)
+                            } catch (e: Exception) {
+                                Log.e("TopBar", "Error parsing Nominatim result $i", e)
+                            }
+                        }
+                        
+                        Log.d("TopBar", "Found ${addressesList.size} addresses from Nominatim for query: $queryTrimmed")
+                        
+                        // Filter addresses to only keep those that match the query
+                        val queryWords = queryLower.split(" ").filter { it.isNotBlank() }
+                        val filteredAddresses = addressesList.filter { address ->
+                            val addressLine = address.getAddressLine(0)?.lowercase() ?: ""
+                            val locality = address.locality?.lowercase() ?: ""
+                            val subLocality = address.subLocality?.lowercase() ?: ""
+                            val featureName = address.featureName?.lowercase() ?: ""
+                            val thoroughfare = address.thoroughfare?.lowercase() ?: ""
+                            val adminArea = address.adminArea?.lowercase() ?: ""
+                            
+                            // Check if all query words appear in at least one field
+                            val allFields = listOf(addressLine, locality, subLocality, featureName, thoroughfare, adminArea)
+                            val combinedText = allFields.joinToString(" ").lowercase()
+                            
+                            // All query words must be found in the combined text
+                            queryWords.all { word ->
+                                combinedText.contains(word)
+                            }
+                        }
+                        
+                        Log.d("TopBar", "Filtered to ${filteredAddresses.size} addresses matching query")
+                        
+                        // Sort by relevance with more precise scoring
+                        val sortedAddresses = filteredAddresses.sortedWith(compareBy<Address> { address ->
+                            val addressLine = address.getAddressLine(0)?.lowercase() ?: ""
+                            val locality = address.locality?.lowercase() ?: ""
+                            val subLocality = address.subLocality?.lowercase() ?: ""
+                            val featureName = address.featureName?.lowercase() ?: ""
+                            val thoroughfare = address.thoroughfare?.lowercase() ?: ""
+                            
+                            // Calculate relevance score (lower is better)
+                            when {
+                                // Exact match at start of address line (highest priority)
+                                addressLine.startsWith(queryLower) -> 0
+                                // Exact match at start of feature name
+                                featureName.startsWith(queryLower) -> 1
+                                // Exact match at start of locality
+                                locality.startsWith(queryLower) -> 2
+                                // Query words all at start of address line
+                                queryWords.all { addressLine.startsWith(it) } -> 3
+                                // Query appears as complete phrase in address line
+                                addressLine.contains(queryLower) -> 4
+                                // Query appears in feature name
+                                featureName.contains(queryLower) -> 5
+                                // Query words all appear in address line (in any order)
+                                queryWords.all { addressLine.contains(it) } -> 6
+                                // Query appears in locality
+                                locality.contains(queryLower) -> 7
+                                // Query words all appear in locality
+                                queryWords.all { locality.contains(it) } -> 8
+                                // Query appears in thoroughfare
+                                thoroughfare.contains(queryLower) -> 9
+                                // Query words all appear in feature name
+                                queryWords.all { featureName.contains(it) } -> 10
+                                // At least some query words in address line
+                                queryWords.any { addressLine.contains(it) } -> 11
+                                // At least some query words in locality
+                                queryWords.any { locality.contains(it) } -> 12
+                                // At least some query words in feature name
+                                queryWords.any { featureName.contains(it) } -> 13
+                                else -> 14
+                            }
+                        }.thenBy { address ->
+                            // Secondary sort: prefer shorter names (more specific)
+                            (address.getAddressLine(0)?.length ?: Int.MAX_VALUE)
+                        })
+                        
+                        sortedAddresses
+                    } catch (e: Exception) {
+                        Log.e("TopBar", "Error in MapTiler geocoding", e)
+                        emptyList<Address>()
                     }
                 }
                 SearchState.updateSuggestions(addresses, false, true)
@@ -338,7 +541,7 @@ fun PlaceSuggestionsDropdown(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 300.dp)
+                    .heightIn(max = 500.dp) // Increased to show up to 20 suggestions
             ) {
                 if (isLoading) {
                     Box(

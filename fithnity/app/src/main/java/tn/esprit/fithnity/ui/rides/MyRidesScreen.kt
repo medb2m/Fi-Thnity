@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -612,7 +613,7 @@ private fun EditRideFormDialog(
                     FilterChip(
                         selected = selectedVehicleType == VehicleType.PERSONAL_CAR,
                         onClick = { selectedVehicleType = VehicleType.PERSONAL_CAR },
-                        label = { Text("Personal Car") },
+                        label = { Text("Car") },
                         leadingIcon = {
                             Icon(Icons.Default.DirectionsCar, null, modifier = Modifier.size(18.dp))
                         },
@@ -830,7 +831,9 @@ private fun EditRideFormDialog(
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(if (createRideState is CreateRideUiState.Loading) "Updating..." else "Update")
+                Text(
+                    text = if (createRideState is CreateRideUiState.Loading) "Updating..." else "Update"
+                )
             }
         },
         dismissButton = {
