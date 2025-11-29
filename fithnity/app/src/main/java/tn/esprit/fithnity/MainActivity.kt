@@ -402,8 +402,8 @@ fun MainAppScreen(
                     onClick = {
                         // Navigate to notifications screen
                         navController.navigate(Screen.Notifications.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                            popUpTo(Screen.Home.route) {
+                                inclusive = false
                             }
                             launchSingleTop = true
                             restoreState = true
