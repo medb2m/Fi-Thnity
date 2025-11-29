@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.compose.runtime.DisposableEffect
 import tn.esprit.fithnity.data.*
 import tn.esprit.fithnity.ui.navigation.Screen
 import tn.esprit.fithnity.ui.theme.*
@@ -39,10 +40,18 @@ fun NotificationScreen(
     val authToken = remember { userPreferences.getAuthToken() }
     val uiState by viewModel.uiState.collectAsState()
 
-    // Load notifications on mount
+    // Load notifications and connect WebSocket on mount
     LaunchedEffect(Unit) {
         if (authToken != null) {
             viewModel.loadNotifications(authToken)
+            viewModel.connectWebSocket(authToken)
+        }
+    }
+    
+    // Disconnect WebSocket on unmount
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.disconnectWebSocket()
         }
     }
 

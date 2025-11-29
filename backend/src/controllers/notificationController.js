@@ -200,6 +200,7 @@ export const deleteNotification = async (req, res) => {
 
 /**
  * Helper function to create a notification (used by other controllers)
+ * Also sends real-time notification via WebSocket if available
  */
 export const createNotification = async (userId, type, title, message, data = {}) => {
   try {
@@ -210,6 +211,32 @@ export const createNotification = async (userId, type, title, message, data = {}
       message,
       data
     });
+
+    // Send real-time notification via WebSocket
+    try {
+      // Access notification server from global (set in server.js)
+      const notificationServer = global.notificationServer;
+      if (notificationServer) {
+        // Convert notification to plain object for WebSocket
+        const notificationData = {
+          _id: notification._id,
+          user: notification.user.toString(),
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          data: notification.data,
+          read: notification.read,
+          createdAt: notification.createdAt,
+          updatedAt: notification.updatedAt
+        };
+        
+        notificationServer.sendNotificationToUser(userId.toString(), notificationData);
+      }
+    } catch (wsError) {
+      // WebSocket error is not critical, just log it
+      console.error('Error sending notification via WebSocket:', wsError);
+    }
+
     return notification;
   } catch (error) {
     console.error('Create notification error:', error);
@@ -248,19 +275,44 @@ export const broadcastNotification = async (req, res) => {
     }
 
     // Create notifications for all users
-    const notifications = allUsers.map(user => ({
-      user: user._id,
-      type,
-      title,
-      message,
-      data: {
-        ...data,
-        senderId: senderId.toString(),
-        senderName: senderName
-      }
-    }));
+    const notificationPromises = allUsers.map(async (user) => {
+      const notification = await Notification.createNotification({
+        user: user._id,
+        type,
+        title,
+        message,
+        data: {
+          ...data,
+          senderId: senderId.toString(),
+          senderName: senderName
+        }
+      });
 
-    await Notification.insertMany(notifications);
+      // Send real-time notification via WebSocket
+      try {
+        const notificationServer = global.notificationServer;
+        if (notificationServer) {
+          const notificationData = {
+            _id: notification._id,
+            user: notification.user.toString(),
+            type: notification.type,
+            title: notification.title,
+            message: notification.message,
+            data: notification.data,
+            read: notification.read,
+            createdAt: notification.createdAt,
+            updatedAt: notification.updatedAt
+          };
+          notificationServer.sendNotificationToUser(user._id.toString(), notificationData);
+        }
+      } catch (wsError) {
+        console.error('Error sending broadcast notification via WebSocket:', wsError);
+      }
+
+      return notification;
+    });
+
+    await Promise.all(notificationPromises);
 
     console.log(`✅ Broadcast notification sent to ${allUsers.length} users`);
 

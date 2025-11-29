@@ -28,7 +28,59 @@ class NotificationViewModel : ViewModel() {
 
     private val _unreadCount = MutableStateFlow(0)
     val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
+    
+    // WebSocket client for real-time notifications
+    private var notificationWebSocket: tn.esprit.fithnity.services.NotificationWebSocketClient? = null
 
+    /**
+     * Connect to WebSocket for real-time notifications
+     */
+    fun connectWebSocket(authToken: String?) {
+        if (authToken == null) {
+            Log.d(TAG, "Cannot connect WebSocket: No auth token")
+            return
+        }
+        
+        // Disconnect existing connection if any
+        notificationWebSocket?.disconnect()
+        
+        // Create new WebSocket client
+        notificationWebSocket = tn.esprit.fithnity.services.NotificationWebSocketClient(authToken)
+        
+        // Observe new notifications from WebSocket
+        viewModelScope.launch {
+            notificationWebSocket?.newNotification?.collect { notification ->
+                if (notification != null) {
+                    Log.d(TAG, "Received real-time notification: ${notification.title}")
+                    
+                    // Add notification to current list
+                    val currentState = _uiState.value
+                    if (currentState is NotificationsUiState.Success) {
+                        val updatedNotifications = listOf(notification) + currentState.notifications
+                        _unreadCount.value = currentState.unreadCount + 1
+                        _uiState.value = NotificationsUiState.Success(updatedNotifications, _unreadCount.value)
+                    } else {
+                        // If not loaded yet, just update unread count
+                        _unreadCount.value = _unreadCount.value + 1
+                    }
+                }
+            }
+        }
+        
+        // Connect WebSocket
+        notificationWebSocket?.connect()
+        Log.d(TAG, "WebSocket connection initiated")
+    }
+    
+    /**
+     * Disconnect WebSocket
+     */
+    fun disconnectWebSocket() {
+        notificationWebSocket?.disconnect()
+        notificationWebSocket = null
+        Log.d(TAG, "WebSocket disconnected")
+    }
+    
     /**
      * Load notifications
      */
